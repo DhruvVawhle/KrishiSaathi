@@ -1,0 +1,32 @@
+{
+  "name": "krishisaathi-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "userserver.js",
+  "scripts": {
+    "start:users": "node userserver.js",
+    "start:orders": "node ordersServer.js",
+    "start:payment": "node payment.js",
+    "dev:users": "nodemon userserver.js",
+    "dev:orders": "nodemon ordersServer.js",
+    "dev:payment": "nodemon payment.js",
+    "dev:all": "concurrently \"nodemon userserver.js\" \"nodemon ordersServer.js\" \"nodemon payment.js\""
+  },
+  "dependencies": {
+    "aws-jwt-verifier": "^1.1.0",
+    "axios": "^1.4.0",
+    "razorpay": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^6.10.0",
+    "firebase-admin": "^11.10.0",
+    "helmet": "^7.0.0",
+    "mongoose": "^7.5.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "nodemon": "^3.0.1"
+  }
+}
