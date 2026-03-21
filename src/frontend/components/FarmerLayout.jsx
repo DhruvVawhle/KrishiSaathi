@@ -1,7 +1,6 @@
 // ✅ src/layouts/FarmerDashboardLayout.jsx (Enhanced v2)
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
-import Footer from "../components/Footer";
 import {
   Home,
   PlusCircle,
@@ -20,11 +19,10 @@ const SidebarItem = React.forwardRef(({ to, label, Icon, onClick, active }, ref)
     to={to}
     onClick={onClick}
     ref={ref}
-    className={`flex items-center gap-3 px-3 py-2 rounded-md transition text-sm font-medium ${
-      active
-        ? "bg-green-100 text-green-700 shadow-sm"
-        : "text-gray-700 hover:bg-green-50 hover:text-green-800"
-    }`}
+    className={`flex items-center gap-3 px-3 py-2 rounded-md transition text-sm font-medium ${active
+      ? "bg-green-100 text-green-700 shadow-sm"
+      : "text-gray-700 hover:bg-green-50 hover:text-green-800"
+      }`}
     role="menuitem"
   >
     <Icon size={18} className={active ? "text-green-600" : "text-green-500"} />
@@ -90,7 +88,28 @@ const FarmerDashboardLayout = () => {
       localStorage.removeItem(k)
     );
     window.dispatchEvent(new CustomEvent("cart-cleared"));
-    toast.info("👋 Logged out successfully", { autoClose: 1000 });
+    toast.success("You've been logged out. See you soon! 👋", {
+      toastId: 'logout',
+      icon: '👋',
+      style: {
+        background: '#1a3a1a',
+        color: '#ffffff',
+        borderRadius: '12px',
+        border: '1px solid rgba(255,255,255,0.15)',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        fontWeight: '500',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(8px)',
+        minWidth: '280px',
+      },
+      progressStyle: { background: '#c17a4a' },
+      position: 'top-right',
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+    });
     setTimeout(() => navigate("/login"), 1000);
   };
 
@@ -131,7 +150,7 @@ const FarmerDashboardLayout = () => {
                 >
                   KrishiSaathi
                 </span>
-                <div className="text-xs text-gray-500 hidden sm:block">
+                <div className="text-xs text-gray-500 hidden md:block">
                   Farmer Portal
                 </div>
               </div>
@@ -222,11 +241,10 @@ const FarmerDashboardLayout = () => {
                     className="before:content-['/'] before:px-2 before:text-gray-300"
                   >
                     <span
-                      className={`truncate ${
-                        idx === breadcrumb.length - 1
-                          ? "text-gray-800 font-semibold"
-                          : ""
-                      }`}
+                      className={`truncate ${idx === breadcrumb.length - 1
+                        ? "text-gray-800 font-semibold"
+                        : ""
+                        }`}
                     >
                       {b}
                     </span>
@@ -240,12 +258,9 @@ const FarmerDashboardLayout = () => {
           <div className="min-h-[60vh] bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <Outlet />
           </div>
-          <div className="mt-6">
-            <Footer />
-          </div>
         </main>
       </div>
-    </div>
+    </div >
   );
 };
 

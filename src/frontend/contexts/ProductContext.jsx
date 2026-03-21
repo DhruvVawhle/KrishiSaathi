@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { allProducts } from "@/data/products";
+import { getProductsRealtime } from '../services/firestoreService';
 
 const ProductContext = createContext();
 export const useProducts = () => useContext(ProductContext);
@@ -6,6 +8,7 @@ export const useProducts = () => useContext(ProductContext);
 // LocalStorage keys
 const PRODUCTS_KEY = "krishi_products_v3";
 const SALES_KEY = "krishi_sales_v2";
+const API_BASE = "/api/users";
 
 /**
  * ProductProvider
@@ -17,43 +20,32 @@ const SALES_KEY = "krishi_sales_v2";
  */
 export const ProductProvider = ({ children }) => {
   /* ---------------------- PRODUCTS ---------------------- */
-  const [products, setProducts] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PRODUCTS_KEY);
-      if (raw) return JSON.parse(raw);
+  const [products, setProducts] = useState([]);
+  const [dbProducts, setDbProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-      // Default seed (first-time load)
-      return [
-        {
-          id: 1,
-          name: "Tomatoes",
-          price: 60,
-          quantity: 100,
-          unit: "kg",
-          category: "Vegetables",
-          subcategory: "Root",
-          image:
-            "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=800&q=60",
-          farmerId: "demo",
-        },
-        {
-          id: 2,
-          name: "Banana (1 dozen)",
-          price: 50,
-          quantity: 80,
-          unit: "dozen",
-          category: "Fruits",
-          subcategory: "Tropical",
-          image:
-            "https://images.unsplash.com/photo-1574226516831-e1dff420e8f8?auto=format&fit=crop&w=800&q=60",
-          farmerId: "demo",
-        },
-      ];
-    } catch (e) {
-      console.error("Error reading products from localStorage", e);
-      return [];
-    }
-  });
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = getProductsRealtime((items) => {
+      setDbProducts(items);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Combined products: DB products + static products (deduplicated by name)
+  const combinedProducts = React.useMemo(() => {
+    const combined = [...dbProducts];
+    const seenNames = new Set(dbProducts.map(p => p.name.toLowerCase()));
+
+    allProducts.forEach(p => {
+      if (!seenNames.has(p.name.toLowerCase())) {
+        combined.push(p);
+      }
+    });
+
+    return combined;
+  }, [dbProducts]);
 
   /* ---------------------- SALES LOGS ---------------------- */
   const [salesLogs, setSalesLogs] = useState(() => {
@@ -151,6 +143,7 @@ export const ProductProvider = ({ children }) => {
   /* ---------------------- RECORD SALE ---------------------- */
   const recordSale = useCallback(
     (productId, qty = 1) => {
+      const API_BASE = "/api/payment";
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
 
@@ -205,7 +198,7 @@ export const ProductProvider = ({ children }) => {
   /* ---------------------- OPTIONAL BACKEND SYNC ---------------------- */
   const syncProductsToServer = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:5002/api/products/sync", {
+      const res = await fetch("/api/products/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ products }),
@@ -221,7 +214,11 @@ export const ProductProvider = ({ children }) => {
   return (
     <ProductContext.Provider
       value={{
-        products,
+        products: dbProducts, // Legacy 'products' now maps to DB products
+        dbProducts,
+        combinedProducts,
+        loading,
+        loadProductsFromDB: () => {}, // dummy for backward compat if any component still calls it
         addProduct,
         updateProduct,
         removeProduct,
@@ -231,7 +228,7 @@ export const ProductProvider = ({ children }) => {
         updateStockAfterCheckout,
         clearProducts,
         syncProductsToServer,
-        setProducts, // exposed for debug/manual import
+        setProducts: setDbProducts,
       }}
     >
       {children}

@@ -11,7 +11,7 @@ import {
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const API_BASE = "/api/payment";
 
 export default function PaymentForm() {
   const navigate = useNavigate();

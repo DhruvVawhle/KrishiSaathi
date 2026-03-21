@@ -1,31 +1,38 @@
 // src/frontend/pages/BuyerDashboard.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useUser } from "../contexts/UserContext";
-import { useNavigate } from "react-router-dom";
-import { useCart } from "../contexts/CartContext";
+import { useUser } from "@/frontend/contexts/UserContext";
+import { useNavigate, Link } from "react-router-dom";
+import { useCart } from "@/frontend/contexts/CartContext";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import "react-toastify/dist/ReactToastify.css";
+import { auth } from "@/frontend/config/firebaseConfig";
+import {
+  Bell, ShoppingCart, LogOut, ChevronDown, Search,
+  ShoppingBag, IndianRupee, Star, ChevronRight,
+  Package, Clock, Copy, UserCheck, CheckCircle2,
+  Settings, UserCircle, ClipboardList, ShoppingBasket,
+  XCircle, Plus
+} from "lucide-react";
+import RecommendedProducts from "@/frontend/components/ui/RecommendedProducts";
+import { updateSEO } from '@/frontend/utils/seo';
+import Breadcrumb from '@/frontend/components/ui/Breadcrumb';
+import NotificationCenter from '@/frontend/components/NotificationCenter';
 
-/**
- * BuyerDashboard — Upgraded UI/UX (Full redesign)
- * - Header: avatar, search, glass effect, better spacing
- * - Quick action cards: consistent visuals + hover micro-interactions
- * - Cart: modern item cards, stepper + inline edit, improved totals
- * - Empty state: illustration + primary CTA
- * - Settings modal: app-like layout with icons & keyboard support
- * - Mobile: floating checkout bar & sticky CTA
- * - Preserves original business logic and functions
- */
+import "./BuyerDashboard.css";
+import { imagePresets } from '@/frontend/utils/imageHelper';
+import StatusBadge from '@/frontend/components/ui/StatusBadge';
 
 const BuyerDashboard = () => {
   const navigate = useNavigate();
   const { cart = [], removeFromCart, clearCart, updateQuantity } = useCart();
-  const [editingId, setEditingId] = useState(null);
-  const [qtyInput, setQtyInput] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
   const reduceMotion = useReducedMotion();
-  const modalRef = useRef(null);
+
+  // Avatar dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Search
+  const [query, setQuery] = useState("");
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -41,10 +48,7 @@ const BuyerDashboard = () => {
     userNameStored ||
     (userEmail ? userEmail.split("@")[0] : "Guest");
 
-  // Search in header (local only to dashboard — helps find cart items or past orders)
-  const [query, setQuery] = useState("");
-
-  // 🚫 Redirect unauthorized users (keeps your original behaviour)
+  // 🚫 Redirect unauthorized users
   useEffect(() => {
     if (userRole && userRole !== "buyer") {
       toast.warn("Access denied — Redirecting...");
@@ -52,29 +56,60 @@ const BuyerDashboard = () => {
     }
   }, [userRole, navigate]);
 
-  // 🔄 External cart sync (unchanged)
   useEffect(() => {
-    const handleStorageChange = () => {
-      try {
-        const updated = JSON.parse(localStorage.getItem("cart_local") || "[]");
-        if (updated.length === 0 && cart.length > 0) {
-          toast.info("Cart updated externally. Refreshing...");
-          clearCart();
-        }
-      } catch {
-        console.warn("Invalid cart JSON in localStorage");
+    updateSEO('/buyer-dashboard');
+  }, []);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
       }
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [cart, clearCart]);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownRef]);
 
   // ✅ Logout
   const handleLogout = () => {
     localStorage.clear();
     clearCart();
-    toast.info("👋 Logged out successfully");
+    toast.success("You've been logged out. See you soon! 👋", {
+      toastId: 'logout',
+      icon: '👋',
+      style: {
+        background: '#1a3a1a',
+        color: '#ffffff',
+        borderRadius: '12px',
+        border: '1px solid rgba(255,255,255,0.15)',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        fontWeight: '500',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(8px)',
+        minWidth: '280px',
+      },
+      progressStyle: { background: '#c17a4a' },
+      position: 'top-right',
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+    });
     setTimeout(() => navigate("/login"), 1200);
+  };
+
+  // ✅ Search marketplace
+  const handleSearch = (e) => {
+    if (e.key === "Enter") {
+      const q = query.trim();
+      if (q) {
+        navigate(`/marketplace?q=${encodeURIComponent(q)}`);
+      } else {
+        navigate("/marketplace");
+      }
+    }
   };
 
   // ✅ Checkout flow
@@ -89,357 +124,598 @@ const BuyerDashboard = () => {
     setTimeout(() => navigate("/checkout"), 800);
   };
 
-  // ✅ Remove item
-  const handleRemove = (id, name) => {
-    if (!window.confirm(`Remove "${name}" from cart?`)) return;
-    removeFromCart(id);
-    toast.success(`Removed "${name}"`);
-  };
-
-  // ✅ Clear cart
-  const handleClearCart = () => {
-    if (!cart.length) return toast.info("Cart already empty.");
-    if (window.confirm("Clear your entire cart?")) {
-      clearCart();
-      toast.success("Cart cleared.");
-    }
-  };
-
-  // ✅ Quantity editing (supports stepper + typed input)
-  const startEdit = (item) => {
-    setEditingId(item.id);
-    setQtyInput(String(item.quantity));
-  };
-
-  const applyQtyChange = (item) => {
-    const newQty = Number(qtyInput);
-    if (!Number.isFinite(newQty) || newQty < 0)
-      return toast.error("Enter a valid quantity (0 or more).");
-    if (typeof updateQuantity === "function") {
-      updateQuantity(item.id, newQty);
-      toast.success(`Updated "${item.name}" → ${newQty}`);
-    }
-    setEditingId(null);
-    setQtyInput("");
-  };
-
-  // Stepper helpers
-  const changeQtyBy = (item, delta) => {
-    const newQty = Math.max(0, Number(item.quantity) + delta);
-    if (typeof updateQuantity === "function") {
-      updateQuantity(item.id, newQty);
-    }
-  };
-
-  // Modal accessibility (escape)
-  useEffect(() => {
-    const handleKey = (e) => e.key === "Escape" && setShowSettings(false);
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, []);
-
-  useEffect(() => {
-    if (showSettings && modalRef.current) {
-      const firstButton = modalRef.current.querySelector("button");
-      firstButton?.focus();
-    }
-  }, [showSettings]);
-
-  // Filtered cart view by header search (client-side)
   const visibleCart = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
     if (!q) return cart;
-    return cart.filter(
-      (it) =>
-        (it.name || "").toLowerCase().includes(q) ||
-        (it.description || "").toLowerCase().includes(q)
-    );
+    return cart.filter((it) => (it.name || "").toLowerCase().includes(q));
   }, [cart, query]);
 
-  // motion variants (respect reduced motion)
-  const fade = reduceMotion ? {} : { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } };
+  // MOCK DATA
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning 🌅";
+    if (h < 17) return "Good afternoon ☀️";
+    return "Good evening 🌙";
+  };
+
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // Fetch real orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const uid = ctxUser?.uid || ctxUser?.id || auth.currentUser?.uid;
+      if (!uid) return;
+      
+      setLoadingOrders(true);
+      try {
+        const token = localStorage.getItem('idToken') || localStorage.getItem('ks_token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`/api/orders/user/${uid}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const fetched = Array.isArray(data.orders) ? data.orders : (Array.isArray(data) ? data : []);
+          // Sort newest first
+          const sorted = fetched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          setOrders(sorted);
+        }
+      } catch (err) {
+        console.error("Dashboard orders fetch failed:", err);
+      } finally {
+        setLoadingOrders(false);
+      }
+    };
+
+    fetchOrders();
+  }, [ctxUser]);
+
+  const recentOrders = orders.slice(0, 3).map(ord => ({
+    id: ord.orderId || `#${(ord._id || '').slice(-6).toUpperCase()}`,
+    date: new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    itemsSummary: `${(ord.items || []).length} items`,
+    total: `₹${ord.total || 0}`,
+    status: (ord.status || 'confirmed').toLowerCase(),
+    icon: Package
+  }));
+
+  const [recommendations, setRecommendations] = useState([
+    { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
+    { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
+    { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" }
+  ]);
+  const [recLabel, setRecLabel] = useState("Fresh Picks");
+
+  // Fetch personalized recommendations from backend
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return; // guest users see defaults
+        const token = await user.getIdToken();
+        const res = await fetch(
+          `/api/users/${encodeURIComponent(user.uid)}/recommendations`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.type === 'popular' || !data.categories?.length) {
+          setRecLabel("Popular Picks");
+          // Keep defaults — these are generic popular items
+        } else {
+          setRecLabel("Personalized for You");
+          // Filter mock data by categories user has bought — create category-matched cards
+          const catSet = new Set((data.categories || []).map(c => c?.toLowerCase()));
+          const allItems = [
+            { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
+            { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
+            { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" },
+            { name: "Wheat", cat: "Grains", price: "₹45/kg", img: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=100&auto=format&fit=crop" },
+            { name: "Mango", cat: "Fruits", price: "₹80/kg", img: "https://images.unsplash.com/photo-1553279768-865429fa0078?w=100&auto=format&fit=crop" },
+            { name: "Onion", cat: "Vegetables", price: "₹30/kg", img: "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=100&auto=format&fit=crop" },
+          ];
+          const matched = allItems.filter(it => catSet.has(it.cat.toLowerCase()));
+          if (matched.length > 0) setRecommendations(matched.slice(0, 3));
+        }
+      } catch (err) {
+        console.warn("Recommendations fetch failed (non-critical):", err.message);
+      }
+    };
+    fetchRecommendations();
+  }, []);
+
+  const activityFeed = [
+    { type: "Delivered", title: "Order #KS-20240312 delivered", time: "2 days ago", sub: "3 items \u2022 ₹245", icon: Package, color: "#4CAF50" },
+    { type: "Cart", title: "Added Tomatoes to cart", time: "3 days ago", sub: "2kg \u2022 ₹120", icon: ShoppingCart, color: "#E27D60" },
+    { type: "Points", title: "Earned 24 loyalty points", time: "5 days ago", sub: "From order #KS-20240308", icon: Star, color: "#F0A080" },
+    { type: "Profile", title: "Profile updated", time: "1 week ago", sub: "Email verified", icon: UserCheck, color: "#2D4F1E" },
+    { type: "Delivered", title: "Order #KS-20240228 delivered", time: "8 days ago", sub: "2 items \u2022 ₹90", icon: ShoppingBag, color: "#4A7A35" }
+  ];
+
+  // Animated Countup State
+  const [counts, setCounts] = useState({ orders: 0, spent: 0, points: 0 });
+  useEffect(() => {
+    const duration = 1500;
+    const steps = 30;
+    const stepTime = duration / steps;
+
+    let currentStep = 0;
+    const targetOrders = orders.length || 0;
+    const targetSpent = Math.floor(orders.reduce((sum, o) => sum + (o.total || 0), 0));
+    const targetPoints = Math.floor(targetSpent * 0.5);
+
+    const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+
+    const timer = setInterval(() => {
+      currentStep++;
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        setCounts({ orders: targetOrders, spent: targetSpent, points: targetPoints });
+        return;
+      }
+
+      const progress = easeOutCubic(currentStep / steps);
+      setCounts({
+        orders: Math.floor(targetOrders * progress),
+        spent: Math.floor(targetSpent * progress),
+        points: Math.floor(targetPoints * progress)
+      });
+    }, stepTime);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const [copied, setCopied] = useState(false);
+  const handleCopyPromo = () => {
+    navigator.clipboard.writeText("FRESH15");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const anim = reduceMotion ? {} : {
+    fadeUp: { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } },
+    fadeRight: { initial: { opacity: 0, x: -16 }, animate: { opacity: 1, x: 0 } },
+    fadeLeft: { initial: { opacity: 0, x: 16 }, animate: { opacity: 1, x: 0 } },
+    scaleIn: { initial: { opacity: 0, scale: 0.97 }, animate: { opacity: 1, scale: 1 } }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 transition-all duration-500">
-      {/* HEADER */}
+    <div className="bd-container">
+
+      {/* 1. TOP BAR */}
       <motion.header
-  initial={reduceMotion ? {} : { opacity: 0, y: -16 }}
-  animate={reduceMotion ? {} : { opacity: 1, y: 0 }}
-  transition={{ duration: 0.45 }}
-  className="
-    bg-white/80 backdrop-blur-xl shadow-md border-b border-green-100
-    px-8 py-6 rounded-b-3xl
-  "
->
-  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-
-    {/* Left Section — Avatar + Text */}
-    <div className="flex items-center gap-4">
-      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xl">
-        {displayName ? displayName[0].toUpperCase() : "U"}
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-extrabold text-green-800 tracking-tight">
-          Buyer Dashboard
-        </h1>
-        <p className="text-sm text-green-700/70 -mt-1">
-          Welcome back, <span className="font-semibold">{displayName}</span>
-        </p>
-      </div>
-    </div>
-
-    {/* Middle Section — Search */}
-    <div className="flex-1 max-w-xl mx-auto w-full">
-      <div className="relative">
-        <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search items in cart or orders..."
-          className="
-            w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-gray-200
-            shadow-sm focus:ring-2 focus:ring-green-400 text-gray-700
-          "
-        />
-      </div>
-    </div>
-
-    {/* Right Section — Buttons */}
-    <div className="flex items-center gap-3">
-      <button
-        onClick={() => navigate('/marketplace')}
-        className="
-          bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg
-          shadow-sm transition
-        "
+        className="bd-top-bar"
+        initial={reduceMotion ? {} : { opacity: 0, y: -60 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
       >
-        Browse Marketplace
-      </button>
+        <div className="bd-logo-row" onClick={() => navigate("/")}>
+          <div className="bd-logo-leaf-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22l1-2.3A13.89,13.89 0 0,0 20.25,10.05C21.5,7.45 21.54,4.74 20.5,2C19.22,2.44 17.65,3.62 16.42,5.19C15.11,6.87 14,9.27 14,12C14,14.62 15.03,16.71 16.27,18.06L17.52,16.81C16.48,15.68 15.65,13.93 15.65,12C15.65,9.66 16.63,7.5 17.84,6C18.84,4.72 20.14,3.77 21.14,3.34C20.69,5 19.82,6.96 17,8M6.28,15.68L4.39,15C5.9,11.23 8.35,9.08 11.29,7.67L12.35,9.3C10,10.45 8.16,12.23 6.28,15.68Z" />
+            </svg>
+          </div>
+          <span className="bd-logo-text">KrishiSaathi</span>
+        </div>
 
-      <button
-        onClick={handleLogout}
-        className="
-          bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg
-          shadow-sm transition
-        "
+        <span className="bd-role-pill">Buyer Dashboard</span>
+
+        <div className="bd-search-wrapper">
+          <div className="bd-search-inner">
+            <Search className="bd-search-icon" size={15} />
+            <input
+              className="bd-search"
+              placeholder="Search marketplace, cart, or orders..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleSearch}
+            />
+          </div>
+        </div>
+
+        <div className="bd-top-actions">
+          <NotificationCenter />
+
+          <button className="bd-icon-btn" aria-label="View cart" onClick={() => window.dispatchEvent(new CustomEvent("open-cart"))}>
+            <ShoppingCart size={17} strokeWidth={2.5} />
+            {cart.length > 0 && <span className="bd-badge-count">{cart.length}</span>}
+          </button>
+
+          <div className="bd-tb-divider" />
+
+          <button className="bd-btn-browse" onClick={() => navigate('/marketplace')}>
+            Browse Marketplace
+          </button>
+
+          <div className="bd-user-dropdown" onClick={() => setDropdownOpen(!dropdownOpen)} ref={dropdownRef}>
+            <div className="bd-avatar">{displayName?.[0]?.toUpperCase() || 'U'}</div>
+            <span className="bd-user-name">{displayName}</span>
+            <ChevronDown size={13} strokeWidth={3} style={{ color: "rgba(255,255,255,0.4)" }} />
+
+            <AnimatePresence>
+              {dropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.15 }}
+                  className="bd-dropdown-menu"
+                >
+                  <Link to="/buyerprofile" className="bd-dropdown-item">Profile</Link>
+                  <Link to="/buyerprofile" className="bd-dropdown-item">Settings</Link>
+                  <button onClick={handleLogout} className="bd-dropdown-item" style={{ color: '#E27D60' }}>Logout</button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <button className="bd-icon-btn" aria-label="Log out" onClick={handleLogout} style={{ background: 'transparent' }}>
+            <LogOut size={17} strokeWidth={2.5} />
+          </button>
+        </div>
+      </motion.header>
+
+      {/* 2. HERO BANNER */}
+      <motion.section
+        className="bd-hero"
+        initial={reduceMotion ? {} : { opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
-        Logout
-      </button>
-    </div>
+        <div style={{ maxWidth: 1200, margin: '0 auto 1.5rem', padding: '0 20px' }}>
+          <Breadcrumb items={[
+            { label: 'Home', path: '/' },
+            { label: 'Buyer Dashboard' }
+          ]} />
+        </div>
+        <div className="bd-hero-glow" />
+        <div className="bd-hero-dots" />
+        <svg className="bd-hero-leaves" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+        </svg>
 
-  </div>
-</motion.header>
+        <div className="bd-hero-content">
+          <div className="bd-hero-left">
+            <span className="bd-hero-tag">{getGreeting()}</span>
+            <h1 className="bd-hero-title">Hello, {displayName}!</h1>
+            <p className="bd-hero-sub">
+              You have {cart.length} item{cart.length !== 1 ? 's' : ''} in your cart and {orders.length} past order{orders.length !== 1 ? 's' : ''}. Browse today's fresh picks.
+            </p>
+            <div className="bd-hero-actions">
+              <button className="bd-btn-primary" onClick={() => navigate('/marketplace')}><ShoppingBag size={16} /> Continue Shopping</button>
+              <Link to="/buyerprofile" className="bd-btn-outline"><ClipboardList size={16} /> View Orders</Link>
+            </div>
+          </div>
 
-
-
-      {/* QUICK ACTIONS */}
-      <section className="max-w-6xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: "Marketplace", desc: "Explore fresh produce", emoji: "🛒", onClick: () => navigate("/marketplace") },
-            { label: "Order History", desc: "View past orders", emoji: "📜", onClick: () => navigate("/orderhistory") },
-            { label: "Profile", desc: "Manage account", emoji: "👤", onClick: () => navigate("/buyerprofile") },
-            { label: "Settings", desc: "Preferences & help", emoji: "⚙️", onClick: () => setShowSettings(true) },
-          ].map((card, i) => (
-            <motion.button
-              key={card.label}
-              onClick={card.onClick}
-              whileHover={reduceMotion ? {} : { scale: 1.03 }}
-              className="flex items-start gap-4 p-4 bg-white rounded-2xl shadow-md hover:shadow-lg transition text-left"
-              aria-label={card.label}
-            >
-              <div className="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center text-2xl">{card.emoji}</div>
-              <div className="flex-1">
-                <div className="text-xs text-gray-500">{card.label}</div>
-                <div className="text-lg font-semibold mt-1 text-gray-800">{card.desc}</div>
+          <div className="bd-hero-right">
+            <div className="bd-stat-pill">
+              <div className="bd-pill-icon" style={{ backgroundColor: 'rgba(226,125,96,0.25)', color: '#E27D60' }}>
+                <ShoppingBag size={18} />
               </div>
-              <div className="text-green-600 self-start">→</div>
-            </motion.button>
+              <div>
+                <div className="bd-pill-val">{counts.orders}</div>
+                <div className="bd-pill-lbl">Total Orders</div>
+              </div>
+            </div>
+            <div className="bd-stat-pill">
+              <div className="bd-pill-icon" style={{ backgroundColor: 'rgba(76,175,80,0.2)', color: '#4CAF50' }}>
+                <IndianRupee size={18} />
+              </div>
+              <div>
+                <div className="bd-pill-val">₹{counts.spent}</div>
+                <div className="bd-pill-lbl">Total Spent</div>
+              </div>
+            </div>
+            <div className="bd-stat-pill">
+              <div className="bd-pill-icon" style={{ backgroundColor: 'rgba(240,160,128,0.2)', color: '#F0A080' }}>
+                <Star size={18} />
+              </div>
+              <div>
+                <div className="bd-pill-val">{counts.points}</div>
+                <div className="bd-pill-lbl">Loyalty Points</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bd-hero-wave">
+          <svg viewBox="0 0 1440 32" preserveAspectRatio="none">
+            <path d="M0,32L1440,32L1440,0C1186.666,32 720,32 0,0Z" />
+          </svg>
+        </div>
+      </motion.section>
+
+      {/* 3. STATS STRIP */}
+      <motion.section
+        className="bd-stats-strip"
+        initial={reduceMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+      >
+        <div className="bd-strip-item">
+          <div className="bd-strip-val">{counts.orders}</div>
+          <div className="bd-strip-lbl">ORDERS PLACED</div>
+        </div>
+        <div className="bd-strip-item">
+          <div className="bd-strip-val">₹{counts.spent}</div>
+          <div className="bd-strip-lbl">TOTAL SPENT</div>
+        </div>
+        <div className="bd-strip-item">
+          <div className="bd-strip-val accent">{counts.points}</div>
+          <div className="bd-strip-lbl">LOYALTY POINTS</div>
+        </div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5, duration: 0.5 }} className="bd-strip-item">
+          <div className="bd-strip-val accent">Gold</div>
+          <div className="bd-strip-lbl">MEMBER TIER</div>
+        </motion.div>
+      </motion.section>
+
+      {/* 4. QUICK NAV */}
+      <section className="bd-quick-nav-section">
+        <div className="bd-section-header">
+          <span className="bd-section-tag">Quick Access</span>
+        </div>
+
+        <div className="bd-quick-nav">
+          {[
+            { tag: 'Marketplace', icon: ShoppingBasket, col: '#2D4F1E', sub: 'Explore fresh produce', to: '/marketplace' },
+            { tag: 'Order History', icon: ClipboardList, col: '#E27D60', sub: 'View past orders', to: '/buyerprofile' },
+            { tag: 'Profile', icon: UserCircle, col: '#4A7A35', sub: 'Manage account', to: '/buyerprofile' },
+            { tag: 'Settings', icon: Settings, col: '#7A7A7A', sub: 'Preferences & help', to: '/buyerprofile' },
+          ].map((item, idx) => (
+            <motion.div {...anim.scaleIn} transition={{ delay: 0.3 + (0.07 * idx) }} key={idx}>
+              <Link to={item.to} className="bd-qn-card" style={{ borderColor: `${item.col}20` }}>
+                <div className="bd-qn-top">
+                  <div className="bd-qn-icon-box" style={{ backgroundColor: `${item.col}1E` }}>
+                    <item.icon size={22} color={item.col} className="bd-qn-icon-svg" />
+                  </div>
+                  <ChevronRight size={16} className="bd-qn-arrow" />
+                </div>
+                <h3 className="bd-qn-title">{item.tag}</h3>
+                <p className="bd-qn-sub">{item.sub}</p>
+                <div className="bd-qn-bottom-bar" style={{ backgroundColor: item.col }} />
+              </Link>
+            </motion.div>
           ))}
         </div>
       </section>
 
-      {/* CART */}
-      <main className="max-w-5xl mx-auto px-6 pb-24">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-green-700">🧺 Your Cart</h2>
-          <div className="text-sm text-gray-600">{cart.length} item{cart.length !== 1 ? "s" : ""}</div>
-        </div>
+      {/* 5. MAIN CONTENT GRID */}
+      <motion.section
+        className="bd-main-grid"
+        initial={reduceMotion ? {} : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.4 }}
+      >
+        {/* LEFT COLUMN */}
+        <div className="bd-col-main">
 
-        {cart.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-            <img src="https://via.placeholder.com/300x180?text=Your+cart+is+empty" alt="Empty cart" className="mx-auto mb-6 opacity-80" />
-            <h3 className="text-xl font-semibold mb-2 text-gray-800">Your cart is empty</h3>
-            <p className="text-gray-500 mb-4">Browse fresh produce from local farmers and add items to your cart.</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => navigate("/marketplace")} className="px-4 py-2 bg-green-600 text-white rounded-lg shadow">Browse Marketplace</button>
-              <button onClick={() => navigate("/")} className="px-4 py-2 border rounded-lg">Go Home</button>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">Items in your cart</div>
-              <div className="flex items-center gap-3">
-                <button onClick={handleClearCart} className="text-sm text-red-500 hover:underline">Clear Cart</button>
-                <button onClick={() => { localStorage.setItem("savedCart", JSON.stringify(cart)); toast.success("Cart saved locally"); }} className="text-sm px-3 py-2 border rounded">Save Cart</button>
+          {/* CART WIDGET */}
+          <div className="bd-cart-widget">
+            <div className="bd-cart-header">
+              <div className="bd-cart-title">
+                <ShoppingCart size={18} /> Your Cart
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span className="bd-cart-count">{cart.length} items</span>
+                {cart.length > 0 && (
+                  <button 
+                    onClick={() => window.dispatchEvent(new CustomEvent("open-cart"))} 
+                    className="bd-cart-view"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    View Full Cart →
+                  </button>
+                )}
               </div>
             </div>
 
-            <div className="divide-y divide-gray-100">
-              {visibleCart.map((item) => (
-                <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <img src={item.image || "https://via.placeholder.com/96"} alt={item.name} className="w-20 h-20 rounded-md object-cover border" />
-                    <div className="min-w-0">
-                      <div className="font-semibold text-gray-800 truncate">{item.name}</div>
-                      <div className="text-sm text-gray-500 truncate mt-1">{item.description || ""}</div>
-                      <div className="mt-2 text-sm text-gray-600">₹{item.price.toLocaleString()} each</div>
+            {cart.length === 0 ? (
+              <div className="bd-cart-empty">
+                <div className="bd-empty-illo">
+                  <div className="bd-empty-ring">
+                    <div className="bd-empty-inner">
+                      <ShoppingCart size={28} color="#2D4F1E" />
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-4 justify-end">
-                    {/* Stepper or inline edit */}
-                    {editingId === item.id ? (
-                      <>
-                        <input
-                          autoFocus
-                          type="number"
-                          min="0"
-                          value={qtyInput}
-                          onChange={(e) => setQtyInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") applyQtyChange(item);
-                            if (e.key === "Escape") { setEditingId(null); setQtyInput(""); }
-                          }}
-                          className="w-20 px-2 py-1 border rounded text-center"
-                          aria-label={`Edit quantity for ${item.name}`}
-                        />
-                        <button onClick={() => applyQtyChange(item)} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Save</button>
-                        <button onClick={() => { setEditingId(null); setQtyInput(""); }} className="px-3 py-1 border rounded text-sm">Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 bg-gray-50 border rounded px-2 py-1">
-                          <button onClick={() => changeQtyBy(item, -1)} aria-label={`Decrease ${item.name}`} className="px-2 py-1 rounded hover:bg-gray-100">-</button>
-                          <div className="w-12 text-center font-medium">{item.quantity}</div>
-                          <button onClick={() => changeQtyBy(item, 1)} aria-label={`Increase ${item.name}`} className="px-2 py-1 rounded hover:bg-gray-100">+</button>
-                        </div>
-
-                        <button onClick={() => startEdit(item)} className="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Edit</button>
-                      </>
-                    )}
-
-                    <div className="text-right">
-                      <div className="font-semibold text-green-700">
-                        ₹{(item.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
-                      <div className="flex gap-3 mt-1 justify-end">
-                        <button onClick={() => handleRemove(item.id, item.name)} className="text-sm text-red-500 hover:underline">Remove</button>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="bd-empty-leaf"><span style={{ color: "#4CAF50" }}><ShoppingCart size={18} /></span></div>
                 </div>
+                <h3 className="bd-empty-title">Your cart is empty</h3>
+                <p className="bd-empty-sub">Browse fresh produce from local farmers and add items to your cart.</p>
+                <div className="bd-empty-actions">
+                  <Link to="/marketplace" className="bd-btn-browse-empty">Browse Marketplace</Link>
+                  <Link to="/" className="bd-btn-home-empty">Go Home</Link>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="bd-cart-filled">
+                  {visibleCart.slice(0, 3).map((item) => (
+                    <div key={item.id} className="bd-cart-row">
+                      <img 
+                        src={imagePresets.thumbnail(item.image)} 
+                        alt={item.name} 
+                        className="bd-cart-img" 
+                        fetchPriority="high"
+                      />
+                      <div className="bd-cart-info">
+                        <div className="bd-cart-item-name">{item.name}</div>
+                        <div className="bd-cart-item-sub">Sold by Local Farm</div>
+                      </div>
+                      <div className="bd-cart-price-col">
+                        <span className="bd-cart-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="bd-cart-qty">×{item.quantity}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {visibleCart.length > 3 && (
+                    <div className="bd-cart-row" style={{ justifyContent: 'center' }}>
+                      <span className="bd-cart-item-sub">+ {visibleCart.length - 3} more items in cart</span>
+                    </div>
+                  )}
+                </div>
+                <div className="bd-cart-footer">
+                  <span className="bd-cart-subtotal">Subtotal: ₹{total.toFixed(2)}</span>
+                  <button onClick={handleCheckout} className="bd-btn-checkout">Checkout →</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RECENT ORDERS */}
+          <div className="bd-ro-card">
+            <div className="bd-ro-header">
+              <div>
+                <span className="bd-ro-tag">Activity</span>
+                <h3 className="bd-ro-title">Recent Orders</h3>
+              </div>
+              <Link to="/buyerprofile" className="bd-ro-link">View all →</Link>
+            </div>
+
+            <div className="bd-ro-list">
+              {loadingOrders ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#B0A898' }}>Loading recent orders...</div>
+              ) : recentOrders.length === 0 ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#B0A898', fontWeight: 500 }}>No orders yet</div>
+              ) : recentOrders.map((ord, i) => (
+                <Link to="/order-history" key={i} className="bd-ro-row">
+                  <div className={`bd-ro-icon ${ord.status}`}>
+                    <ord.icon size={18} />
+                  </div>
+                  <div className="bd-ro-center">
+                    <div className="bd-ro-id">{ord.id}</div>
+                    <div className="bd-ro-meta">{ord.date} • {ord.itemsSummary}</div>
+                  </div>
+                  <div className="bd-ro-right">
+                    <div className="bd-ro-amt">{ord.total}</div>
+                    <StatusBadge status={ord.status} size="sm" />
+                  </div>
+                </Link>
               ))}
             </div>
+          </div>
 
-            {/* Total + Checkout */}
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <div className="text-sm text-gray-500">Estimated total</div>
-                <div className="text-2xl font-bold text-green-700">₹{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              </div>
+          {/* ACTIVITY FEED */}
+          <div className="bd-activity-sec">
+            <div className="bd-af-header">
+              <span className="bd-ro-tag">Timeline</span>
+              <h3 className="bd-ro-title">Recent Activity</h3>
+            </div>
 
-              <div className="flex items-center gap-3 ml-auto">
-                <button onClick={() => { localStorage.setItem("savedCart", JSON.stringify(cart)); toast.success("Cart saved locally"); }} className="px-4 py-2 border rounded bg-white text-gray-700 hover:shadow">Save Cart</button>
-                <button onClick={handleCheckout} className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded shadow">Proceed to Checkout</button>
-              </div>
+            <div className="bd-tl-wrap">
+              <div className="bd-tl-line"></div>
+
+              {activityFeed.map((act, i) => (
+                <motion.div {...anim.fadeUp} transition={{ delay: 0.1 * i }} key={i} className="bd-tl-item">
+                  <div className="bd-tl-dot" style={{ borderColor: act.color }}>
+                    <act.icon size={16} color={act.color} />
+                  </div>
+                  <div className="bd-tl-card">
+                    <div>
+                      <div className="bd-tl-act">{act.title}</div>
+                      <div className="bd-tl-sub">{act.sub}</div>
+                    </div>
+                    <div className="bd-tl-time">{act.time}</div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
-        )}
-      </main>
 
-      {/* MOBILE floating checkout bar */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 md:hidden z-50">
-          <div className="bg-white rounded-xl shadow-lg p-3 flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm text-gray-500">{cart.length} items</div>
-              <div className="font-bold text-green-700">₹{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => navigate("/cart")} className="px-4 py-2 border rounded">View Cart</button>
-              <button onClick={handleCheckout} className="px-4 py-2 bg-green-600 text-white rounded">Checkout</button>
-            </div>
-          </div>
         </div>
-      )}
 
-      {/* SETTINGS MODAL */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div
-            {...fade}
-            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowSettings(false)}
-            role="dialog"
-            aria-modal="true"
-          >
-            <motion.div
-              ref={modalRef}
-              onClick={(e) => e.stopPropagation()}
-              initial={reduceMotion ? {} : { scale: 0.96, y: 8 }}
-              animate={reduceMotion ? {} : { scale: 1, y: 0 }}
-              exit={reduceMotion ? {} : { scale: 0.96, y: 8 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 focus:outline-none"
-            >
-              <h2 className="text-2xl font-semibold text-green-700 mb-4">⚙️ Settings & Support</h2>
-              <div className="space-y-2 text-gray-700">
-                <button onClick={() => { navigate("/orderhistory"); setShowSettings(false); }} className="w-full text-left px-4 py-3 rounded hover:bg-gray-50 flex items-center gap-3">
-                  <span className="w-8 h-8 rounded bg-green-50 flex items-center justify-center">📜</span>
-                  <div>
-                    <div className="font-medium">Order History</div>
-                    <div className="text-sm text-gray-500">View past orders</div>
-                  </div>
-                </button>
+        {/* RIGHT COLUMN */}
+        <div className="bd-col-sidebar">
 
-                <button onClick={() => { navigate("/buyerprofile"); setShowSettings(false); }} className="w-full text-left px-4 py-3 rounded hover:bg-gray-50 flex items-center gap-3">
-                  <span className="w-8 h-8 rounded bg-green-50 flex items-center justify-center">👤</span>
-                  <div>
-                    <div className="font-medium">Manage Profile</div>
-                    <div className="text-sm text-gray-500">Update your details</div>
-                  </div>
-                </button>
+          {/* PROMO BANNER */}
+          <motion.div {...anim.fadeLeft} transition={{ delay: 0.5 }} className="bd-promo-card">
+            <div className="bd-promo-bg-circle" />
+            <div className="bd-promo-bg-sm" />
+            <span className="bd-promo-tag">Limited Time 🎉</span>
+            <h3 className="bd-promo-title">Summer Fresh Sale</h3>
+            <p className="bd-promo-sub">Get 15% off on all vegetables this week. Use code:</p>
 
-                <button onClick={() => { navigate("/support"); setShowSettings(false); }} className="w-full text-left px-4 py-3 rounded hover:bg-gray-50 flex items-center gap-3">
-                  <span className="w-8 h-8 rounded bg-green-50 flex items-center justify-center">🧩</span>
-                  <div>
-                    <div className="font-medium">Help & FAQs</div>
-                    <div className="text-sm text-gray-500">Get help & support</div>
-                  </div>
-                </button>
+            <div className="bd-promo-bx">
+              <span className="bd-promo-code">{copied ? "COPIED" : "FRESH15"}</span>
+              <button className={`bd-btn-copy ${copied ? 'success' : ''}`} onClick={handleCopyPromo}>
+                {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+              </button>
+            </div>
 
-                <button onClick={() => toast.info("Password reset feature coming soon!")} className="w-full text-left px-4 py-3 rounded hover:bg-gray-50 flex items-center gap-3">
-                  <span className="w-8 h-8 rounded bg-green-50 flex items-center justify-center">🔐</span>
-                  <div>
-                    <div className="font-medium">Change Password</div>
-                    <div className="text-sm text-gray-500">Secure your account</div>
-                  </div>
-                </button>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => setShowSettings(false)} className="px-4 py-2 border rounded">Close</button>
-              </div>
-            </motion.div>
+            <button className="bd-promo-cta" onClick={() => navigate('/marketplace')}>Shop Now →</button>
           </motion.div>
-        )}
-      </AnimatePresence>
 
-      <footer className="text-center py-6 text-gray-500 text-sm border-t border-gray-200">
-        © {new Date().getFullYear()} <strong>KrishiSaathi</strong> — Empowering Farmers 🌾
+          {/* LOYALTY CARD */}
+          <motion.div {...anim.fadeLeft} transition={{ delay: 0.6 }} className="bd-loyalty-card">
+            <span className="bd-ly-tag">Rewards</span>
+            <div className="bd-ly-title">🌾 Loyalty Points</div>
+
+            <div className="bd-ly-pts-row">
+              <span className="bd-ly-pts">{counts.points}</span>
+              <span className="bd-ly-sub">points available</span>
+            </div>
+
+            <div className="bd-ly-trw">
+              <span className="bd-ly-tlbl">Gold Member</span>
+              <span className="bd-ly-tsub">260 pts to Platinum</span>
+            </div>
+
+            <div className="bd-ly-track">
+              <div className="bd-ly-fill" style={{ width: '48%' }}>
+                <div className="bd-ly-thumb"></div>
+              </div>
+            </div>
+
+            <div className="bd-ly-badges">
+              <span className="bd-ly-badge bd-ly-b-inactive">Bronze</span>
+              <span className="bd-ly-badge bd-ly-b-inactive">Silver</span>
+              <span className="bd-ly-badge bd-ly-b-active">Gold ✓</span>
+              <span className="bd-ly-badge bd-ly-b-inactive">Platinum</span>
+            </div>
+
+            <div className="bd-ly-actions">
+              <button className="bd-btn-ly-pri">Redeem</button>
+              <button className="bd-btn-ly-sec">History</button>
+            </div>
+          </motion.div>
+
+          {/* QUICK STATS */}
+          <motion.div {...anim.fadeLeft} transition={{ delay: 0.7 }} className="bd-month-card">
+            <div className="bd-mc-title">THIS MONTH</div>
+            <div className="bd-mc-row">
+              <div className="bd-mc-left"><div className="bd-mc-icon-bg" style={{ background: 'rgba(45,79,30,0.1)' }}><ShoppingBag size={14} color="#2D4F1E" /></div><span className="bd-mc-lbl">Orders</span></div>
+              <div className="bd-mc-val">2</div>
+            </div>
+            <div className="bd-mc-row">
+              <div className="bd-mc-left"><div className="bd-mc-icon-bg" style={{ background: 'rgba(226,125,96,0.1)' }}><IndianRupee size={14} color="#E27D60" /></div><span className="bd-mc-lbl">Spent</span></div>
+              <div className="bd-mc-val">₹395</div>
+            </div>
+            <div className="bd-mc-row">
+              <div className="bd-mc-left"><div className="bd-mc-icon-bg" style={{ background: 'rgba(74,122,53,0.1)' }}><Package size={14} color="#4A7A35" /></div><span className="bd-mc-lbl">Items bought</span></div>
+              <div className="bd-mc-val">7</div>
+            </div>
+          </motion.div>
+
+        </div>
+      </motion.section>
+
+      <RecommendedProducts />
+
+      {/* 6. MINI FOOTER */}
+      <footer className="bd-mini-footer">
+        <div className="bd-mf-left">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22l1-2.3A13.89,13.89 0 0,0 20.25,10.05C21.5,7.45 21.54,4.74 20.5,2C19.22,2.44 17.65,3.62 16.42,5.19C15.11,6.87 14,9.27 14,12C14,14.62 15.03,16.71 16.27,18.06L17.52,16.81C16.48,15.68 15.65,13.93 15.65,12C15.65,9.66 16.63,7.5 17.84,6C18.84,4.72 20.14,3.77 21.14,3.34C20.69,5 19.82,6.96 17,8M6.28,15.68L4.39,15C5.9,11.23 8.35,9.08 11.29,7.67L12.35,9.3C10,10.45 8.16,12.23 6.28,15.68Z" />
+          </svg>
+          © 2026 KrishiSaathi — Empowering Farmers
+        </div>
+        <div className="bd-mf-right">
+          <Link to="/about" className="bd-mf-link">Privacy</Link>
+          <Link to="/about" className="bd-mf-link">Terms</Link>
+          <Link to="/support" className="bd-mf-link">Support</Link>
+        </div>
       </footer>
+
     </div>
   );
 };

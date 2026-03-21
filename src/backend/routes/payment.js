@@ -5,10 +5,10 @@ import crypto from "crypto";
 const router = express.Router();
 
 // --------------------------------------------------
-// Razorpay Credentials (Test Mode)
+// Razorpay Credentials
 // --------------------------------------------------
-const RAZORPAY_KEY_ID = "rzp_test_RXkiOg4W6ACRdc";
-const RAZORPAY_KEY_SECRET = "04c117tPS3f1bOVB21rbsee9";
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_RXkiOg4W6ACRdc";
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "04c117tPS3f1bOVB21rbsee9";
 
 // Instance
 const razorpay = new Razorpay({
@@ -21,24 +21,34 @@ const razorpay = new Razorpay({
 // --------------------------------------------------
 router.post("/create-order", async (req, res) => {
   const { total } = req.body;
+  console.log("💳 Received order request for total:", total);
 
-  if (!total || total <= 0) {
+  if (!total || isNaN(total) || total <= 0) {
+    console.warn("⚠️ Invalid total amount received:", total);
     return res.status(400).json({ error: "Invalid total amount" });
   }
 
   const options = {
-    amount: total * 100, // paise
+    amount: Math.round(total * 100), // convert to paise and ensure it's an integer
     currency: "INR",
     receipt: "receipt_" + Date.now(),
   };
 
   try {
     const order = await razorpay.orders.create(options);
-    console.log("✅ Order Created:", order.id);
+    console.log("✅ Razorpay Order Created:", order.id);
     res.json(order);
   } catch (err) {
-    console.error("❌ Error creating order:", err);
-    res.status(500).json({ error: "Unable to create order" });
+    console.error("❌ Razorpay Order Creation Failed:", {
+      message: err.message,
+      code: err.code,
+      description: err.description,
+      metadata: err.metadata
+    });
+    res.status(500).json({ 
+      error: "Unable to create order", 
+      details: err.description || err.message 
+    });
   }
 });
 

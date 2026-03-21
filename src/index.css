@@ -1,2 +1,41 @@
 @import "tailwindcss";
 
+:root {
+  /* Brand Colors */
+  --color-primary: #2D4F1E;
+  --color-primary-hover: #3D6B2A;
+  --color-primary-dark: #1A2E12;
+  --color-bg: #F5E6CC;
+  --color-bg-soft: #EDD9B0;
+  --color-accent: #E27D60;
+  --color-accent-hover: #F0A080;
+  --color-text: #4A4A4A;
+  --color-text-muted: #7A7A7A;
+  --color-white: #FFFFFF;
+  --color-card-bg: #FDFAF4;
+
+  /* Fonts */
+  --font-heading: 'Playfair Display', serif;
+  --font-subheading: 'DM Serif Display', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-accent: 'Caveat', cursive;
+
+  /* Spacing & Effects */
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-pill: 9999px;
+  --shadow: 0 4px 20px rgba(74, 74, 74, 0.08);
+  --shadow-lg: 0 12px 40px rgba(74, 74, 74, 0.12);
+  --transition: 200ms ease;
+
+  /* Legacy / Utility */
+  --brand-500: #16a34a;
+  --brand-600: #15803d;
+  --brand-700: #166534;
+  --muted-600: #4b5563;
+}
+
+/* small helper for cards */
+.app-card { @apply bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden; }
+
+

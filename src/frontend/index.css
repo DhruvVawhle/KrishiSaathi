@@ -1,0 +1,86 @@
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid #2D4F1E !important;
+  outline-offset: 3px !important;
+}
+
+/* Minimum touch targets */
+button, a, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default button styles */
+button {
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F5E6CC;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(45,79,30,0.3);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(45,79,30,0.5);
+}
+
+/* Page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 300ms ease;
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  0% { background-position: 200% center }
+  100% { background-position: -200% center }
+}
+
+/* Spin animation */
+@keyframes spin {
+  to { transform: rotate(360deg) }
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1 }
+  50% { opacity: 0.5 }
+}
+
+/* Stagger children animation */
+.stagger-children > * {
+  animation: fadeUp 300ms ease forwards;
+  opacity: 0;
+}
+.stagger-children > *:nth-child(1)
+  { animation-delay: 0ms }
+.stagger-children > *:nth-child(2)
+  { animation-delay: 60ms }
+.stagger-children > *:nth-child(3)
+  { animation-delay: 120ms }
+.stagger-children > *:nth-child(4)
+  { animation-delay: 180ms }
+.stagger-children > *:nth-child(5)
+  { animation-delay: 240ms }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px) }
+  to   { opacity: 1; transform: translateY(0) }
+}

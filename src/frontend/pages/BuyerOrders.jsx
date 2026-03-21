@@ -1,6 +1,6 @@
 // src/pages/BuyerOrders.jsx
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { auth, db } from "../config/firebaseConfig";
+import { auth, db } from "@/frontend/config/firebaseConfig";
 import {
   collection,
   query,

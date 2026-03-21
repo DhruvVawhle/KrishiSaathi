@@ -1,7 +1,7 @@
 // src/backend/routes/users.js
 import express from "express";
 import User from "../models/User.js";
-import { initFirebaseFromEnv, verifyToken } from "../utils/verifyFirebase.js";
+import { initFirebaseFromEnv, verifyToken } from "../utils/verifyFirebaseToken.js";
 
 const router = express.Router();
 
@@ -41,6 +41,155 @@ async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired token", detail: err.message });
   }
 }
+
+/* POST /api/users - Upsert User (Simple) */
+router.post("/", async (req, res) => {
+  try {
+    const { uid, name, email, phone, role } = req.body;
+
+    if (!uid) {
+      return res.status(400).json({ error: "UID required" });
+    }
+
+    // 🔥 UPSERT USER (avoid duplicates)
+    const user = await User.findOneAndUpdate(
+      { uid },
+      { uid, name, email, phone, role },
+      { new: true, upsert: true }
+    );
+
+    res.json(user);
+  } catch (err) {
+    console.error("User save error:", err.message);
+    res.status(500).json({ error: "Failed to save user" });
+  }
+});
+
+/* POST /api/users/sync - Robust Upsert User */
+router.post('/sync', async (req, res) => {
+  try {
+    console.log(
+      '[UserSync] Body received:',
+      req.body
+    )
+
+    const {
+      uid,
+      name,
+      email,
+      phone,
+      role,
+      photoURL,
+      farmName,
+      farmLocation,
+      farmSize,
+      farmSizeUnit,
+      primaryCrops,
+      state,
+      district,
+      pincode,
+      experience,
+      bio,
+      upiId,
+      bankName,
+      accountNumber,
+      ifscCode
+    } = req.body
+
+    if (!uid) {
+      console.error(
+        '[UserSync] No uid in body'
+      )
+      return res.status(400).json({
+        success: false,
+        message: 'uid is required'
+      })
+    }
+
+    const updateData = {
+      $set: {
+        uid,
+        name: name || 'User',
+        email: email || '',
+        phone: phone || '',
+        role: role || 'farmer',
+        photoURL: photoURL || '',
+        farmName: farmName || '',
+        farmLocation: farmLocation || '',
+        farmSize: farmSize || '',
+        farmSizeUnit:
+          farmSizeUnit || 'acres',
+        primaryCrops: primaryCrops || '',
+        state: state || '',
+        district: district || '',
+        pincode: pincode || '',
+        experience: experience || '',
+        bio: bio || '',
+        upiId: upiId || '',
+        bankName: bankName || '',
+        accountNumber:
+          accountNumber || '',
+        ifscCode: ifscCode || '',
+        updatedAt: new Date()
+      },
+      $setOnInsert: {
+        createdAt: new Date()
+      }
+    }
+
+    console.log(
+      '[UserSync] Upserting uid:', uid
+    )
+
+    const user =
+      await User.findOneAndUpdate(
+        { uid },
+        updateData,
+        {
+          upsert: true,
+          new: true,
+          runValidators: false,
+          setDefaultsOnInsert: true
+        }
+      )
+
+    console.log(
+      '✅ [UserSync] Saved:',
+      user._id
+    )
+
+    res.json({
+      success: true,
+      message: 'Profile saved',
+      user: {
+        uid: user.uid,
+        name: user.name,
+        role: user.role
+      }
+    })
+
+  } catch (err) {
+    console.error(
+      '❌ [UserSync] Error:',
+      err.message
+    )
+
+    // Handle duplicate key error
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'User already exists',
+        error: err.message
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Save failed',
+      error: err.message
+    })
+  }
+})
 
 /* POST /api/users/onboard */
 router.post("/onboard", authMiddleware, async (req, res) => {
@@ -115,5 +264,39 @@ router.post("/:uid/order", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Server error", detail: err.message });
   }
 });
+
+/* GET /api/users/:uid - Optimized profile fetch */
+router.get("/:uid", authMiddleware, async (req, res) => {
+  try {
+    const uidParam = req.params.uid;
+    // Auth check: internal, dev_no_auth, or own uid
+    if (!(req.isInternal || req.isDevNoAuth) && req.user.uid !== uidParam) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    // Parallel fetch using .lean() for speed
+    const [user, orders] = await Promise.all([
+      User.findOne({ uid: uidParam }).lean(),
+      // Check if orders are in a separate collection or inside user.orderHistory
+      // If separate, we'd fetch from Order model here. 
+      // For now, assume they are inside user.orderHistory as per models.
+      Promise.resolve([]) 
+    ]);
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    return res.json({ 
+      ok: true, 
+      user, 
+      orderHistory: user.orderHistory || [] 
+    });
+  } catch (err) {
+    console.error("fetch user error:", err);
+    return res.status(500).json({ error: "Server error", detail: err.message });
+  }
+});
+
+// Ensure indexes on startup
+User.createIndexes().catch(err => console.error("User indexes error:", err));
 
 export default router;

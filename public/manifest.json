@@ -1,0 +1,65 @@
+{
+  "name": "KrishiSaathi — Farm Fresh Marketplace",
+  "short_name": "KrishiSaathi",
+  "description": "Buy fresh produce directly from Indian farmers. Live mandi rates and AI price predictions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5E6CC",
+  "theme_color": "#2D4F1E",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": [
+    "food",
+    "shopping",
+    "agriculture",
+    "lifestyle"
+  ],
+  "icons": [
+    {
+      "src": "/krishisaathi.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/home.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "label": "KrishiSaathi Homepage"
+    },
+    {
+      "src": "/screenshots/marketplace.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "label": "Fresh Produce Marketplace"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Marketplace",
+      "short_name": "Marketplace",
+      "description": "Browse fresh farm produce",
+      "url": "/marketplace",
+      "icons": [{
+        "src": "/icons/marketplace-icon.png",
+        "sizes": "96x96"
+      }]
+    },
+    {
+      "name": "Mandi Rates",
+      "short_name": "Rates",
+      "description": "Check today's mandi rates",
+      "url": "/dashboard/farmer",
+      "icons": [{
+        "src": "/icons/mandi-icon.png",
+        "sizes": "96x96"
+      }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

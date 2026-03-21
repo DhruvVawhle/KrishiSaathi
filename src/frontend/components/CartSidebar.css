@@ -1,0 +1,695 @@
+
+/* ===== SECTION 5: TOAST NOTIFICATIONS ===== */
+.cs-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 2000;
+    pointer-events: none;
+}
+
+.cs-toast-card {
+    pointer-events: auto;
+    background: var(--cs-color-primary-dark);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 280px;
+    box-shadow: 0 8px 32px rgba(26, 46, 18, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.cs-toast-icon {
+    color: #4CAF50;
+    display: flex;
+}
+
+.cs-toast-content {
+    flex: 1;
+}
+
+.cs-toast-title {
+    color: var(--cs-color-white);
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.cs-toast-product {
+    color: rgba(255, 255, 255, 0.7);
+    font-family: var(--cs-font-main);
+    font-size: 12px;
+    margin-top: 1px;
+}
+
+.cs-toast-close {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.cs-toast-close:hover {
+    color: var(--cs-color-white);
+}
+
+.cs-toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    width: 100%;
+}
+
+.cs-toast-progress-fill {
+    height: 100%;
+    background: var(--cs-color-accent);
+    width: 0%;
+    animation: toast-progress 3s linear forwards;
+}
+
+@keyframes toast-progress {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+
+:root {
+    --cs-color-primary: #2D4F1E;
+    --cs-color-primary-hover: #3D6B2A;
+    --cs-color-primary-dark: #1A2E12;
+    --cs-color-bg: #F5E6CC;
+    --cs-color-bg-soft: #EDD9B0;
+    --cs-color-accent: #E27D60;
+    --cs-color-accent-hover: #F0A080;
+    --cs-color-text: #4A4A4A;
+    --cs-color-text-muted: #7A7A7A;
+    --cs-color-white: #FFFFFF;
+    --cs-color-card-bg: #FDFAF4;
+    --cs-font-main: "DM Sans", sans-serif;
+    --cs-font-accent: "Playfair Display", serif;
+}
+
+/* WRAPPER FOR SIMPLIFIED RENDER */
+.cs-wrapper {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+}
+
+/* DRAWER WRAPPER */
+.cs-drawer {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 400px;
+    height: 100%;
+    height: 100dvh;
+    background: var(--cs-color-card-bg);
+    box-shadow: -8px 0 48px rgba(0, 0, 0, 0.3);
+    z-index: 2002;
+    display: flex;
+    flex-direction: column;
+}
+
+/* BACKDROP */
+.cs-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 2001;
+}
+
+/* ===== SECTION 1: HEADER (64px) ===== */
+.cs-header {
+    height: 64px;
+    background: var(--cs-color-primary);
+    padding: 0 20px;
+    display: flex;
+    flex-shrink: 0;
+    /* prevents compression */
+    align-items: center;
+    position: relative;
+}
+
+.cs-header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    position: absolute;
+    left: 0;
+    padding: 0 20px;
+}
+
+.cs-header-left {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.cs-header-title {
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--cs-color-white);
+    margin: 0;
+}
+
+.cs-header-badge {
+    width: 20px;
+    height: 20px;
+    background: var(--cs-color-accent);
+    color: var(--cs-color-white);
+    font-family: var(--cs-font-main);
+    font-weight: 700;
+    font-size: 11px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cs-header-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.cs-clear-all-btn {
+    background: rgba(232, 125, 96, 0.12);
+    border: 1px solid rgba(232, 125, 96, 0.25);
+    border-radius: 8px;
+    padding: 4px 10px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all 150ms;
+}
+
+.cs-clear-all-btn span {
+    font-family: var(--cs-font-main);
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--cs-color-accent);
+}
+
+.cs-clear-all-btn:hover {
+    background: rgba(232, 125, 96, 0.22);
+    border-color: var(--cs-color-accent);
+}
+
+.cs-clear-all-btn:active {
+    transform: scale(0.97);
+}
+
+.cs-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 150ms;
+}
+
+.cs-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* CONFIRM HEADER */
+.cs-confirm-text {
+    font-family: var(--cs-font-main);
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--cs-color-white);
+}
+
+.cs-confirm-yes-btn {
+    background: var(--cs-color-accent);
+    color: var(--cs-color-white);
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 12px;
+    border-radius: 8px;
+    padding: 5px 12px;
+    height: 28px;
+    border: none;
+    cursor: pointer;
+    transition: background 150ms;
+}
+
+.cs-confirm-yes-btn:hover {
+    background: #D4613F;
+}
+
+.cs-confirm-cancel-btn {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--cs-color-white);
+    font-family: var(--cs-font-main);
+    font-weight: 500;
+    font-size: 12px;
+    border-radius: 8px;
+    padding: 5px 12px;
+    height: 28px;
+    border: none;
+    cursor: pointer;
+    transition: background 150ms;
+}
+
+.cs-confirm-cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===== SECTION 2: DELIVERY BAR (36px) ===== */
+.cs-delivery-bar {
+    height: 36px;
+    background: var(--cs-color-primary-dark);
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.cs-delivery-icon {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.cs-delivery-text {
+    font-family: var(--cs-font-main);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    flex-shrink: 0;
+}
+
+.cs-delivery-progress-bg {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.cs-delivery-progress-fill {
+    height: 100%;
+    transition: width 400ms ease, background 300ms;
+}
+
+/* ===== SECTION 3: ITEMS LIST ===== */
+.cs-items-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    /* REQUIRED for scrolling */
+    overflow-x: hidden;
+    padding: 12px 16px;
+    background: var(--cs-color-bg);
+    overscroll-behavior: contain;
+}
+
+.cs-items-area::-webkit-scrollbar {
+    width: 3px;
+}
+
+.cs-items-area::-webkit-scrollbar-thumb {
+    background: rgba(45, 79, 30, 0.3);
+    border-radius: 4px;
+}
+
+.cs-items-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ITEM CARD */
+.cs-item-card {
+    background: var(--cs-color-card-bg);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px solid transparent;
+    transition: border-color 150ms;
+    /* COMPACT SETTING: max height essentially driven by content (48px img + padding) */
+}
+
+.cs-item-card:hover {
+    border-color: var(--cs-color-bg-soft);
+}
+
+/* COL 1: Image */
+.cs-item-image {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1.5px solid var(--cs-color-bg-soft);
+    background: var(--cs-color-primary);
+    /* fallback bg */
+}
+
+/* COL 2: Info */
+.cs-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.cs-item-name {
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--cs-color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cs-item-unit-price {
+    font-family: var(--cs-font-main);
+    font-size: 12px;
+    color: var(--cs-color-text-muted);
+}
+
+.cs-item-low-stock {
+    font-family: var(--cs-font-main);
+    font-size: 10px;
+    color: var(--cs-color-accent);
+}
+
+/* COL 3: Qty Stepper */
+.cs-qty-stepper {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.cs-qty-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--cs-color-bg);
+    border: 1px solid var(--cs-color-bg-soft);
+    color: var(--cs-color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 150ms;
+}
+
+.cs-qty-btn:hover {
+    background: var(--cs-color-primary);
+    color: var(--cs-color-white);
+}
+
+.cs-qty-btn:active {
+    transform: scale(0.9);
+}
+
+.cs-qty-count {
+    min-width: 24px;
+    text-align: center;
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--cs-color-text);
+    transition: transform 150ms;
+}
+
+/* COL 4: Actions */
+.cs-item-actions {
+    flex-shrink: 0;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.cs-item-line-total {
+    font-family: var(--cs-font-main);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--cs-color-primary);
+}
+
+.cs-remove-btn {
+    color: #B0A898;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: block;
+    margin: 2px auto 0;
+    padding: 4px;
+    transition: color 150ms;
+}
+
+.cs-remove-btn:hover {
+    color: var(--cs-color-accent);
+}
+
+/* EMPTY STATE */
+.cs-empty-state {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.cs-empty-emoji {
+    font-size: 48px;
+}
+
+.cs-empty-heading {
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--cs-color-text);
+    margin-top: 12px;
+    margin-bottom: 0;
+    text-align: center;
+}
+
+.cs-empty-subtext {
+    font-family: var(--cs-font-main);
+    font-size: 13px;
+    color: var(--cs-color-text-muted);
+    margin-top: 4px;
+    text-align: center;
+}
+
+.cs-empty-browse-btn {
+    background: var(--cs-color-primary);
+    color: var(--cs-color-white);
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 999px;
+    padding: 10px 24px;
+    margin-top: 16px;
+    border: none;
+    cursor: pointer;
+}
+
+/* ===== SECTION 4: SUMMARY (max 180px) ===== */
+.cs-summary {
+    flex-shrink: 0;
+    background: var(--cs-color-card-bg);
+    border-top: 1.5px solid var(--cs-color-bg-soft);
+    padding: 14px 20px 16px;
+    box-shadow: 0 -4px 16px rgba(45, 79, 30, 0.08);
+}
+
+.cs-summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.cs-summary-label {
+    font-family: var(--cs-font-main);
+    font-size: 14px;
+    /* Default for subtotal*/
+    color: var(--cs-color-text-muted);
+}
+
+.cs-summary-row:nth-child(2) .cs-summary-label {
+    font-size: 13px;
+    /* Smaller for delivery */
+}
+
+.cs-summary-value-sub {
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--cs-color-text);
+}
+
+.cs-summary-value-del {
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--cs-color-text);
+}
+
+.cs-summary-free {
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--cs-color-primary);
+}
+
+.cs-divider {
+    border-top: 1px solid var(--cs-color-bg-soft);
+    margin: 10px 0;
+}
+
+.cs-summary-row-total {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.cs-total-label {
+    font-family: var(--cs-font-accent);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--cs-color-text);
+}
+
+.cs-total-value {
+    font-family: var(--cs-font-accent);
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--cs-color-primary);
+}
+
+.cs-checkout-btn {
+    width: 100%;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--cs-color-primary), var(--cs-color-primary-hover));
+    color: var(--cs-color-white);
+    font-family: var(--cs-font-main);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 16px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(45, 79, 30, 0.28);
+    transition: all 150ms;
+    height: 52px;
+}
+
+.cs-checkout-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(45, 79, 30, 0.35);
+}
+
+.cs-checkout-btn:active {
+    transform: scale(0.99);
+}
+
+.cs-view-cart-link {
+    font-family: var(--cs-font-main);
+    font-size: 13px;
+    color: var(--cs-color-text-muted);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-align: center;
+    display: block;
+    margin: 8px auto 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+}
+
+.cs-view-cart-link:hover {
+    color: var(--cs-color-primary);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 639px) {
+    .cs-drawer {
+        width: 100vw;
+    }
+
+    .cs-item-image {
+        width: 44px;
+        height: 44px;
+    }
+
+    .cs-summary {
+        padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+
+    /* Bottom sheet for mobile confirmation */
+    .cs-header-content.cs-header-confirm {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        height: auto;
+        background: var(--cs-color-card-bg);
+        border-radius: 20px 20px 0 0;
+        flex-direction: column;
+        padding: 24px 20px;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+    }
+
+    .cs-header-content.cs-header-confirm .cs-header-left {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+        margin-bottom: 16px;
+    }
+
+    .cs-header-content.cs-header-confirm .cs-confirm-text {
+        font-family: var(--cs-font-accent);
+        font-size: 20px;
+        color: var(--cs-color-text);
+    }
+
+    .cs-header-content.cs-header-confirm .cs-header-right {
+        flex-direction: column;
+        width: 100%;
+        gap: 12px;
+    }
+
+    .cs-header-content.cs-header-confirm .cs-confirm-yes-btn {
+        width: 100%;
+        height: 50px;
+        font-size: 15px;
+    }
+
+    .cs-header-content.cs-header-confirm .cs-confirm-cancel-btn {
+        width: 100%;
+        height: 50px;
+        font-size: 15px;
+        background: transparent;
+        color: var(--cs-color-text-muted);
+        border: 1px solid var(--cs-color-bg-soft);
+    }
+}

@@ -1,6 +1,6 @@
 // ✅ src/frontend/components/CheckoutButton.jsx (Enhanced & Tested)
 import React, { useState } from "react";
-import { useCart } from "../contexts/CartContext";
+import { useCart } from "@/frontend/contexts/CartContext";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";

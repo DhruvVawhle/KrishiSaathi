@@ -12,7 +12,7 @@ import {
   CheckCircle,
   X,
 } from "lucide-react";
-import { useCart } from "../contexts/CartContext";
+import { useCart } from "@/frontend/contexts/CartContext";
 import { toast } from "react-toastify";
 
 const fallbackImage = "https://cdn-icons-png.flaticon.com/512/415/415733.png";
@@ -98,7 +98,6 @@ const FeaturedProducts = () => {
 
         window.dispatchEvent(new CustomEvent("cart-updated"));
         localStorage.setItem("preselectedProduct", JSON.stringify(product));
-        toast.success(`${product.name} added to cart!`, { autoClose: 1000 });
         setQuickOpen(false);
 
         setTimeout(() => navigate("/checkout"), 800);

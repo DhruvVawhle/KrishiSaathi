@@ -8,12 +8,12 @@ import React, {
   useState,
 } from "react";
 import { toast } from "react-toastify";
-import { auth } from "../config/firebaseConfig";
+import { auth } from "@/frontend/config/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import debounce from "lodash.debounce";
 
 // 🔗 Backend API base
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5002";
+const API_BASE = "/api/users";
 
 // 🛒 Initial state
 const initialState = {
@@ -35,7 +35,6 @@ const reducer = (state, action) => {
       const existing = state.cart.find((item) => item.id === action.payload.id);
       let updated;
       if (existing) {
-        toast.info("🛒 Quantity updated");
         updated = state.cart.map((item) =>
           item.id === action.payload.id
             ? {
@@ -46,7 +45,6 @@ const reducer = (state, action) => {
             : item
         );
       } else {
-        toast.success("✅ Item added");
         updated = [
           ...state.cart,
           { ...action.payload, quantity: Number(action.payload.quantity || 1) },
@@ -55,7 +53,6 @@ const reducer = (state, action) => {
       return { ...state, cart: updated };
     }
     case "REMOVE_FROM_CART":
-      toast.warn("❌ Removed");
       return { ...state, cart: state.cart.filter((item) => item.id !== action.payload) };
     case "UPDATE_QUANTITY":
       return {
@@ -67,10 +64,8 @@ const reducer = (state, action) => {
         ),
       };
     case "CLEAR_CART":
-      toast.info("🧹 Cart cleared");
       return { ...state, cart: [] };
     case "SET_ERROR":
-      toast.error("⚠ Something went wrong");
       return { ...state, error: action.payload };
     default:
       return state;

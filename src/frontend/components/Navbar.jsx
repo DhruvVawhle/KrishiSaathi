@@ -10,7 +10,8 @@ import {
   Search as SearchIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useCart } from "../contexts/CartContext";
+import { useCart } from "@/frontend/contexts/CartContext";
+import Button from "./ui/Button";
 
 const navLinks = [
   { name: "Home", path: "/home" },
@@ -278,15 +279,12 @@ export default function Navbar({ onOpenCart }) {
                 </button>
               ) : (
                 <Link to="/login" className="hidden sm:inline">
-                  <button
-                    className={`px-3 py-1 rounded-full font-semibold text-sm focus:outline-none focus:ring-2 ${
-                      scrolled
-                        ? "bg-green-600 text-white"
-                        : "bg-white text-green-700"
-                    }`}
+                  <Button
+                    variant={scrolled ? "default" : "secondary"}
+                    className="px-3 py-1 text-sm"
                   >
                     Login
-                  </button>
+                  </Button>
                 </Link>
               )}
 
@@ -410,7 +408,7 @@ export default function Navbar({ onOpenCart }) {
 
               <div className="pt-2 border-t">
                 {isLoggedIn ? (
-                  <button
+                  <Button
                     onClick={() => {
                       handleLogout();
                       setMenuOpen(false);
@@ -418,12 +416,12 @@ export default function Navbar({ onOpenCart }) {
                     className="w-full px-4 py-3 rounded-xl bg-red-500 text-white font-semibold"
                   >
                     Logout
-                  </button>
+                  </Button>
                 ) : (
                   <Link to="/login" onClick={() => setMenuOpen(false)}>
-                    <div className="w-full px-4 py-3 rounded-xl bg-white text-green-700 text-center font-semibold">
+                    <Button variant="secondary" className="w-full px-4 py-3 text-center font-semibold">
                       Login
-                    </div>
+                    </Button>
                   </Link>
                 )}
               </div>

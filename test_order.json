@@ -1,0 +1,34 @@
+{
+    "buyerId": "test123",
+    "buyerName": "Test Buyer",
+    "buyerEmail": "test@krishi.com",
+    "customer": {
+        "name": "Test Buyer",
+        "email": "test@krishi.com",
+        "phone": "9999999999",
+        "address": "123 Test Street, Mumbai - 400001"
+    },
+    "items": [
+        {
+            "productId": "prod1",
+            "name": "Fresh Tomatoes",
+            "price": 60,
+            "qty": 2,
+            "image": "",
+            "farmerId": "farmer1",
+            "unit": "kg",
+            "category": "Vegetables"
+        }
+    ],
+    "total": 160,
+    "subtotal": 120,
+    "deliveryFee": 40,
+    "deliveryAddress": {
+        "fullAddress": "123 Test Street",
+        "city": "Mumbai",
+        "pincode": "400001",
+        "phone": "9999999999"
+    },
+    "paymentMethod": "cod",
+    "status": "received"
+}

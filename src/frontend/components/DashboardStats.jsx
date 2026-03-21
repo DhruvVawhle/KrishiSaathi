@@ -1,6 +1,6 @@
 // ✅ src/components/DashboardStats.jsx (Enhanced v2)
 import React, { useMemo, useEffect, useState } from "react";
-import { useProducts } from "../contexts/ProductContext";
+import { useProducts } from "@/frontend/contexts/ProductContext";
 import {
   ShoppingCart,
   Clock,
@@ -256,7 +256,7 @@ const DashboardStats = () => {
               <div className="text-xs text-gray-500">Auto-updated</div>
             </div>
             <div className="w-full h-44 min-w-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="99%" height="100%">
                 <AreaChart data={revenueSeries}>
                   <defs>
                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -287,7 +287,7 @@ const DashboardStats = () => {
               {categoryBreakdown.length === 0 ? (
                 <p className="text-sm text-gray-500">No category data</p>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="99%" height="100%">
                   <RePieChart>
                     <Pie
                       data={categoryBreakdown}

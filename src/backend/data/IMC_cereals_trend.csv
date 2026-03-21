@@ -1,0 +1,25 @@
+Commodity,CalendarDay,UOM,MandiWholeSalePrice,TimeFrame,Source
+Paddy,2023-03-14,Rs/Qtl,2345.76,Three years ago as on 2023-03-14,Agmarknet
+Paddy,2024-03-14,Rs/Qtl,2732.28,Two years ago as on 2024-03-14,Agmarknet
+Paddy,2025-03-14,Rs/Qtl,2245.18,An year ago as on 2025-03-14,Agmarknet
+Paddy,2026-02-14,Rs/Qtl,3278.36,A Month ago as on 2026-02-14,Agmarknet
+Paddy,2026-02-21,Rs/Qtl,2406.75,Three weeks ago as on 2026-02-21,Agmarknet
+Paddy,2026-02-28,Rs/Qtl,2838.11,Two weeks ago as on 2026-02-28,Agmarknet
+Paddy,2026-03-07,Rs/Qtl,3228.11,A week ago as on 2026-03-07,Agmarknet
+Paddy,2026-03-14,Rs/Qtl,3032.7,Price as on 2026-03-14,Agmarknet
+Rice,2023-03-14,Rs/Qtl,2969.18,Three years ago as on 2023-03-14,Agmarknet
+Rice,2024-03-14,Rs/Qtl,3303.76,Two years ago as on 2024-03-14,Agmarknet
+Rice,2025-03-14,Rs/Qtl,3583.64,An year ago as on 2025-03-14,Agmarknet
+Rice,2026-02-14,Rs/Qtl,4274.93,A Month ago as on 2026-02-14,Agmarknet
+Rice,2026-02-21,Rs/Qtl,2907.5,Three weeks ago as on 2026-02-21,Agmarknet
+Rice,2026-02-28,Rs/Qtl,3955.81,Two weeks ago as on 2026-02-28,Agmarknet
+Rice,2026-03-07,Rs/Qtl,4170.42,A week ago as on 2026-03-07,Agmarknet
+Rice,2026-03-14,Rs/Qtl,4636.01,Price as on 2026-03-14,Agmarknet
+Wheat,2023-03-14,Rs/Qtl,2195.1,Three years ago as on 2023-03-14,Agmarknet
+Wheat,2024-03-14,Rs/Qtl,2434.67,Two years ago as on 2024-03-14,Agmarknet
+Wheat,2025-03-14,Rs/Qtl,2842.38,An year ago as on 2025-03-14,Agmarknet
+Wheat,2026-02-14,Rs/Qtl,2449.05,A Month ago as on 2026-02-14,Agmarknet
+Wheat,2026-02-21,Rs/Qtl,2434.71,Three weeks ago as on 2026-02-21,Agmarknet
+Wheat,2026-02-28,Rs/Qtl,2365.57,Two weeks ago as on 2026-02-28,Agmarknet
+Wheat,2026-03-07,Rs/Qtl,2294.82,A week ago as on 2026-03-07,Agmarknet
+Wheat,2026-03-14,Rs/Qtl,2348.67,Price as on 2026-03-14,Agmarknet

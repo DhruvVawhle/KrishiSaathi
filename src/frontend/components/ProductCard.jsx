@@ -4,8 +4,9 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { ShoppingCart, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import Button from "./ui/Button";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const API_BASE = "/api/payment";
 
 export default function ProductCard({ product, refreshProducts = () => {} }) {
   const navigate = useNavigate();
@@ -210,14 +211,10 @@ export default function ProductCard({ product, refreshProducts = () => {} }) {
 
         {/* 🛍 Buttons */}
         <div className="mt-4 flex flex-col sm:flex-row gap-3" aria-live="polite">
-          <button
+          <Button
             onClick={handleAddToCart}
             disabled={adding || product.quantity === 0}
-            className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-white transition-all ${
-              product.quantity === 0
-                ? "bg-gray-300 cursor-not-allowed"
-                : "bg-green-600 hover:bg-green-700 active:scale-95 shadow-md"
-            }`}
+            className={`flex-1 py-2.5 ${adding ? "flex items-center justify-center gap-2" : "flex items-center justify-center gap-2"}`}
           >
             {adding ? (
               <>
@@ -228,14 +225,15 @@ export default function ProductCard({ product, refreshProducts = () => {} }) {
                 <ShoppingCart className="w-4 h-4" /> Add to Cart
               </>
             )}
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="secondary"
             onClick={handleBuyNow}
-            className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold border border-green-600 text-green-700 bg-white hover:bg-green-50 transition"
+            className="flex-1 py-2.5"
           >
             Buy Now
-          </button>
+          </Button>
         </div>
       </div>
     </article>

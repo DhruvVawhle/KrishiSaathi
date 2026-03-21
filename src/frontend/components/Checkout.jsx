@@ -1,14 +1,22 @@
-// src/pages/Checkout.jsx — Upgraded UI/UX (preserves original business logic)
+// src/pages/Checkout.jsx — Optimized with KrishiSaathi Design System
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCart } from "../contexts/CartContext";
+import { useCart } from "@/frontend/contexts/CartContext";
 import { toast } from "react-toastify";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Loader2, ShieldCheck, CreditCard, Truck, Tag, Percent } from "lucide-react";
-import "react-toastify/dist/ReactToastify.css";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  User, Mail, Phone, MapPin, Tag,
+  ArrowRight, Check, CheckCircle,
+  ShoppingBag, Loader2, ShieldCheck, ChevronRight
+} from "lucide-react";
+import { useToast } from "@/frontend/contexts/ToastContext";
+import Input from "@/frontend/components/ui/Input";
+import Button from "@/frontend/components/ui/Button";
+import Card from "@/frontend/components/ui/Card";
+import "./Checkout.css";
 
 /* ------------------------
-   Constants (kept same)
+   Constants & Config
    ------------------------ */
 const DELIVERY_THRESHOLD = 299;
 const DELIVERY_FEE = 40;
@@ -18,20 +26,16 @@ const PROMO_CODES = {
   KRISHI10: { type: "percent", value: 10, label: "10% OFF" },
 };
 
-/* ------------------------
-   Helper utilities
-   ------------------------ */
-const formatINR = (value) =>
-  Number(value || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
-
-/* ------------------------
-   Main Component
-   ------------------------ */
 export default function Checkout() {
   const { cart = [], clearAllCart, saveOrderHistory } = useCart();
   const navigate = useNavigate();
-  const reduceMotion = useReducedMotion();
+  const toast = useToast();
 
+  /* ------------------------
+     State Management
+     ------------------------ */
+  const [currentStep, setCurrentStep] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState("cod");
   const [customer, setCustomer] = useState({
     name: "",
     email: "",
@@ -43,12 +47,11 @@ export default function Checkout() {
 
   const [promo, setPromo] = useState("");
   const [appliedPromo, setAppliedPromo] = useState(null);
-  const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [localError, setLocalError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [orderId] = useState(() => String(Date.now()).slice(-6));
 
-  /* load existing checkout/buyer data from localStorage */
+  /* Load existing data only once */
   useEffect(() => {
     const storedEmail = localStorage.getItem("userEmail");
     const storedName = localStorage.getItem("userName");
@@ -74,7 +77,9 @@ export default function Checkout() {
     }));
   }, []);
 
-  /* Billing calculations */
+  /* ------------------------
+     Billing Logic
+     ------------------------ */
   const subtotal = useMemo(() => cart.reduce((s, it) => s + (Number(it.price || 0) * Number(it.quantity || 0)), 0), [cart]);
 
   const promoDiscount = useMemo(() => {
@@ -85,36 +90,64 @@ export default function Checkout() {
 
   const shipping = useMemo(() => (subtotal >= DELIVERY_THRESHOLD ? 0 : cart.length ? DELIVERY_FEE : 0), [subtotal, cart.length]);
   const tax = useMemo(() => ((subtotal - promoDiscount + shipping) * TAX_PERCENT) / 100, [subtotal, promoDiscount, shipping]);
+  const total = useMemo(() => Math.round(subtotal - promoDiscount + shipping + tax), [subtotal, promoDiscount, shipping, tax]);
 
-  const total = useMemo(() => subtotal - promoDiscount + shipping + tax, [subtotal, promoDiscount, shipping, tax]);
-
-  /* Validation */
+  /* ------------------------
+     Action Handlers
+     ------------------------ */
   const validateCustomer = useCallback(() => {
     const errors = {};
-    if (!customer.name || !customer.name.trim()) errors.name = "Name is required";
+    if (!customer.name?.trim()) errors.name = "Name is required";
     if (!customer.email || !/^\S+@\S+\.\S+$/.test(customer.email)) errors.email = "Valid email is required";
     if (!customer.phone || !/^\d{10}$/.test(customer.phone)) errors.phone = "Phone must be 10 digits";
-    if (!customer.address || !customer.address.trim()) errors.address = "Delivery address is required";
+    if (!customer.address?.trim()) errors.address = "Delivery address is required";
+    if (!customer.pincode || !/^\d{6}$/.test(customer.pincode)) errors.pincode = "6-digit pincode required";
     setFieldErrors(errors);
-    if (Object.keys(errors).length) return Object.values(errors)[0];
-    return null;
+    return Object.keys(errors).length === 0;
   }, [customer]);
 
-  /* Razorpay script loader (unchanged) */
+  const handleNextStep = () => {
+    if (!validateCustomer()) {
+      toast.error("Please fix form errors");
+      return;
+    }
+    setCurrentStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleApplyPromo = () => {
+    const code = (promo || "").trim().toUpperCase();
+    if (!code) return toast.info("Enter a promo code");
+    const found = PROMO_CODES[code];
+    if (!found) return toast.error("Invalid promo code");
+    setAppliedPromo(found);
+    toast.success(`Applied: ${found.label}`);
+  };
+
+  /* Placeholder for Razorpay/API scripts */
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
-      if (window.Razorpay) return resolve(true);
+      if (window.Razorpay) {
+        console.log('✅ Razorpay already loaded');
+        return resolve(true);
+      }
       const script = document.createElement("script");
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
+      script.onload = () => {
+        console.log('✅ Razorpay script loaded successfully');
+        resolve(true);
+      };
+      script.onerror = () => {
+        console.error('❌ Failed to load Razorpay script');
+        resolve(false);
+      };
+      script.async = true;
       document.body.appendChild(script);
     });
 
-  /* Create order on server (unchanged) */
   const createOrder = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/payment/create-order", {
+      const res = await fetch("/api/payment/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ total }),
@@ -122,472 +155,555 @@ export default function Checkout() {
       if (!res.ok) throw new Error("Order creation failed");
       return await res.json();
     } catch (e) {
-      toast.error("Server error while creating order");
+      toast.error("Server error while creating payment order");
       return null;
     }
   };
 
-  /* Verify payment (unchanged) */
-  const verifyPayment = async (paymentData) => {
-    try {
-      const res = await fetch("http://localhost:4000/api/payment/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(paymentData),
-      });
-      if (!res.ok) throw new Error("Verification failed");
-      return await res.json();
-    } catch {
-      return { status: "failed" };
-    }
-  };
-
-  /* Apply promo */
-  const handleApplyPromo = () => {
-    setLocalError("");
-    const code = (promo || "").trim().toUpperCase();
-    if (!code) return toast.info("Enter a promo code");
-    const found = PROMO_CODES[code];
-    if (!found) {
-      toast.error("Invalid promo code");
-      return;
-    }
-    setAppliedPromo(found);
-    toast.success(`Applied: ${found.label}`);
-  };
-
-  const removePromo = () => {
-    setAppliedPromo(null);
-    setPromo("");
-    toast.info("Promo removed");
-  };
-
-  /* Save small order snapshot helper */
-  const saveLocalSnapshot = async (savedOrderId = null) => {
-    try {
-      localStorage.setItem("lastOrderSnapshot", JSON.stringify({ items: cart, total, customer }));
-      if (savedOrderId) localStorage.setItem("lastOrderId", savedOrderId);
-    } catch (e) {
-      console.warn("Could not save snapshot", e);
-    }
-  };
-
-  /* Create payment & open Razorpay (preserves original flow) */
-  const handlePayOnline = async () => {
-    setLocalError("");
-    const err = validateCustomer();
-    if (err) {
-      setLocalError(err);
-      return;
-    }
-    if (!verified) return toast.info("Please verify before proceeding");
-    if (!cart.length) return setLocalError("Your cart is empty");
-
+  const handlePlaceOrder = async () => {
     setLoading(true);
-    const sdkLoaded = await loadRazorpayScript();
-    if (!sdkLoaded) {
-      toast.error("Failed to load payment SDK");
-      setLoading(false);
-      return;
+
+    try {
+      const user = JSON.parse(
+        localStorage.getItem('ks_user')
+        || 'null'
+      )
+      const uid = user?.uid
+        || user?.id
+        || null
+
+      if (!uid) {
+        toast.error('Please login to place order')
+        return
+      }
+
+      if (!cart || cart.length === 0) {
+        toast.error('Cart is empty')
+        return
+      }
+
+      const orderId = 'ORD' + Date.now()
+
+      const orderPayload = {
+        orderId,
+        buyerId: uid,
+        buyerName: user?.name || 'Buyer',
+        buyerEmail: user?.email || '',
+        buyerPhone: customer?.phone || '',
+        items: cart.map(item => ({
+          productId: String(
+            item.id || item._id || ''
+          ),
+          name: String(item.name || ''),
+          price: Number(item.price || 0),
+          qty: Number(
+            item.qty || item.quantity || 1
+          ),
+          image: String(item.image || ''),
+          farmerId: String(
+            item.farmerId || 'demo'
+          ),
+          category: String(
+            item.category || ''
+          ),
+          unit: String(item.unit || 'kg')
+        })),
+        total: Number(total || 0),
+        subtotal: Number(subtotal || 0),
+        deliveryFee: Number(shipping || 40),
+        discount: Number(promoDiscount || 0),
+        deliveryAddress: {
+          fullAddress: String(customer?.address || ''),
+          city: String(customer?.city || ''),
+          pincode: String(customer?.pincode || ''),
+          phone: String(customer?.phone || ''),
+          name: String(customer?.name || user?.name || '')
+        },
+        paymentMethod: paymentMethod || 'cod',
+        status: 'confirmed',
+        createdAt: new Date().toISOString()
+      }
+
+      // Handle payment based on method
+      if (paymentMethod === 'cod') {
+        // Direct COD order
+        await saveOrder(orderPayload);
+      } else if (paymentMethod === 'upi' || paymentMethod === 'card') {
+        // Process payment through Razorpay
+        await processRazorpayPayment(orderPayload);
+      } else {
+        throw new Error('Invalid payment method');
+      }
+
+    } catch (err) {
+      console.error('Place order error:', err.message)
+      toast.error(err.message || 'Failed to place order. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveOrder = async (orderPayload) => {
+    let orderSaved = false
+
+    // SAVE TO FIRESTORE
+    try {
+      const {
+        collection,
+        addDoc,
+        serverTimestamp
+      } = await import('firebase/firestore')
+      const { db } = await import('../config/firebaseConfig')
+      await addDoc(
+        collection(db, 'orders'),
+        {
+          ...orderPayload,
+          createdAt: serverTimestamp()
+        }
+      )
+      console.log('✅ Order → Firestore:', orderPayload.orderId)
+      orderSaved = true
+    } catch (err) {
+      console.warn('Firestore order save:', err.message)
     }
 
-    const order = await createOrder();
-    if (!order || !order.id) {
-      toast.error("Could not create payment order");
-      setLoading(false);
-      return;
+    // SAVE TO MONGODB
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(orderPayload)
+      })
+      const data = await res.json()
+      if (res.ok) {
+        console.log('✅ Order → MongoDB:', orderPayload.orderId)
+        orderSaved = true
+      } else {
+        console.warn('MongoDB order save:', data.message)
+      }
+    } catch (err) {
+      console.warn('MongoDB order save:', err.message)
     }
 
-    const options = {
-      key: "rzp_test_RXkiOg4W6ACRdc",
-      amount: order.amount,
-      currency: "INR",
-      name: "KrishiSaathi",
-      description: "Order Payment",
-      order_id: order.id,
-      prefill: {
-        name: customer.name,
-        email: customer.email,
-        contact: customer.phone,
-      },
-      handler: async (res) => {
-        let verification;
-        try {
-          verification = await verifyPayment(res);
-        } catch (e) {
-          verification = { status: "failed" };
-        }
+    if (!orderSaved) {
+      throw new Error('Failed to save order to any database')
+    }
 
-        if (verification.status !== "success") {
-          toast.warn("Payment processed — verification pending. Proceeding to Thank You.");
-        } else {
-          toast.success("Payment successful!");
-        }
+    // Clear cart
+    await clearAllCart()
 
-        await saveLocalSnapshot();
+    // Navigate to thank you
+    navigate('/thank-you', {
+      replace: true,
+      state: { orderId: orderPayload.orderId }
+    })
+  }
 
-        // attempt to persist order via saveOrderHistory
-        let savedOrder = { id: `local_${Date.now()}` };
-        try {
-          const result = await saveOrderHistory(
-            customer.email,
-            cart,
-            {
-              method: "razorpay",
-              transaction_id: res.razorpay_payment_id,
-              total,
-              verificationStatus: verification.status,
+  const processRazorpayPayment = async (orderPayload) => {
+    try {
+      console.log('🔵 Starting Razorpay payment for method:', paymentMethod);
+
+      // Step 1: Load Razorpay script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Failed to load Razorpay script');
+      }
+      console.log('✅ Razorpay script loaded');
+
+      if (!window.Razorpay) {
+        throw new Error('Razorpay not available');
+      }
+
+      // Step 2: Create order on backend
+      console.log('📝 Creating order with amount:', total);
+      const orderRes = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total }),
+      });
+
+      if (!orderRes.ok) {
+        const errorData = await orderRes.json();
+        throw new Error(errorData.error || 'Failed to create payment order');
+      }
+
+      const orderData = await orderRes.json();
+      console.log('✅ Razorpay Order Created:', orderData.id);
+
+      // Step 3: Build payment methods object
+      // Enable all methods that should be available in Razorpay
+      let methodsObj = {
+        card: true,
+        netbanking: true,
+        wallet: false,
+        upi: true,
+        emandate: false,
+      };
+
+      console.log('💳 Payment methods enabled:', methodsObj);
+
+      // Step 4: Open Razorpay checkout
+      const razorpayOptions = {
+        key: import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_RXkiOg4W6ACRdc',
+        order_id: orderData.id,
+        amount: total * 100,
+        currency: 'INR',
+        name: 'KrishiSaathi',
+        description: `Order #${orderPayload.orderId}`,
+        image: '/krishisaathi-logo.png',
+        handler: async (response) => {
+          try {
+            setLoading(false);
+            console.log('✅ Payment response received:', {
+              orderId: response.razorpay_order_id,
+              paymentId: response.razorpay_payment_id,
+            });
+
+            // Step 5: Verify payment
+            const verifyRes = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.status === 'success') {
+              console.log('✅ Payment Verified:', response.razorpay_payment_id);
+              
+              // Update order payload with payment info
+              const updatedPayload = {
+                ...orderPayload,
+                paymentId: response.razorpay_payment_id,
+                razorpayOrderId: response.razorpay_order_id,
+                status: 'paid'
+              };
+
+              // Save order with payment details
+              await saveOrder(updatedPayload);
+              toast.success('Payment successful! Order placed.');
+            } else {
+              throw new Error('Payment verification failed');
             }
-          );
-          if (result && (result.id || result._id)) savedOrder = { id: result.id || result._id };
-        } catch (saveErr) {
-          console.warn("saveOrderHistory failed:", saveErr);
+          } catch (err) {
+            console.error('❌ Payment verification error:', err.message);
+            toast.error('Payment verification failed. Contact support.');
+            setLoading(false);
+          }
+        },
+        prefill: {
+          name: customer.name || '',
+          email: customer.email || '',
+          contact: customer.phone || '',
+        },
+        method: methodsObj,
+        theme: {
+          color: '#2D4F1E',
+        },
+        display: {
+          blocks: {
+            utib: 'hide',
+            emi: 'hide',
+            emandate: 'hide',
+          },
+          hide: [],
+          preferences: {
+            parent_window: 'window',
+          },
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('⚠️ User dismissed payment modal');
+            toast.info('Payment cancelled. Please try again.');
+            setLoading(false);
+          }
+        },
+        readonly: {
+          contact: !!customer.phone,
+          email: !!customer.email,
         }
+      };
 
-        try {
-          await clearAllCart(savedOrder.id);
-        } catch (e) {
-          console.warn("clearAllCart failed:", e);
-        }
-
-        try {
-          localStorage.setItem("lastOrderId", savedOrder.id);
-        } catch (e) {}
-
-        setLoading(false);
-        navigate("/thankyou");
-      },
-      theme: { color: "#0f9d58" },
-    };
-
-    new window.Razorpay(options).open();
-    setLoading(false);
-  };
-
-  /* Cash on delivery handler (preserves logic) */
-  const handleCOD = async () => {
-    setLocalError("");
-    const err = validateCustomer();
-    if (err) {
-      setLocalError(err);
-      return;
+      console.log('🔓 Opening Razorpay checkout with options:', razorpayOptions);
+      
+      const razorpayInstance = new window.Razorpay(razorpayOptions);
+      razorpayInstance.open();
+      
+    } catch (err) {
+      console.error('❌ Razorpay payment error:', err.message);
+      toast.error(err.message || 'Payment processing failed');
+      setLoading(false);
     }
-    if (!verified) return toast.info("Please verify before COD");
+  }
 
-    setLoading(true);
-    await saveLocalSnapshot();
-
-    let savedOrder = { id: `local_${Date.now()}` };
-    try {
-      const result = await saveOrderHistory(customer.email, cart, {
-        method: "cod",
-        total,
-      });
-      if (result && (result.id || result._id)) savedOrder = { id: result.id || result._id };
-    } catch (e) {
-      console.warn("saveOrderHistory failed:", e);
-    }
-
-    try {
-      await clearAllCart(savedOrder.id);
-    } catch (e) {
-      console.warn("clearAllCart post-cod failed:", e);
-    }
-
-    try {
-      localStorage.setItem("lastOrderId", savedOrder.id);
-    } catch (e) {}
-
-    setLoading(false);
-    navigate("/thankyou");
-  };
-
-  /* Inline field change handler with error clear */
   const onFieldChange = (key, value) => {
     setCustomer((s) => ({ ...s, [key]: value }));
     if (fieldErrors[key]) setFieldErrors((fe) => { const copy = { ...fe }; delete copy[key]; return copy; });
-    setLocalError("");
   };
 
-  /* Small progress stepper state for UI (1=Details,2=Payment,3=Complete) */
-  const [step, setStep] = useState(1);
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-white py-10 px-4">
-      <div className="max-w-6xl mx-auto">
-
-        {/* Stepper */}
-        <div className="mb-6">
-          <div className="bg-white/60 backdrop-blur rounded-full p-1 flex items-center justify-between shadow-sm border">
-            <div className="flex items-center w-full">
-              <div className={`flex-1 px-4 py-2 text-xs text-center ${step >= 1 ? "text-green-700 font-semibold" : "text-gray-400"}`}>
-                1 • Details
+    <div className="checkout-page-wrapper">
+      {/* Progress Bar */}
+      <div className="checkout-progress">
+        {['Details', 'Payment', 'Done'].map((label, i) => {
+          const stepNum = i + 1;
+          const isActive = currentStep === stepNum;
+          const isDone = currentStep > stepNum;
+          return (
+            <React.Fragment key={label}>
+              <div className="checkout-progress-item">
+                <div className={`checkout-progress-circle ${isDone ? 'done' : isActive ? 'active' : 'pending'}`}>
+                  {isDone ? <Check size={16} /> : stepNum}
+                </div>
+                <span className={`checkout-progress-label ${isActive ? 'active' : 'pending'}`}>{label}</span>
               </div>
-              <div className={`flex-1 px-4 py-2 text-xs text-center ${step >= 2 ? "text-green-700 font-semibold" : "text-gray-400"}`}>
-                2 • Payment
-              </div>
-              <div className={`flex-1 px-4 py-2 text-xs text-center ${step >= 3 ? "text-green-700 font-semibold" : "text-gray-400"}`}>
-                3 • Done
-              </div>
-            </div>
-          </div>
-        </div>
+              {i < 2 && <div className={`checkout-progress-line ${isDone ? 'done' : ''}`} />}
+            </React.Fragment>
+          );
+        })}
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left: Checkout form */}
-          <motion.section
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.35 }}
-            className="lg:col-span-2 bg-white/80 backdrop-blur-md border border-white/40 rounded-2xl p-6 shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <h1 className="text-2xl font-bold text-green-700">Checkout</h1>
-              <div className="text-sm text-gray-500">Safe & secure • Est. delivery: 2–4 days</div>
-            </div>
+      <div className="checkout-container">
+        <main>
+          <AnimatePresence mode="wait">
+            {currentStep === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="checkout-card"
+              >
+                <div style={{ marginBottom: 28 }}>
+                  <span className="checkout-step-tag">Step 1 of 3</span>
+                  <h2 className="checkout-title">Delivery Details</h2>
+                  <p className="checkout-subtitle">🔒 Safe & secure • Est. delivery: 2–4 days</p>
+                </div>
 
-            {localError && (
-              <div className="mt-4 bg-red-50 text-red-700 p-3 rounded-md">{localError}</div>
+                <div className="checkout-form-grid">
+                  <Input
+                    label="Full Name"
+                    required
+                    value={customer.name}
+                    onChange={(e) => onFieldChange("name", e.target.value)}
+                    placeholder="e.g. Ravi Kumar"
+                    icon={User}
+                    error={fieldErrors.name}
+                  />
+                  <Input
+                    label="Email Address"
+                    required
+                    value={customer.email}
+                    onChange={(e) => onFieldChange("email", e.target.value)}
+                    placeholder="demo@gmail.com"
+                    icon={Mail}
+                    error={fieldErrors.email}
+                  />
+                  <Input
+                    label="Phone Number"
+                    required
+                    value={customer.phone}
+                    onChange={(e) => onFieldChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="10-digit phone"
+                    icon={Phone}
+                    error={fieldErrors.phone}
+                  />
+                  <Input
+                    label="Pincode"
+                    required
+                    value={customer.pincode}
+                    onChange={(e) => onFieldChange("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="e.g. 560001"
+                    icon={MapPin}
+                    error={fieldErrors.pincode}
+                  />
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <label className="checkout-label">Delivery Address *</label>
+                  <div className="relative mt-1">
+                    <MapPin size={16} style={{ position: 'absolute', left: 14, top: 14, color: '#b0a898', zIndex: 10 }} />
+                    <textarea
+                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-[#EDD9B0] bg-[#FDFAF4] focus:ring-2 focus:ring-[#2D4F1E] outline-none min-h-[100px]"
+                      value={customer.address}
+                      onChange={(e) => onFieldChange("address", e.target.value)}
+                      placeholder="House number, street, landmark, city"
+                      rows={3}
+                    />
+                  </div>
+                  {fieldErrors.address && <p className="text-red-500 text-xs mt-1">{fieldErrors.address}</p>}
+                </div>
+
+                <div className="checkout-promo-box">
+                  <div className="checkout-promo-header">
+                    <Tag size={15} color="#e27d60" />
+                    <span className="checkout-promo-title">Apply Promo Code</span>
+                    <span className="checkout-promo-note">Available: KRISHI10</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        value={promo}
+                        onChange={(e) => setPromo(e.target.value)}
+                        placeholder="Enter promo code"
+                        noMargin
+                      />
+                    </div>
+                    <Button variant="secondary" onClick={handleApplyPromo}>Apply</Button>
+                  </div>
+                </div>
+
+                <Button
+                  variant="primary"
+                  fullWidth
+                  size="lg"
+                  onClick={handleNextStep}
+                  icon={<ArrowRight size={18} />}
+                  iconPosition="right"
+                >
+                  Continue to Payment
+                </Button>
+              </motion.div>
             )}
 
-            {/* Customer details */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="form-group">
-                <label className="text-sm font-medium text-gray-700">Full name</label>
-                <input
-                  value={customer.name}
-                  onChange={(e) => onFieldChange("name", e.target.value)}
-                  className={`mt-1 w-full p-3 rounded-lg border ${fieldErrors.name ? "border-red-300" : "border-gray-200"} focus:ring-2 focus:ring-green-100`}
-                  placeholder="e.g. Ravi Kumar"
-                />
-                {fieldErrors.name && <div className="text-xs text-red-600 mt-1">{fieldErrors.name}</div>}
-              </div>
-
-              <div className="form-group">
-                <label className="text-sm font-medium text-gray-700">Email address</label>
-                <input
-                  type="email"
-                  value={customer.email}
-                  onChange={(e) => onFieldChange("email", e.target.value)}
-                  className={`mt-1 w-full p-3 rounded-lg border ${fieldErrors.email ? "border-red-300" : "border-gray-200"} focus:ring-2 focus:ring-green-100`}
-                  placeholder="you@example.com"
-                />
-                {fieldErrors.email && <div className="text-xs text-red-600 mt-1">{fieldErrors.email}</div>}
-              </div>
-
-              <div className="form-group">
-                <label className="text-sm font-medium text-gray-700">Phone</label>
-                <input
-                  value={customer.phone}
-                  onChange={(e) => onFieldChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className={`mt-1 w-full p-3 rounded-lg border ${fieldErrors.phone ? "border-red-300" : "border-gray-200"} focus:ring-2 focus:ring-green-100`}
-                  placeholder="10-digit phone"
-                />
-                {fieldErrors.phone && <div className="text-xs text-red-600 mt-1">{fieldErrors.phone}</div>}
-              </div>
-
-              <div className="form-group">
-                <label className="text-sm font-medium text-gray-700">Pincode</label>
-                <input
-                  value={customer.pincode}
-                  onChange={(e) => onFieldChange("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="mt-1 w-full p-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-100"
-                  placeholder="e.g. 560001"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">Delivery Address</label>
-                <textarea
-                  rows={3}
-                  value={customer.address}
-                  onChange={(e) => onFieldChange("address", e.target.value)}
-                  className={`mt-1 w-full p-3 rounded-lg border ${fieldErrors.address ? "border-red-300" : "border-gray-200"} focus:ring-2 focus:ring-green-100`}
-                  placeholder="House number, street, landmark"
-                />
-                {fieldErrors.address && <div className="text-xs text-red-600 mt-1">{fieldErrors.address}</div>}
-              </div>
-            </div>
-
-            {/* Promo code row */}
-            <div className="mt-6 border-t pt-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Tag size={16}/> Apply Promo</h3>
-                <div className="text-xs text-gray-400">Available: KRISHI10</div>
-              </div>
-
-              <div className="mt-3 flex gap-3">
-                <input
-                  value={promo}
-                  onChange={(e) => setPromo(e.target.value)}
-                  placeholder="Enter promo code"
-                  className="flex-1 p-3 rounded-lg border border-gray-200"
-                />
-                <button onClick={handleApplyPromo} className="px-4 py-3 rounded-lg bg-green-600 text-white">Apply</button>
-                {appliedPromo && (
-                  <button onClick={removePromo} className="px-3 py-3 rounded-lg border text-sm">
-                    Remove
-                  </button>
-                )}
-              </div>
-
-              {appliedPromo && (
-                <div className="mt-3 p-3 bg-green-50 rounded-lg flex items-center gap-3 text-sm text-green-700">
-                  <Percent size={16} />
-                  <div>
-                    <div className="font-semibold">{appliedPromo.label}</div>
-                    <div className="text-xs text-green-700/80">Applied to your subtotal</div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Verification & Payment */}
-            <div className="mt-6 border-t pt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${verified ? "bg-green-100 text-green-700" : "bg-white border"}`}>
-                    <ShieldCheck size={18} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold">Confirm delivery details</div>
-                    <div className="text-xs text-gray-500">Verify to proceed with payment</div>
-                  </div>
+            {currentStep === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="checkout-card"
+              >
+                <div style={{ marginBottom: 24 }}>
+                  <span className="checkout-step-tag">Step 2 of 3</span>
+                  <h2 className="checkout-title">Payment Method</h2>
                 </div>
 
-                <div>
-                  <button
-                    onClick={() => {
-                      const err = validateCustomer();
-                      if (err) {
-                        setLocalError(err);
-                        return;
-                      }
-                      setVerified(true);
-                      toast.success("Details verified");
-                      setStep(2);
-                    }}
-                    disabled={verified}
-                    className={`px-4 py-2 rounded-lg ${verified ? "bg-green-100 text-green-700" : "bg-white border"}`}
+                {[
+                  { id: 'cod', label: 'Cash on Delivery', sub: 'Pay when your order arrives', icon: '💵' },
+                  { id: 'upi', label: 'UPI Payment', sub: 'GPay, PhonePe, Paytm', icon: '📱' },
+                  { id: 'card', label: 'Credit / Debit Card', sub: 'Visa, Mastercard, Rupay', icon: '💳' }
+                ].map(option => (
+                  <div
+                    key={option.id}
+                    onClick={() => setPaymentMethod(option.id)}
+                    className={`payment-option-card ${paymentMethod === option.id ? 'selected' : ''}`}
                   >
-                    {verified ? "Verified ✓" : "Verify"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Payment CTAs */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <button
-                  onClick={handlePayOnline}
-                  disabled={!verified || loading}
-                  className={`flex items-center justify-center gap-3 p-3 rounded-full text-white ${!verified ? "opacity-60 cursor-not-allowed bg-green-300" : "bg-gradient-to-r from-green-600 to-green-700 shadow-lg"}`}
-                >
-                  {loading ? <Loader2 className="animate-spin" /> : <CreditCard size={16} />} Pay Online
-                </button>
-
-                <button
-                  onClick={handleCOD}
-                  disabled={!verified || loading}
-                  className={`flex items-center justify-center gap-3 p-3 rounded-full ${!verified ? "opacity-60 cursor-not-allowed bg-gray-200" : "bg-white border"}`}
-                >
-                  🪙 Cash on Delivery
-                </button>
-              </div>
-
-              <div className="mt-3 text-xs text-gray-500">
-                By continuing, you agree to our Terms & Privacy. Payments handled securely.
-              </div>
-            </div>
-          </motion.section>
-
-          {/* Right: Order Summary */}
-          <aside className="lg:col-span-1">
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.35 }}
-              className="bg-white/80 backdrop-blur-md border border-white/40 rounded-2xl p-5 shadow sticky top-8"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-800">Order Summary</h3>
-                <div className="text-xs text-gray-500">#{String(Date.now()).slice(-6)}</div>
-              </div>
-
-              <div className="space-y-3">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex justify-between items-start">
-                    <div className="min-w-0">
-                      <div className="font-medium text-gray-700 truncate">{item.name}</div>
-                      <div className="text-xs text-gray-500">{item.quantity} × {formatINR(item.price)}</div>
+                    <span className="payment-icon">{option.icon}</span>
+                    <div className="payment-info">
+                      <div className="payment-label">{option.label}</div>
+                      <div className="payment-sub">{option.sub}</div>
                     </div>
-                    <div className="font-semibold">{formatINR(item.price * item.quantity)}</div>
+                    <div className={`payment-radio ${paymentMethod === option.id ? 'selected' : ''}`} />
+                  </div>
+                ))}
+
+                <Button
+                  variant="primary"
+                  fullWidth
+                  size="lg"
+                  onClick={handlePlaceOrder}
+                  disabled={loading}
+                  loading={loading}
+                  icon={!loading && <ShoppingBag size={18} />}
+                >
+                  Place Order
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onClick={() => setCurrentStep(1)}
+                  style={{ marginTop: 12 }}
+                >
+                  ← Back to Details
+                </Button>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </main>
+
+        <aside>
+          {currentStep < 3 && (
+            <div className="summary-card">
+              <div className="summary-header">
+                <h3 className="summary-title">Order Summary</h3>
+                <span className="summary-order-id">#{orderId}</span>
+              </div>
+
+              <div className="summary-items-list">
+                {cart.map(item => (
+                  <div key={item.id} className="summary-item">
+                    <div className="summary-item-info">
+                      <img className="summary-item-img" src={item.image || "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=100"} alt={item.name} />
+                      <div>
+                        <div className="summary-item-name">{item.name}</div>
+                        <div className="summary-item-qty">{item.quantity} × ₹{item.price}</div>
+                      </div>
+                    </div>
+                    <span className="summary-item-price">₹{item.quantity * item.price}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t mt-4 pt-4 text-sm space-y-3">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatINR(subtotal)}</span>
+              <div className="summary-details">
+                <div className="summary-row">
+                  <span className="summary-row-label">Subtotal</span>
+                  <span className="summary-row-value">₹{subtotal.toFixed(2)}</span>
                 </div>
-
-                <div className="flex justify-between">
-                  <span>Discount</span>
-                  <span className="text-green-700">-{formatINR(promoDiscount)}</span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <Truck size={14} />
-                    <span>Shipping</span>
+                {appliedPromo && (
+                  <div className="summary-row">
+                    <span className="summary-row-label">Discount</span>
+                    <span className="summary-row-value" style={{ color: '#4caf50' }}>-₹{promoDiscount.toFixed(2)}</span>
                   </div>
-                  <div>{shipping ? formatINR(shipping) : <span className="text-green-700">Free</span>}</div>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Tax</span>
-                  <span>{formatINR(tax)}</span>
-                </div>
-
-                <div className="border-t pt-3 flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span className="text-green-700">{formatINR(total)}</span>
-                </div>
-
-                {promoDiscount > 0 && (
-                  <div className="mt-2 text-sm text-green-700">You saved {formatINR(promoDiscount)}!</div>
                 )}
+                <div className="summary-row">
+                  <span className="summary-row-label">Shipping</span>
+                  <span className="summary-row-value">{shipping === 0 ? <span style={{ color: '#4caf50' }}>FREE</span> : `₹${shipping}`}</span>
+                </div>
+                <div className="summary-row">
+                  <span className="summary-row-label">Tax (5%)</span>
+                  <span className="summary-row-value">₹{tax.toFixed(2)}</span>
+                </div>
+
+                <div className="summary-separator" />
+
+                <div className="summary-total">
+                  <span className="summary-total-label">Total</span>
+                  <span className="summary-total-value">₹{total}</span>
+                </div>
               </div>
 
-              <div className="mt-4 flex flex-col gap-2">
-                <button
-                  onClick={() => { setStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  className="w-full py-2 rounded-lg border"
-                >
-                  Edit details
-                </button>
+              {subtotal < DELIVERY_THRESHOLD && (
+                <div className="delivery-free-info">
+                  <div className="delivery-free-text">Add ₹{DELIVERY_THRESHOLD - subtotal} more for FREE delivery</div>
+                  <div className="delivery-bar-bg">
+                    <div className="delivery-bar-fill" style={{ width: `${Math.min((subtotal / DELIVERY_THRESHOLD) * 100, 100)}%` }} />
+                  </div>
+                </div>
+              )}
 
-                <button
-                  onClick={() => { if (!verified) setLocalError("Please verify details before checkout"); else goToPayment(); }}
-                  className="w-full py-2 rounded-lg bg-white text-gray-700 border"
-                >
-                  Need help?
-                </button>
+              <div className="summary-actions">
+                <Button variant="ghost" size="sm" fullWidth onClick={() => { setCurrentStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✏️ Edit Details</Button>
+                <Button variant="ghost" size="sm" fullWidth onClick={() => navigate('/support')} style={{ marginTop: 8 }}>💬 Need Help?</Button>
               </div>
-            </motion.div>
-          </aside>
-        </div>
+
+              <div className="summary-badges">
+                <span>🔒 Secure</span>
+                <span>🚚 Fast</span>
+                <span>✅ Verified</span>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );
-
-  /* helper used by the 'Need help?' button — navigates to payment or shows message */
-  function goToPayment() {
-    if (!verified) {
-      setLocalError("Please verify your details before proceeding to payment.");
-      return;
-    }
-    setStep(2);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
 }

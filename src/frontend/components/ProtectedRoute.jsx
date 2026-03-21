@@ -17,7 +17,7 @@ const isLocalPath = (path) =>
 
 const safeRedirectTo = (to, fallback = "/") => (isLocalPath(to) ? to : fallback);
 
-export default function ProtectedRoute({ children, allowedRoles = null }) {
+export default function ProtectedRoute({ children, allowedRoles = null, role = null }) {
   const location = useLocation();
   const [sessionValid, setSessionValid] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
@@ -85,7 +85,9 @@ export default function ProtectedRoute({ children, allowedRoles = null }) {
     const from = safeRedirectTo(location.pathname, "/");
     if (MODE !== "production") console.warn(`[ProtectedRoute] Redirect → /login (from ${from})`);
 
-    setRedirecting(true);
+    useEffect(() => {
+      setRedirecting(true);
+    }, []);
     return (
       <>
         {redirecting && (
@@ -106,11 +108,13 @@ export default function ProtectedRoute({ children, allowedRoles = null }) {
   }
 
   // 🎯 Role-based access enforcement
-  if (Array.isArray(allowedRoles) && allowedRoles.length > 0) {
-    if (!allowedRoles.includes(userRole)) {
+  const rolesToCheck = allowedRoles || (role ? [role] : null);
+
+  if (Array.isArray(rolesToCheck) && rolesToCheck.length > 0) {
+    if (!rolesToCheck.includes(userRole)) {
       if (MODE !== "production") {
         console.warn(
-          `[ProtectedRoute] Role mismatch → Allowed: [${allowedRoles.join(
+          `[ProtectedRoute] Role mismatch → Allowed: [${rolesToCheck.join(
             ", "
           )}] | Found: ${userRole}`
         );

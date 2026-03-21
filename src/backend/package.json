@@ -4,13 +4,12 @@
   "type": "module",
   "main": "userserver.js",
   "scripts": {
-    "start:users": "node userserver.js",
-    "start:orders": "node ordersServer.js",
-    "start:payment": "node payment.js",
-    "dev:users": "nodemon userserver.js",
-    "dev:orders": "nodemon ordersServer.js",
-    "dev:payment": "nodemon payment.js",
-    "dev:all": "concurrently \"nodemon userserver.js\" \"nodemon ordersServer.js\" \"nodemon payment.js\""
+    "start": "node startAll.js",
+    "main": "node server.js",
+    "orders": "node ordersServer.js",
+    "users": "node userserver.js",
+    "payment": "node payment.js",
+    "dev": "nodemon startAll.js"
   },
   "dependencies": {
     "aws-jwt-verifier": "^1.1.0",

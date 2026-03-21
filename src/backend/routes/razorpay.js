@@ -174,10 +174,11 @@ router.post("/verify", async (req, res) => {
     // 6) Save order to user's profile (this reads user's cart from userserver and clears it)
     const userResult = await saveOrderToUserProfile(uid, paymentInfo, metadata || { items, subtotal, total }, forwardHeaders);
 
-    // 7) Create central order in orders service if items+customer provided
-    let centralResult = { created: false, reason: "skipped" };
-    if (items && Array.isArray(items) && items.length > 0 && customer && customer.email) {
+    // 7) Create central order in orders service
+    let centralResult = { created: false, reason: "skipped (no data)" };
+    if (items && customer && customer.email) {
       const payloadForOrders = {
+        buyerId: uid || null,
         items,
         customer,
         subtotal,
@@ -186,7 +187,7 @@ router.post("/verify", async (req, res) => {
         tax,
         total,
         payment_method: "razorpay",
-        metadata: { uid: uid || null, ...metadata },
+        metadata: { razorpay_order_id, razorpay_payment_id, ...metadata },
       };
       centralResult = await createCentralOrderIfPossible(payloadForOrders, forwardHeaders);
     }

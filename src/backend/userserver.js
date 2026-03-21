@@ -10,7 +10,12 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
 
-dotenv.config();
+import { fileURLToPath } from "url";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import usersRoutes from "./routes/users.js";
+
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 /* ---------- Config ---------- */
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/krishisaathi";
@@ -86,6 +91,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// 🔥 Mount external users router
+app.use("/api/users", usersRoutes);
+
 /* ---------- MongoDB connect ---------- */
 const connectDB = async () => {
   try {
@@ -98,6 +106,29 @@ const connectDB = async () => {
   }
 };
 
+/* ---------- MongoDB indexes (run once on startup) ---------- */
+const addIndexes = async () => {
+  try {
+    const db = mongoose.connection.db;
+    // Users collection
+    await db.collection('users').createIndex({ uid: 1 }, { unique: true, background: true });
+    await db.collection('users').createIndex({ email: 1 }, { sparse: true, background: true });
+    await db.collection('users').createIndex({ role: 1 }, { background: true });
+    // Orders collection
+    await db.collection('orders').createIndex({ uid: 1, createdAt: -1 }, { background: true });
+    await db.collection('orders').createIndex({ createdAt: -1 }, { background: true });
+    // Products collection (may not exist yet — create silently)
+    try {
+      await db.collection('products').createIndex({ farmerId: 1 }, { background: true });
+      await db.collection('products').createIndex({ category: 1 }, { background: true });
+      await db.collection('products').createIndex({ soldCount: -1 }, { background: true });
+    } catch { /* products collection may not exist */ }
+    console.log('✅ MongoDB indexes created/verified');
+  } catch (error) {
+    console.error('⚠️ Index creation error (non-fatal):', error?.message || error);
+  }
+};
+
 /* ---------- Schemas & Models ---------- */
 const cartItemSchema = new mongoose.Schema({
   productId: { type: String, required: false },
@@ -107,6 +138,7 @@ const cartItemSchema = new mongoose.Schema({
   total: { type: Number, default: 0 },
   unit: { type: String, default: "" },
   image: { type: String, default: "" },
+  farmerId: { type: String, default: "demo" },
 }, { _id: false });
 
 const orderItemSchema = new mongoose.Schema({
@@ -117,6 +149,7 @@ const orderItemSchema = new mongoose.Schema({
   total: { type: Number, default: 0 },
   unit: { type: String, default: "" },
   image: { type: String, default: "" },
+  farmerId: { type: String, default: "demo" },
 }, { _id: false });
 
 const orderSchema = new mongoose.Schema({
@@ -176,8 +209,14 @@ const authMiddleware = async (req, res, next) => {
   // Dev no-auth override
   if (DEV_NO_AUTH) {
     req.isDevNoAuth = true;
-    // If client passed a uid in body or params, set req.user mock
-    req.user = { uid: req.params.uid || (req.body && req.body.uid) || `dev-${Math.random().toString(36).slice(2, 6)}` };
+    // Prioritize UID from body, then params, then fallback to a stable-ish mock
+    const bodyUid = req.body && req.body.uid;
+    const paramUid = req.params.uid;
+    const emailPrefix = (req.body && req.body.email) ? req.body.email.split('@')[0] : 'dev';
+    
+    req.user = { 
+      uid: bodyUid || paramUid || `dev-${emailPrefix}-${phoneDigitsOnly(req.body?.phone || '') || 'user'}`
+    };
     return next();
   }
 
@@ -304,15 +343,76 @@ app.get("/api/users/:uid", authMiddleware, async (req, res) => {
       return respondError(res, 403, "Forbidden - uid mismatch", "FORBIDDEN_UID");
     }
 
-    const user = await User.findOne({ uid: uidParam }).lean();
-    if (!user) return respondError(res, 404, "User not found", "USER_NOT_FOUND");
+    const user = await User.findOne({
+      $or: [
+        { uid: uidParam },
+        { firebaseUid: uidParam },
+        { userId: uidParam }
+      ]
+    }).lean();
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found in DB',
+        uid: uidParam
+      });
+    }
 
     // remove potentially large or sensitive raw fields
-    const { cart, orderHistory, __v, _id, ...safe } = user;
+    const { cart, orderHistory, __v, _id, password, ...safe } = user;
     return res.json({ ok: true, user: safe, cart: user.cart || [], orderHistory: user.orderHistory || [] });
   } catch (err) {
     console.error("Get user error:", err?.message || err);
     return respondError(res, 500, "Failed to fetch user", "USER_FETCH_ERROR", err?.message);
+  }
+});
+
+// POST /api/users/sync
+// Creates or updates user after Firebase login
+app.post('/api/users/sync', async (req, res) => {
+  try {
+    const {
+      uid, name, email,
+      phone, role, photoURL
+    } = req.body;
+
+    if (!uid) return res.status(400).json({ message: 'uid required' });
+
+    const user = await User.findOneAndUpdate(
+      { uid },
+      {
+        uid,
+        name: name || 'KrishiSaathi User',
+        email: email || '',
+        phone: phone || '',
+        role: role || 'buyer',
+        photoURL: photoURL || '',
+        updatedAt: new Date()
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    ).lean();
+
+    res.json({
+      success: true,
+      user: {
+        uid: user.uid,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        photoURL: user.photoURL
+      }
+    });
+
+  } catch (error) {
+    console.error('Sync user error:', error);
+    res.status(500).json({
+      message: 'Failed to sync user',
+      error: error.message
+    });
   }
 });
 
@@ -368,8 +468,8 @@ app.post("/api/users/:uid/order", authMiddleware, async (req, res) => {
       uid: uidParam,
       items: cartWithTotals,
       totalAmount,
-      paymentStatus: paymentInfo.paymentStatus || "Paid",
-      paymentMethod: paymentInfo.paymentMethod || paymentInfo.method || "",
+      paymentStatus: paymentInfo.paymentStatus || (paymentInfo.method === 'COD' || paymentInfo.paymentMethod === 'COD' ? 'Pending' : 'Paid'),
+      paymentMethod: paymentInfo.paymentMethod || paymentInfo.method || 'COD',
       paymentId: paymentInfo.paymentId || paymentInfo.id || "",
       createdAt: new Date(),
     };
@@ -420,26 +520,183 @@ app.get("/api/users/:uid/orders", authMiddleware, async (req, res) => {
   }
 });
 
+/* Personalized Recommendations — returns category hints, frontend filters products */
+app.get("/api/users/:uid/recommendations", authMiddleware, async (req, res) => {
+  try {
+    const uidParam = req.params.uid;
+
+    if (!(req.isInternal || req.isDevNoAuth) && req.user.uid !== uidParam) {
+      return respondError(res, 403, "Forbidden - uid mismatch", "FORBIDDEN_UID");
+    }
+
+    // Try top-level orders first
+    let orders = await Order.find({ uid: uidParam }).select('items').lean();
+
+    // Fallback to user.orderHistory
+    if (!orders || orders.length === 0) {
+      const user = await User.findOne({ uid: uidParam }).select('orderHistory').lean();
+      orders = (user && Array.isArray(user.orderHistory)) ? user.orderHistory : [];
+    }
+
+    // New user — recommend popular products
+    if (!orders.length) {
+      return res.json({ type: 'popular', categories: [], message: 'Show popular products' });
+    }
+
+    // Returning user — extract purchased categories
+    const boughtCategories = [
+      ...new Set(
+        orders.flatMap(o =>
+          (Array.isArray(o.items) ? o.items : []).map(i => i.category).filter(Boolean)
+        )
+      )
+    ];
+
+    return res.json({
+      type: 'personalized',
+      categories: boughtCategories,
+      message: `Personalized for ${boughtCategories.length} categories`
+    });
+  } catch (err) {
+    console.error("Recommendations error:", err?.message || err);
+    return respondError(res, 500, "Could not fetch recommendations", "RECOMMENDATIONS_ERROR", err?.message);
+  }
+});
+
+/* ---------- Orders API ---------- */
+
+// GET all orders for a user — OPTIMIZED
+app.get("/api/orders/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const orders = await Order.find(
+      { uid: userId },
+      // Only fetch needed fields for history list
+      {
+        orderId: 1,
+        status: 1,
+        totalAmount: 1,
+        items: 1,
+        paymentMethod: 1,
+        createdAt: 1,
+        uid: 1
+      }
+    )
+    .sort({ createdAt: -1 })  // newest first
+    .limit(50)                 // max 50 orders
+    .lean();                   // plain JS, faster
+
+    // Compatibility mapper for frontend expectation of 'total'
+    const mapped = orders.map(o => ({
+      ...o,
+      total: o.totalAmount || o.total || 0,
+      paymentMethod: o.paymentMethod || "unknown"
+    }));
+
+    res.json({ orders: mapped });
+
+  } catch (error) {
+    console.error('Orders fetch error:', error);
+    res.status(500).json({
+      message: 'Failed to fetch orders'
+    });
+  }
+});
+
+// POST place new order
+app.post("/api/orders", async (req, res) => {
+  try {
+    const {
+      uid, items, total,
+      paymentMethod
+    } = req.body;
+
+    const orderId = 'ORD' + Date.now();
+    const order = new Order({
+      orderId,
+      uid,
+      items: items.map(item => ({
+        ...item,
+        total: (item.price || 0) * (item.quantity || item.qty || 1)
+      })),
+      totalAmount: total,
+      paymentMethod: paymentMethod || 'cod',
+      status: 'confirmed',
+      createdAt: new Date()
+    });
+
+    await order.save();
+
+    // Clear cart for the user
+    await User.findOneAndUpdate(
+      { uid },
+      { $set: { cart: [] } }
+    );
+
+    res.status(201).json({
+      success: true,
+      id: orderId,
+      orderId: orderId
+    });
+
+  } catch (error) {
+    console.error('Order creation error:', error);
+    res.status(500).json({
+      message: 'Failed to place order'
+    });
+  }
+});
+
 /* Basic health */
 app.get("/", (_, res) => res.send("User server running"));
 
+
 /* ---------- Graceful shutdown & uncaught handlers ---------- */
-process.on("unhandledRejection", (err) => {
-  console.error("UnhandledRejection:", err?.message || err);
+process.on('uncaughtException', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n❌ Port already in use! Run: taskkill /F /IM node.exe\n`);
+  } else {
+    console.error('❌ Uncaught Exception:', err);
+  }
+  process.exit(1);
 });
-process.on("uncaughtException", (err) => {
-  console.error("UncaughtException:", err?.message || err);
+
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err);
+  process.exit(1);
 });
 
 /* Start */
-const startServer = async () => {
-  await connectDB();
-  app.listen(PORT, () => {
-    console.log(`✅ User Server → http://localhost:${PORT}`);
+const PRIMARY_PORT = process.env.USER_PORT || 5002;
+const FALLBACK_PORT = 5012;
+
+const startListening = (port) => {
+  const server = app.listen(port, () => {
+    console.log(`✅ User Server running on http://localhost:${port}`);
     console.log(`   Firebase initialized: ${firebaseInitialized}`);
     console.log(`   DEV_NO_AUTH: ${DEV_NO_AUTH}`);
     console.log(`   INTERNAL_SECRET: ${INTERNAL_SECRET ? "[set]" : "[not-set]"}`);
   });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      if (port === PRIMARY_PORT) {
+        console.warn(`⚠️ Port ${port} busy, trying fallback ${FALLBACK_PORT}...`);
+        startListening(FALLBACK_PORT);
+      } else {
+        console.error(`❌ Both ports ${PRIMARY_PORT} and ${FALLBACK_PORT} are busy.`);
+        console.error(`Run this command to clear: taskkill /F /IM node.exe`);
+        process.exit(1);
+      }
+    }
+  });
+};
+
+const startServer = async () => {
+  await connectDB();
+  await addIndexes();
+  startListening(PRIMARY_PORT);
 };
 
 startServer();

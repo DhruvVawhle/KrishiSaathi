@@ -1,0 +1,198 @@
+/* ═══════════════════════════════════════════════════════════════
+   FloatingCartButton.css — FAB Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Base button ── */
+.fcb-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 50;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+/* ── Empty state: compact circle ── */
+.fcb-btn--empty {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #FDFAF4;
+    border: 1.5px solid #EDD9B0;
+    box-shadow:
+        0 4px 16px rgba(45, 79, 30, 0.12),
+        0 1px 4px rgba(45, 79, 30, 0.08);
+    justify-content: center;
+    padding: 0;
+    transition: background 200ms ease, border-color 200ms ease,
+        box-shadow 200ms ease, transform 200ms ease;
+}
+
+.fcb-btn--empty:hover {
+    background: #F5E6CC;
+    border-color: #2D4F1E;
+    box-shadow: 0 6px 20px rgba(45, 79, 30, 0.18);
+    transform: translateY(-2px);
+}
+
+.fcb-btn--empty:active {
+    transform: translateY(0) scale(0.95);
+}
+
+.fcb-btn--empty .fcb-icon-wrap {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2D4F1E;
+}
+
+/* ── Has items: pill shape ── */
+.fcb-btn--has-items {
+    height: 52px;
+    min-width: 130px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #2D4F1E, #3D6B2A);
+    border: none;
+    box-shadow:
+        0 6px 24px rgba(45, 79, 30, 0.35),
+        0 2px 8px rgba(45, 79, 30, 0.20);
+    padding: 0 18px 0 10px;
+    gap: 10px;
+    transition: background 200ms ease, box-shadow 200ms ease,
+        transform 200ms ease;
+}
+
+.fcb-btn--has-items:hover {
+    box-shadow: 0 8px 32px rgba(45, 79, 30, 0.45);
+    transform: translateY(-3px) scale(1.02);
+    background: linear-gradient(135deg, #3D6B2A, #4A7A35);
+}
+
+.fcb-btn--has-items:active {
+    transform: translateY(0) scale(0.97);
+}
+
+.fcb-btn--has-items .fcb-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+/* ── Text block (has items) ── */
+.fcb-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    overflow: hidden;
+}
+
+.fcb-text-count {
+    font-family: 'Caveat', cursive;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.fcb-text-subtotal {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #fff;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* ── Badge ── */
+.fcb-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #E27D60;
+    color: #fff;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+    line-height: 1;
+}
+
+/* ── Pulse rings ── */
+.fcb-pulse-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    border: 2px solid #2D4F1E;
+    pointer-events: none;
+}
+
+/* ── Tooltip (desktop only) ── */
+.fcb-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1A2E12;
+    color: #fff;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 8px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* Tooltip arrow */
+.fcb-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1A2E12;
+}
+
+/* ── Responsive ── */
+@media (max-width: 639px) {
+    .fcb-btn {
+        bottom: 80px;
+        right: 16px;
+    }
+}
+
+@media (min-width: 640px) {
+    .fcb-btn {
+        bottom: 32px;
+        right: 32px;
+    }
+}
+
+/* Hide tooltip on touch / mobile */
+@media (hover: none) {
+    .fcb-tooltip {
+        display: none !important;
+    }
+}

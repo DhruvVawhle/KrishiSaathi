@@ -18,18 +18,83 @@ const orderRefSchema = new mongoose.Schema({
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
-  uid: { type: String, required: true, unique: true, index: true },
-  email: { type: String, default: "" },
-  phone: { type: String, default: "" },
-  role: { type: String, default: "" },
-  name: { type: String, default: "" },
-  address: { type: String, default: "" },
-  state: { type: String, default: "" },
-  district: { type: String, default: "" },
-  pincode: { type: String, default: "" },
-  farmType: { type: String, default: "" },
-  cart: { type: [cartItemSchema], default: [] },
-  orderHistory: { type: [orderRefSchema], default: [] }
-}, { timestamps: true });
+  uid: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  },
+  name: {
+    type: String,
+    default: 'User'
+  },
+  email: {
+    type: String,
+    default: ''
+  },
+  phone: {
+    type: String,
+    default: ''
+  },
+  role: {
+    type: String,
+    enum: ['buyer', 'farmer', 'admin'],
+    default: 'buyer'
+  },
+  photoURL: {
+    type: String,
+    default: ''
+  },
+  farmName: {
+    type: String, default: ''
+  },
+  farmLocation: {
+    type: String, default: ''
+  },
+  farmSize: {
+    type: String, default: ''
+  },
+  farmSizeUnit: {
+    type: String, default: 'acres'
+  },
+  primaryCrops: {
+    type: String, default: ''
+  },
+  experience: {
+    type: String, default: ''
+  },
+  bio: {
+    type: String, default: ''
+  },
+  state: {
+    type: String, default: ''
+  },
+  district: {
+    type: String, default: ''
+  },
+  pincode: {
+    type: String, default: ''
+  },
+  upiId: {
+    type: String, default: ''
+  },
+  bankName: {
+    type: String, default: ''
+  },
+  accountNumber: {
+    type: String, default: ''
+  },
+  ifscCode: {
+    type: String, default: ''
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+})
 
 export default mongoose.models.User || mongoose.model("User", userSchema);

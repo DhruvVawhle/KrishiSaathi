@@ -1,31 +1,70 @@
-// src/pages/BuyerProfile.jsx
-import React, { useEffect, useState, useCallback } from "react";
-import { auth, db } from "../config/firebaseConfig";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/frontend/contexts/ToastContext";
+import Button from "@/frontend/components/ui/Button";
+import Input from "@/frontend/components/ui/Input";
+import Card from "@/frontend/components/ui/Card";
+import EmptyState from "@/frontend/components/ui/EmptyState";
+import { auth, db } from "@/frontend/config/firebaseConfig";
 import { onAuthStateChanged, updateProfile as updateAuthProfile } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { Download, Edit3, Save, X, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import OrderHistory from "./OrderHistory";
 import axios from "axios";
+import {
+  Edit2, Mail, Phone, MapPin, Building2, Hash,
+  ShoppingBag, Heart, Truck, HelpCircle,
+  Search, Package, Settings, ChevronRight
+} from "lucide-react";
+import "./BuyerProfile.css";
 
-/**
- * BuyerProfile (modernized)
- * - Glassy profile card with avatar initial
- * - Inline edit mode with validation and clear save flow
- * - Export CSV action + export PDF button
- * - Order history panel embedded
- */
+const API_BASE = "/api/payment";
 
-const API_BASE = import.meta.env.VITE_API_BASE?.trim() ? import.meta.env.VITE_API_BASE : "http://localhost:5000";
+// --- MOCK ORDERS ---
+const mockOrders = [
+  {
+    id: "#KS-20240312",
+    date: "12 Mar 2024",
+    status: "Delivered",
+    items: 3,
+    total: "₹245",
+    products: [
+      { name: "Tomato", qty: 2, img: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=100&q=80" },
+      { name: "Spinach", qty: 1, img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&q=80" },
+      { name: "Potato", qty: 3, img: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=100&q=80" }
+    ]
+  },
+  {
+    id: "#KS-20240308",
+    date: "8 Mar 2024",
+    status: "Processing",
+    items: 2,
+    total: "₹150",
+    products: [
+      { name: "Apple", qty: 2, img: "https://images.unsplash.com/photo-1560806887-1e4cd0b6fac6?w=100&q=80" },
+      { name: "Banana", qty: 1, img: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=100&q=80" }
+    ]
+  },
+  {
+    id: "#KS-20240228",
+    date: "28 Feb 2024",
+    status: "Delivered",
+    items: 2,
+    total: "₹90",
+    products: [
+      { name: "Rice", qty: 1, img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=100&q=80" },
+      { name: "Wheat Flour", qty: 1, img: "https://images.unsplash.com/photo-1598282367507-eedf61a15a81?w=100&q=80" }
+    ]
+  }
+];
 
-const BuyerProfile = () => {
+
+export default function BuyerProfile() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const toast = useToast();
 
+  // Profile Data State
   const [profileData, setProfileData] = useState({
     fullName: "",
     phone: "",
@@ -34,8 +73,31 @@ const BuyerProfile = () => {
     pincode: "",
   });
 
-  // Load user + sync
+  // UI States
+  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState('orders');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Orders Filters
+  const [orderFilter, setOrderFilter] = useState('All');
+  const [orderSearch, setOrderSearch] = useState('');
+
+  // Notifications State
+  const [notifSettings, setNotifSettings] = useState({
+    orderUpdates: true,
+    promotions: false,
+    newArrivals: true
+  });
+
+  // Load User Data
   useEffect(() => {
+    // 1. Instantly load cached profile to eliminate perceived UI waiting time
+    const cached = localStorage.getItem("buyerProfile");
+    if (cached) {
+      try { setProfileData(JSON.parse(cached)); } catch (e) { }
+    }
+
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) {
         setUser(null);
@@ -43,273 +105,544 @@ const BuyerProfile = () => {
         return;
       }
       setUser(u);
-      setLoading(true);
-      setSyncing(true);
-
-      const cached = localStorage.getItem("buyerProfile");
-      if (cached) setProfileData(JSON.parse(cached));
-
-      const withTimeout = (p, ms = 5000) =>
-        Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
 
       try {
-        const [fireRes, mongoRes] = await Promise.allSettled([
-          withTimeout(fetchUserProfile(u.uid), 6000),
-          withTimeout(fetchFromMongo(u.email), 5000),
-        ]);
-
-        if (fireRes.status === "rejected" && mongoRes.status === "rejected") {
-          toast.error("⚠️ Failed to sync profile from servers.");
+        const userRef = doc(db, "buyers", u.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const fetchedData = snap.data();
+          setProfileData(prev => ({ ...prev, ...fetchedData }));
+          // Cache the latest verified profile data
+          localStorage.setItem("buyerProfile", JSON.stringify({ ...(cached ? JSON.parse(cached) : {}), ...fetchedData }));
+        } else {
+          setProfileData(prev => ({ ...prev, fullName: u.displayName || "" }));
         }
       } catch (err) {
-        console.error("Profile sync error:", err);
+        console.error("Failed to load profile from Firestore:", err);
       } finally {
         setLoading(false);
-        setSyncing(false);
       }
     });
-
     return () => unsub();
   }, []);
 
-  // Fetch firebase profile
-  const fetchUserProfile = async (uid) => {
-    const userRef = doc(db, "buyers", uid);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) {
-      const data = snap.data();
-      setProfileData((prev) => ({ ...prev, ...data }));
-      localStorage.setItem("buyerProfile", JSON.stringify({ ...prev, ...data }));
-    } else {
-      const newDoc = {
-        fullName: auth.currentUser?.displayName || "",
-        phone: "",
-        address: "",
-        city: "",
-        pincode: "",
-        createdAt: serverTimestamp(),
-      };
-      await setDoc(userRef, newDoc, { merge: true });
-      setProfileData((prev) => ({ ...prev, ...newDoc }));
-      localStorage.setItem("buyerProfile", JSON.stringify(newDoc));
-    }
-  };
-
-  // Fetch from Mongo if available
-  const fetchFromMongo = async (email) => {
-    try {
-      const res = await axios.get(`${API_BASE}/api/users/profile`, { params: { email }, timeout: 5000 });
-      if (res.data?.email) {
-        const mongoData = res.data;
-        const merged = {
-          fullName: mongoData.fullName || profileData.fullName,
-          phone: mongoData.phone || profileData.phone,
-          address: mongoData.address || profileData.address,
-          city: mongoData.city || profileData.city,
-          pincode: mongoData.pincode || profileData.pincode,
-        };
-        setProfileData((prev) => ({ ...prev, ...merged }));
-        localStorage.setItem("buyerProfile", JSON.stringify(merged));
-      }
-    } catch (err) {
-      console.warn("Mongo fetch skipped or timed out:", err?.message || err);
-    }
-  };
-
-  // Save profile
-  const handleSaveProfile = async () => {
+  // Save Settings logic
+  const handleSaveSettings = async () => {
     if (!user) return;
-    if (!profileData.fullName.trim()) return toast.warning("Full name required");
-    if (profileData.phone && !/^\d{10}$/.test(profileData.phone)) return toast.warning("Enter a valid 10-digit phone number");
-    if (profileData.pincode && !/^\d{6}$/.test(profileData.pincode)) return toast.warning("Enter a valid 6-digit pincode");
-
     setIsSaving(true);
+
     try {
       const userRef = doc(db, "buyers", user.uid);
-      try {
-        await updateDoc(userRef, { ...profileData, updatedAt: serverTimestamp() });
-      } catch (fireErr) {
-        console.warn("Firestore update failed, trying setDoc:", fireErr?.message || fireErr);
-        try {
-          await setDoc(userRef, { ...profileData, createdAt: serverTimestamp() }, { merge: true });
-        } catch (setErr) {
-          console.warn("setDoc also failed:", setErr?.message || setErr);
-        }
-      }
-
-      try {
+      await setDoc(userRef, { ...profileData, updatedAt: serverTimestamp() }, { merge: true });
+      if (user.displayName !== profileData.fullName) {
         await updateAuthProfile(user, { displayName: profileData.fullName });
-      } catch (authErr) {
-        console.warn("Auth profile update failed:", authErr?.message || authErr);
       }
-
-      // Optional backend sync
-      try {
-        const res = await axios.post(`${API_BASE}/api/users/sync-profile`, { email: user.email, ...profileData }, { timeout: 8000 });
-        if (res?.status === 200) toast.success("Profile synced with backend");
-        else toast.info("Profile saved locally. Backend did not confirm sync.");
-      } catch (syncErr) {
-        console.warn("Mongo sync skipped or failed:", syncErr?.message || syncErr);
-        toast.info("Profile saved locally. Backend sync skipped.");
-      }
-
-      localStorage.setItem("buyerProfile", JSON.stringify(profileData));
-      const checkoutCopy = {
-        name: profileData.fullName,
-        fullName: profileData.fullName,
-        email: user.email,
-        phone: profileData.phone,
-        address: profileData.address,
-        city: profileData.city,
-        pincode: profileData.pincode,
-      };
-      localStorage.setItem("checkoutData", JSON.stringify(checkoutCopy));
-      localStorage.setItem("userName", profileData.fullName || "");
-      localStorage.setItem("userEmail", user.email || "");
-
-      toast.success("✅ Profile updated!");
-      setEditing(false);
+      toast.success("Profile saved successfully");
+      localStorage.setItem("buyerProfile", JSON.stringify({ ...profileData }));
+      setIsEditMode(false);
     } catch (err) {
-      console.error("Profile save error:", err);
       toast.error("Failed to save profile");
     } finally {
-      setTimeout(() => setIsSaving(false), 200);
+      setIsSaving(false);
     }
   };
 
-  const exportProfileInfo = useCallback(() => {
-    if (!user) return toast.info("No profile to export");
-    const rows = [
-      ["Field", "Value"],
-      ["Name", profileData.fullName],
-      ["Email", user.email],
-      ["Phone", profileData.phone],
-      ["Address", profileData.address],
-      ["City", profileData.city],
-      ["Pincode", profileData.pincode],
-      ["UID", user.uid],
-    ];
-    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `BuyerProfile_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Profile exported successfully");
-  }, [user, profileData]);
+  // Utils
+  const handleCopyEmail = () => {
+    if (user?.email) {
+      navigator.clipboard.writeText(user.email);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
 
-  // Loading UI
+  const getInitial = () => {
+    if (profileData.fullName) return profileData.fullName[0].toUpperCase();
+    if (user?.email) return user.email[0].toUpperCase();
+    return "U";
+  };
+
+  // Filtered orders
+  const filteredOrders = mockOrders.filter(o => {
+    const matchesMatch = orderFilter === 'All' || o.status === orderFilter;
+    const searchMatch = !orderSearch || o.id.toLowerCase().includes(orderSearch.toLowerCase());
+    return matchesMatch && searchMatch;
+  });
+
   if (loading) {
-    return <div className="text-center py-20 text-gray-600 animate-pulse">Loading your profile…</div>;
+    return (
+      <div className="bp-container animate-pulse">
+        <div className="bp-hero" style={{ background: 'var(--color-bg-soft)' }}>
+          <div className="bp-hero-content" style={{ opacity: 0.5 }}>
+            <div className="bp-avatar-wrapper">
+              <div className="bp-avatar" style={{ background: 'rgba(0,0,0,0.05)', borderColor: 'var(--color-bg-soft)' }}></div>
+            </div>
+            <div className="bp-user-info">
+              <div style={{ width: 160, height: 28, background: 'rgba(0,0,0,0.08)', borderRadius: 6, marginBottom: 8 }}></div>
+              <div style={{ width: 120, height: 16, background: 'rgba(0,0,0,0.05)', borderRadius: 4 }}></div>
+            </div>
+          </div>
+        </div>
+        <div className="bp-stats-strip" style={{ height: 110, background: 'var(--color-bg-soft)' }}></div>
+        <div className="bp-main">
+          <aside className="bp-sidebar">
+            <div className="bp-card" style={{ height: 380, background: 'var(--color-bg-soft)' }}></div>
+            <div className="bp-loyalty-card" style={{ height: 200, background: 'var(--color-bg-soft)', opacity: 0.5 }}></div>
+          </aside>
+          <main className="bp-content" style={{ minHeight: 400, background: 'var(--color-bg-soft)' }}></main>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center h-72 text-center">
-        <img src="https://illustrations.popsy.co/violet/sign-up.svg" alt="Login required" className="w-56 mb-4" />
-        <p className="text-gray-700 text-lg">Please <span className="text-green-600 font-semibold">log in</span> to access your profile and order history.</p>
-        <a href="/login" className="mt-3 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">Go to Login</a>
+      <div style={{ padding: '100px 20px' }}>
+          <EmptyState
+          icon={ShoppingBag}
+          title="Please Log In"
+          subtitle="You need to be logged in to view your profile and order history."
+          actionLabel="Go to Login"
+          onAction={() => navigate('/login')}
+        />
       </div>
     );
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 pb-20">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-3xl font-bold text-green-700">👤 My Profile</h1>
-        <div className="flex items-center gap-3">
-          {syncing && (
-            <span className="flex items-center gap-2 text-gray-500 text-sm">
-              <Loader2 size={14} className="animate-spin" /> Syncing…
-            </span>
-          )}
-          <button onClick={exportProfileInfo} className="inline-flex items-center gap-2 bg-white border px-3 py-2 rounded-md hover:bg-gray-50">
-            <Download size={14} /> Export
-          </button>
-        </div>
-      </div>
+    <div className="bp-container">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* PROFILE CARD */}
-        <div className="lg:col-span-1 bg-white/85 backdrop-blur-md border border-white/60 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-700 text-2xl font-semibold">
-              {profileData.fullName ? profileData.fullName[0].toUpperCase() : (user.email ? user.email[0].toUpperCase() : "?")}
-            </div>
-            <div>
-              <div className="text-lg font-semibold text-gray-800">{profileData.fullName || user.displayName || "—"}</div>
-              <div className="text-sm text-gray-500">{user.email}</div>
+      {/* SECTION 1 - HERO BANNER */}
+      <motion.section
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
+        className="bp-hero"
+      >
+        <svg className="bp-hero-bg-leaf" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+        </svg>
+        <div className="bp-hero-bg-dots" />
+
+        <Link to="/" className="bp-breadcrumb">← Back to Home</Link>
+        <div className="bp-join-date">Member since March 2024</div>
+
+        <div className="bp-hero-content">
+          <div className="bp-avatar-wrapper">
+            <div className="bp-avatar">
+              <span className="bp-avatar-text">{getInitial()}</span>
+              <div className="bp-avatar-edit-overlay">
+                <Edit2 size={18} />
+                <span>Edit</span>
+              </div>
             </div>
           </div>
-
-          <div className="mt-4">
-            {!editing ? (
-              <>
-                <div className="text-sm text-gray-700 space-y-2">
-                  <p><strong>Phone:</strong> {profileData.phone || "Not provided"}</p>
-                  <p><strong>Address:</strong> {profileData.address || "Not provided"}</p>
-                  <p><strong>City:</strong> {profileData.city || "Not provided"}</p>
-                  <p><strong>Pincode:</strong> {profileData.pincode || "Not provided"}</p>
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <button onClick={() => setEditing(true)} className="px-4 py-2 rounded-md border hover:bg-gray-50 inline-flex items-center gap-2">
-                    <Edit3 size={16} /> Edit
-                  </button>
-                  <button onClick={() => { navigator.clipboard.writeText(user.email || ""); toast.info("Email copied"); }} className="px-4 py-2 rounded-md border hover:bg-gray-50 text-sm">Copy Email</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mt-3 space-y-3">
-                  <label className="text-sm text-gray-700">Full name</label>
-                  <input value={profileData.fullName} onChange={(e) => setProfileData((p) => ({ ...p, fullName: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
-                  <label className="text-sm text-gray-700">Phone</label>
-                  <input value={profileData.phone} onChange={(e) => setProfileData((p) => ({ ...p, phone: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
-                  <label className="text-sm text-gray-700">Address</label>
-                  <textarea value={profileData.address} onChange={(e) => setProfileData((p) => ({ ...p, address: e.target.value }))} rows={3} className="w-full border rounded-md px-3 py-2" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-sm text-gray-700">City</label>
-                      <input value={profileData.city} onChange={(e) => setProfileData((p) => ({ ...p, city: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-700">Pincode</label>
-                      <input value={profileData.pincode} onChange={(e) => setProfileData((p) => ({ ...p, pincode: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex gap-2">
-                    <button onClick={handleSaveProfile} disabled={isSaving} className="px-4 py-2 bg-green-600 text-white rounded-md inline-flex items-center gap-2">
-                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {isSaving ? "Saving…" : "Save"}
-                    </button>
-                    <button onClick={() => setEditing(false)} className="px-4 py-2 rounded-md border hover:bg-gray-50 inline-flex items-center gap-2"><X size={14} /> Cancel</button>
-                  </div>
-                </div>
-              </>
-            )}
+          <div className="bp-user-info">
+            <h1 className="bp-user-name">{profileData.fullName || "Buyer"}</h1>
+            <p className="bp-user-email">{user.email}</p>
           </div>
         </div>
 
-        {/* ORDER HISTORY / DETAILS */}
-        <div className="lg:col-span-2 space-y-4">
-          <section className="bg-white rounded-2xl border p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">📦 My Order History</h2>
-              <div className="text-sm text-gray-500">Quick view of your latest orders</div>
+        <button onClick={() => { setActiveTab('settings'); setIsEditMode(true); window.scrollTo({ top: 400, behavior: 'smooth' }); }} className="bp-hero-edit-btn">
+          <Edit2 size={14} /> Edit Profile
+        </button>
+      </motion.section>
+
+      {/* SECTION 2 - STATS STRIP */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
+        className="bp-stats-strip"
+      >
+        <div className="bp-stat-item">
+          <h3 className="bp-stat-value">3</h3>
+          <p className="bp-stat-label">TOTAL ORDERS</p>
+        </div>
+        <div className="bp-stat-item">
+          <h3 className="bp-stat-value">₹485</h3>
+          <p className="bp-stat-label">TOTAL SPENT</p>
+        </div>
+        <div className="bp-stat-item">
+          <h3 className="bp-stat-value">240</h3>
+          <p className="bp-stat-label">LOYALTY POINTS</p>
+        </div>
+        <div className="bp-stat-item">
+          <h3 className="bp-stat-value gold">Gold</h3>
+          <p className="bp-stat-label">MEMBER TIER</p>
+        </div>
+      </motion.div>
+
+      {/* TWO COLUMN LAYOUT */}
+      <div className="bp-main">
+
+        {/* LEFT SIDEBAR */}
+        <motion.aside
+          initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2 }}
+          className="bp-sidebar"
+        >
+          {/* Card 1: Profile Info */}
+          <div className="bp-card">
+            <h4 className="bp-card-title">PROFILE INFO</h4>
+
+            <div className="bp-info-row">
+              <div className="bp-info-icon"><Mail size={14} /></div>
+              <div className="bp-info-content">
+                <span className="bp-info-label">EMAIL</span>
+                <span className="bp-info-value">{user.email}</span>
+              </div>
+            </div>
+            <div className="bp-info-row">
+              <div className="bp-info-icon"><Phone size={14} /></div>
+              <div className="bp-info-content">
+                <span className="bp-info-label">PHONE</span>
+                {profileData.phone ? (
+                  <span className="bp-info-value">{profileData.phone}</span>
+                ) : (
+                  <span className="bp-info-empty">Not provided <span className="bp-info-add-link" onClick={() => { setActiveTab('settings'); setIsEditMode(true); }}>+ Add</span></span>
+                )}
+              </div>
+            </div>
+            <div className="bp-info-row">
+              <div className="bp-info-icon"><MapPin size={14} /></div>
+              <div className="bp-info-content">
+                <span className="bp-info-label">ADDRESS</span>
+                {profileData.address ? (
+                  <span className="bp-info-value">{profileData.address}</span>
+                ) : (
+                  <span className="bp-info-empty">Not provided <span className="bp-info-add-link" onClick={() => { setActiveTab('settings'); setIsEditMode(true); }}>+ Add</span></span>
+                )}
+              </div>
+            </div>
+            <div className="bp-info-row">
+              <div className="bp-info-icon"><Building2 size={14} /></div>
+              <div className="bp-info-content">
+                <span className="bp-info-label">CITY</span>
+                {profileData.city ? (
+                  <span className="bp-info-value">{profileData.city}</span>
+                ) : (
+                  <span className="bp-info-empty">Not provided <span className="bp-info-add-link" onClick={() => { setActiveTab('settings'); setIsEditMode(true); }}>+ Add</span></span>
+                )}
+              </div>
+            </div>
+            <div className="bp-info-row">
+              <div className="bp-info-icon"><Hash size={14} /></div>
+              <div className="bp-info-content">
+                <span className="bp-info-label">PINCODE</span>
+                {profileData.pincode ? (
+                  <span className="bp-info-value">{profileData.pincode}</span>
+                ) : (
+                  <span className="bp-info-empty">Not provided <span className="bp-info-add-link" onClick={() => { setActiveTab('settings'); setIsEditMode(true); }}>+ Add</span></span>
+                )}
+              </div>
             </div>
 
-            <div className="mt-4">
-              {/* Reuse your OrderHistory component (embedded) */}
-              <OrderHistory userEmail={user.email} embedded />
+            <Button
+              fullWidth
+              variant="primary"
+              onClick={() => { setActiveTab('settings'); setIsEditMode(true); window.scrollTo({ top: 400, behavior: 'smooth' }); }}
+              className="mb-3"
+            >
+              ✏ Edit Profile
+            </Button>
+            <Button
+              fullWidth
+              variant={copied ? "success" : "ghost"}
+              onClick={handleCopyEmail}
+              style={{ border: '1px solid #EDD9B0' }}
+            >
+              {copied ? "✓ Copied!" : "Copy Email"}
+            </Button>
+          </div>
+
+          {/* Card 2: Loyalty */}
+          <div className="bp-loyalty-card">
+            <div className="bp-loyalty-tag">Rewards</div>
+            <div className="bp-loyalty-title">🌾 Loyalty Points</div>
+            <div className="bp-loyalty-pts">
+              240 <span className="bp-loyalty-pts-txt">points available</span>
             </div>
-          </section>
-        </div>
+            <div className="bp-progress-labels">
+              <span className="bp-prog-tier">Gold Member</span>
+              <span className="bp-prog-next">260 pts to Platinum</span>
+            </div>
+            <div className="bp-progress-bg">
+              <div className="bp-progress-fill" style={{ width: '48%' }} />
+            </div>
+            <button className="bp-loyalty-btn">Redeem Points</button>
+          </div>
+
+          {/* Card 3: Quick Actions */}
+          <div className="bp-quick-actions">
+            <h4 className="bp-card-title">QUICK ACTIONS</h4>
+            <Link to="/marketplace" className="bp-q-action">
+              <ShoppingBag className="bp-q-icon" size={16} />
+              <span className="bp-q-text">Browse Marketplace</span>
+              <ChevronRight className="bp-q-arrow" size={14} />
+            </Link>
+            <div onClick={() => setActiveTab('wishlist')} className="bp-q-action">
+              <Heart className="bp-q-icon" size={16} />
+              <span className="bp-q-text">My Wishlist</span>
+              <ChevronRight className="bp-q-arrow" size={14} />
+            </div>
+            <div onClick={() => setActiveTab('orders')} className="bp-q-action">
+              <Truck className="bp-q-icon" size={16} />
+              <span className="bp-q-text">Track Orders</span>
+              <ChevronRight className="bp-q-arrow" size={14} />
+            </div>
+            <Link to="/support" className="bp-q-action">
+              <HelpCircle className="bp-q-icon" size={16} />
+              <span className="bp-q-text">Get Support</span>
+              <ChevronRight className="bp-q-arrow" size={14} />
+            </Link>
+          </div>
+        </motion.aside>
+
+        {/* RIGHT CONTENT */}
+        <motion.main
+          initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
+          className="bp-content"
+        >
+          <div className="bp-tabs-header">
+            <button onClick={() => setActiveTab('orders')} className={`bp-tab ${activeTab === 'orders' ? 'active' : ''}`}>
+              📦 Orders <span className="bp-tab-badge">3</span>
+            </button>
+            <button onClick={() => setActiveTab('wishlist')} className={`bp-tab ${activeTab === 'wishlist' ? 'active' : ''}`}>
+              ❤ Wishlist <span className="bp-tab-badge">0</span>
+            </button>
+            <button onClick={() => setActiveTab('addresses')} className={`bp-tab ${activeTab === 'addresses' ? 'active' : ''}`}>
+              📍 Addresses <span className="bp-tab-badge">0</span>
+            </button>
+            <button onClick={() => setActiveTab('settings')} className={`bp-tab ${activeTab === 'settings' ? 'active' : ''}`}>
+              ⚙ Settings
+            </button>
+          </div>
+
+          <div className="bp-tab-content">
+
+            <AnimatePresence mode="wait">
+              {/* TAB 1: ORDERS */}
+              {activeTab === 'orders' && (
+                <motion.div key="orders" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                  <div className="bp-filters">
+                    {['All', 'Delivered', 'Processing', 'Cancelled'].map(f => (
+                      <button key={f} onClick={() => setOrderFilter(f)} className={`bp-filter-pill ${orderFilter === f ? 'active' : ''}`}>
+                        {f}
+                      </button>
+                    ))}
+                    <div className="bp-search">
+                      <Search size={14} className="bp-search-icon" />
+                      <input
+                        type="text" placeholder="Search orders..."
+                        className="bp-search-input"
+                        value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bp-orders-list">
+                    {filteredOrders.length === 0 ? (
+                      <div className="bp-empty-state">
+                        <div className="bp-empty-icon-box"><Package size={48} color="#2D4F1E" /></div>
+                        <h2 className="bp-empty-title">No orders found</h2>
+                        <p className="bp-empty-desc">We couldn't find any orders matching your criteria.</p>
+                      </div>
+                    ) : (
+                      filteredOrders.map((order, idx) => (
+                        <motion.div
+                          key={order.id}
+                          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.08 }}
+                          className="bp-order-card"
+                        >
+                          <div className="bp-oc-header">
+                            <div>
+                              <h4 className="bp-oc-id">{order.id}</h4>
+                              <p className="bp-oc-date">{order.date}</p>
+                            </div>
+                            <span className={`bp-status-badge ${order.status.toLowerCase()}`}>{order.status}</span>
+                          </div>
+
+                          <div className="bp-oc-products">
+                            {order.products.map((p, i) => (
+                              <div key={i} className="bp-chip">
+                                <img src={p.img} alt={p.name} className="bp-chip-img" />
+                                <span className="bp-chip-name">{p.name}</span>
+                                <span className="bp-chip-qty">×{p.qty}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="bp-oc-footer">
+                            <span className="bp-oc-items">{order.items} items</span>
+                            <span className="bp-oc-total">{order.total}</span>
+                            <div className="bp-oc-actions">
+                              <button className="bp-btn-view">View Details</button>
+                              {order.status === 'Delivered' && (
+                                <button className="bp-btn-action">Reorder</button>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 2: WISHLIST */}
+              {activeTab === 'wishlist' && (
+                <EmptyState
+                  icon={<Heart size={40} />}
+                  title="Your wishlist is empty"
+                  subtitle="Save items you love while browsing the marketplace."
+                  action={{ label: "Browse Marketplace", onClick: () => navigate('/marketplace') }}
+                />
+              )}
+
+              {/* TAB 3: ADDRESSES */}
+              {activeTab === 'addresses' && (
+                <EmptyState
+                  icon={<MapPin size={40} />}
+                  title="No saved addresses"
+                  subtitle="Add a delivery address to speed up checkout."
+                  action={{ label: "Add New Address", onClick: () => {} }}
+                />
+              )}
+
+              {/* TAB 4: SETTINGS */}
+              {activeTab === 'settings' && (
+                <motion.div key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+
+                  {/* Sec 1 */}
+                  <div className="bp-settings-section">
+                    <div className="bp-settings-header">
+                      <h4 className="bp-settings-title">Personal Information</h4>
+                      <button onClick={() => setIsEditMode(!isEditMode)} className="bp-settings-edit-toggle">
+                        {isEditMode ? "Cancel" : "Edit"}
+                      </button>
+                    </div>
+
+                    <div className="bp-form-grid">
+                      <div className="bp-form-group">
+                        <Input
+                          label="Full Name"
+                          disabled={!isEditMode}
+                          value={profileData.fullName}
+                          onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
+                        />
+                      </div>
+                      <div className="bp-form-group">
+                        <Input
+                          label="Email Address"
+                          type="email"
+                          disabled
+                          value={user.email || ""}
+                          icon={<Mail size={16} />}
+                        />
+                      </div>
+                      <div className="bp-form-group">
+                        <Input
+                          label="Phone Number"
+                          disabled={!isEditMode}
+                          value={profileData.phone}
+                          onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                          icon={<Phone size={16} />}
+                        />
+                      </div>
+                      <div className="bp-form-group">
+                        <Input
+                          label="City"
+                          disabled={!isEditMode}
+                          value={profileData.city}
+                          onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
+                          icon={<Building2 size={16} />}
+                        />
+                      </div>
+                      <div className="bp-form-group full-w">
+                        <Input
+                          label="Full Address"
+                          disabled={!isEditMode}
+                          value={profileData.address}
+                          onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                          icon={<MapPin size={16} />}
+                        />
+                      </div>
+                      <div className="bp-form-group">
+                        <Input
+                          label="Pincode"
+                          disabled={!isEditMode}
+                          value={profileData.pincode}
+                          onChange={(e) => setProfileData({ ...profileData, pincode: e.target.value })}
+                          icon={<Hash size={16} />}
+                        />
+                      </div>
+
+                      {isEditMode && (
+                        <div className="flex gap-4 mt-6">
+                          <Button
+                            onClick={handleSaveSettings}
+                            loading={isSaving}
+                            variant="success"
+                          >
+                            Save Changes
+                          </Button>
+                          <Button
+                            onClick={() => setIsEditMode(false)}
+                            variant="ghost"
+                            style={{ border: '1px solid #EDD9B0' }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sec 2: Notifications */}
+                  <div className="bp-settings-section">
+                    <div className="bp-settings-header"><h4 className="bp-settings-title">Notifications</h4></div>
+
+                    <div className="bp-toggle-row">
+                      <div className="bp-toggle-left">
+                        <h5>Order Updates</h5><p>Get SMS for order status</p>
+                      </div>
+                      <div className={`bp-toggle-switch ${notifSettings.orderUpdates ? 'on' : ''}`} onClick={() => setNotifSettings(p => ({ ...p, orderUpdates: !p.orderUpdates }))}>
+                        <div className="bp-toggle-thumb" />
+                      </div>
+                    </div>
+                    <div className="bp-toggle-row">
+                      <div className="bp-toggle-left">
+                        <h5>Promotions</h5><p>Receive offers and discounts</p>
+                      </div>
+                      <div className={`bp-toggle-switch ${notifSettings.promotions ? 'on' : ''}`} onClick={() => setNotifSettings(p => ({ ...p, promotions: !p.promotions }))}>
+                        <div className="bp-toggle-thumb" />
+                      </div>
+                    </div>
+                    <div className="bp-toggle-row">
+                      <div className="bp-toggle-left">
+                        <h5>New Arrivals</h5><p>Know when new produce arrives</p>
+                      </div>
+                      <div className={`bp-toggle-switch ${notifSettings.newArrivals ? 'on' : ''}`} onClick={() => setNotifSettings(p => ({ ...p, newArrivals: !p.newArrivals }))}>
+                        <div className="bp-toggle-thumb" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sec 3: Danger */}
+                  <div className="bp-settings-section" style={{ marginBottom: 0 }}>
+                    <div className="bp-settings-header"><h4 className="bp-settings-title" style={{ color: 'var(--color-accent)' }}>Danger Zone</h4></div>
+                    <div className="bp-danger-zone">
+                      <div className="bp-danger-text">
+                        <h5>Delete Account</h5>
+                        <p>Permanently delete all your data</p>
+                      </div>
+                      <button className="bp-btn-danger">Delete Account</button>
+                    </div>
+                  </div>
+
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+          </div>
+        </motion.main>
       </div>
-    </main>
+    </div>
   );
-};
-
-export default BuyerProfile;
+}

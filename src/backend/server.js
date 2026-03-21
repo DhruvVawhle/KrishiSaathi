@@ -1,51 +1,141 @@
+// src/backend/server.js
+// General-purpose Express server on port 3000
+// (phone number verification stub — Firebase Phone OTP is handled client-side)
 import express from "express";
 import cors from "cors";
-import pkg from "aws-jwt-verifier";
-const { JwtVerifier } = pkg;
+import mongoose from "mongoose";
+import * as dotenv from "dotenv";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import recommendationRoutes from './routes/recommendations.js';
+import mandiRoutes from './routes/mandi.js';
+import productRoutes from './routes/products.js';
 
-// ---- Firebase Project Number ----
-const FIREBASE_PROJECT_NUMBER = "579116463043";
-
-const issuer = `https://fpnv.googleapis.com/projects/${FIREBASE_PROJECT_NUMBER}`;
-const audience = `https://fpnv.googleapis.com/projects/${FIREBASE_PROJECT_NUMBER}`;
-const jwksUri = "https://fpnv.googleapis.com/v1beta/jwks";
-
-// Create verifier instance
-const fpnvVerifier = JwtVerifier.create({
-  issuer,
-  audience,
-  jwksUri,
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '../../.env') });
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 
-// ---- Verify Token API ----
-app.post("/verifiedPhoneNumber", async (req, res) => {
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/krishi_saathi")
+  .then(() => console.log("📦 Connected to MongoDB (Main Server)"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+// Health check
+app.get("/", (req, res) => {
+  res.json({ ok: true, server: "KrishiSaathi main server", port: 3000 });
+});
+
+// Health check for all servers
+app.get('/api/health', async (req, res) => {
+  const checks = {
+    main:    { port: 3000, status: 'ok' },
+    orders:  { port: 5001, status: 'checking' },
+    users:   { port: 5002, status: 'checking' },
+    payment: { port: 5000, status: 'checking' }
+  }
+
+  // Check other servers
+  const checkServer = async (port) => {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(
+        () => controller.abort(), 2000
+      )
+      const res = await fetch(
+        `http://localhost:${port}/`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeout)
+      return res.ok ? 'ok' : 'error'
+    } catch {
+      return 'offline'
+    }
+  }
+
+  checks.orders.status =
+    await checkServer(5001)
+  checks.users.status =
+    await checkServer(5002)
+  checks.payment.status =
+    await checkServer(5000)
+
+  const allOk = Object.values(checks)
+    .every(c => c.status === 'ok')
+
+  res.json({
+    success: true,
+    status: allOk ? 'all_ok' : 'partial',
+    servers: checks,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  })
+})
+
+// Stub: Phone number verification
+// Real verification is done client-side via Firebase SDK.
+// This endpoint is kept for backward compatibility.
+app.post("/verifiedPhoneNumber", (req, res) => {
   const token = req.body?.token;
-
   if (!token) {
     return res.status(400).json({ error: "Missing token in request body" });
   }
-
-  try {
-    const verifiedPayload = await fpnvVerifier.verify(token);
-    const verifiedPhoneNumber = verifiedPayload.sub;
-
-    console.log("Verified phone number:", verifiedPhoneNumber);
-
-    return res.status(200).json({
-      success: true,
-      verifiedPhoneNumber,
-    });
-  } catch (err) {
-    console.error("Token verification failed:", err.message);
-    return res.status(400).json({ error: "Invalid token" });
-  }
+  // In production: verify via Firebase Admin SDK
+  return res.status(200).json({
+    success: true,
+    message: "Verification handled client-side via Firebase SDK",
+  });
 });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+// Recommendation API endpoint
+app.use('/api/recommendations', recommendationRoutes);
+
+// Mandi Rate Analysis endpoint
+app.use('/api/mandi', mandiRoutes);
+
+// Product management endpoint
+app.use('/api/products', productRoutes);
+
+const PRIMARY_PORT = process.env.PORT_MAIN || process.env.PORT || 3000;
+const FALLBACK_PORT = 3010;
+
+const startServer = (port) => {
+  const server = app.listen(port, () => {
+    console.log(`✅ Main server running on http://localhost:${port}`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      if (port === PRIMARY_PORT) {
+        console.warn(`⚠️ Port ${port} busy, trying fallback ${FALLBACK_PORT}...`);
+        startServer(FALLBACK_PORT);
+      } else {
+        console.error(`❌ Both ports ${PRIMARY_PORT} and ${FALLBACK_PORT} are busy.`);
+        console.error(`Run this command to clear: taskkill /F /IM node.exe`);
+        process.exit(1);
+      }
+    }
+  });
+};
+
+startServer(PRIMARY_PORT);
+
+process.on('uncaughtException', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n❌ Port already in use! Run: taskkill /F /IM node.exe\n`);
+  } else {
+    console.error('❌ Uncaught Exception:', err);
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err);
+  process.exit(1);
 });

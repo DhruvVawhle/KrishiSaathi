@@ -1,95 +1,136 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "@/frontend/config/firebaseConfig";
+import * as hybridService from "../services/hybridService";
 
 const UserContext = createContext({
   user: null,
   setUser: () => {},
   clearUser: () => {},
+  isLoggedIn: false,
 });
 
 export const UserProvider = ({ children }) => {
-  const [user, setUserState] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [orderHistory, setOrderHistory] = useState([]);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ks_user");
-      if (raw) setUserState(JSON.parse(raw));
-    } catch (err) {
-      console.warn("Failed to read user from localStorage", err);
+  const saveUserToBothDatabases = async (firebaseUser, role = 'buyer') => {
+    const userData = {
+      uid: firebaseUser.uid,
+      name: firebaseUser.displayName
+        || firebaseUser.email?.split('@')[0]
+        || 'User',
+      email: firebaseUser.email || '',
+      phone: firebaseUser.phoneNumber || '',
+      role: role,
+      photoURL: firebaseUser.photoURL || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
-  }, []);
 
-  // Listen to Firebase auth changes and load/clear server-side profile
+    // Save to localStorage immediately
+    localStorage.setItem('ks_user', JSON.stringify(userData))
+
+    // Save to Firestore
+    try {
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
+      const { db } = await import('../config/firebaseConfig')
+      await setDoc(
+        doc(db, 'users', firebaseUser.uid),
+        {
+          ...userData,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      )
+      console.log('✅ User → Firestore')
+    } catch (err) {
+      console.warn('Firestore user save:', err.message)
+    }
+
+    // Save to MongoDB
+    try {
+      const res = await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      })
+      if (res.ok) {
+        console.log('✅ User → MongoDB')
+      } else {
+        const errData = await res.json()
+        console.warn('MongoDB user save:', errData.message)
+      }
+    } catch (err) {
+      console.warn('MongoDB user save:', err.message)
+    }
+
+    return userData
+  }
+
   useEffect(() => {
-    const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        // 🔥 CLEAR OLD STATE
+        setUser(null)
+        setIsLoggedIn(false)
+        localStorage.removeItem('ks_user')
+        return
+      }
+
       try {
-        if (u) {
-          // load fresh profile from server when a user signs in
-          await loadUserFromServer(u.uid);
-          // notify other parts of the app that a user signed in
-          try { window.dispatchEvent(new CustomEvent("ks:user-login", { detail: { uid: u.uid } })); } catch (e) {}
-        } else {
-          // signed out: clear local user and notify listeners
-          clearUser();
-          try { window.dispatchEvent(new CustomEvent("ks:user-logout")); } catch (e) {}
-        }
+        // 🔥 SYNC TO BOTH DATABASES
+        const userData = await saveUserToBothDatabases(firebaseUser)
+        setUser(userData)
+        setIsLoggedIn(true)
       } catch (err) {
-        console.warn("onAuthStateChanged handler error", err);
+        console.error('Auth sync error:', err)
       }
-    });
-    return () => unsub();
-  }, []);
+    })
 
-  const setUser = (u) => {
-    setUserState(u);
-    try {
-      localStorage.setItem("ks_user", JSON.stringify(u));
-    } catch (err) {
-      console.warn("Failed to save user to localStorage", err);
-    }
-  };
+    return () => unsubscribe()
+  }, [])
 
-  // Fetch fresh user profile from backend and store it
-  const loadUserFromServer = async (uid) => {
+  const handleLogout = async () => {
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      const token = user ? await user.getIdToken(true) : null;
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const resp = await fetch(`${import.meta.env.VITE_USER_SERVER_URL || "http://localhost:5002"}/api/users/${encodeURIComponent(
-        uid
-      )}`, { headers });
-      if (!resp.ok) {
-        console.warn("loadUserFromServer failed", resp.status);
-        return null;
-      }
-      const data = await resp.json().catch(() => null);
-      if (data) {
-        if (data.user) setUser(data.user);
-        if (Array.isArray(data.orderHistory)) setOrderHistory(data.orderHistory || []);
-        return data.user || null;
-      }
+      await signOut(auth);
+      
+      // 🔥 CLEAR ALL CACHES & STORAGE
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Clear state
+      setUser(null);
+      setIsLoggedIn(false);
+      setOrderHistory([]);
+
+      console.log("Logout successful, navigating to login...");
+      window.location.href = "/login";
     } catch (err) {
-      console.warn("loadUserFromServer error", err);
+      console.error("Logout error:", err);
     }
-    return null;
   };
 
   const clearUser = () => {
-    setUserState(null);
+    setUser(null);
     setOrderHistory([]);
-    try {
-      localStorage.removeItem("ks_user");
-    } catch (err) {
-      console.warn("Failed to remove user from localStorage", err);
-    }
+    localStorage.clear();
+    sessionStorage.clear();
   };
 
   return (
-    <UserContext.Provider value={{ user, setUser, clearUser, loadUserFromServer, orderHistory, setOrderHistory }}>
+    <UserContext.Provider value={{ 
+      user, 
+      setUser, 
+      clearUser, 
+      isLoggedIn, 
+      handleLogout, 
+      orderHistory, 
+      setOrderHistory 
+    }}>
       {children}
     </UserContext.Provider>
   );

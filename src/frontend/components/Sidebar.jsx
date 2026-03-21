@@ -81,7 +81,28 @@ export default function Sidebar({ productCount = 0, orderCount = 0 }) {
 
   /** 🚪 Secure logout */
   const handleLogout = () => {
-    toast.info("Logging out...", { autoClose: 1200 });
+    toast.success("You've been logged out. See you soon! 👋", {
+      toastId: 'logout',
+      icon: '👋',
+      style: {
+        background: '#1a3a1a',
+        color: '#ffffff',
+        borderRadius: '12px',
+        border: '1px solid rgba(255,255,255,0.15)',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        fontWeight: '500',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(8px)',
+        minWidth: '280px',
+      },
+      progressStyle: { background: '#c17a4a' },
+      position: 'top-right',
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+    });
     setTimeout(() => {
       flushSync(() => {
         [

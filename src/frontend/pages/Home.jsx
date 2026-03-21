@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import Slider from "react-slick";
 import {
   Truck,
   ShieldCheck,
@@ -10,16 +9,26 @@ import {
   CreditCard,
   Search,
   ShoppingBag,
+  ArrowRight,
+  Sparkles,
+  ChevronRight,
+  Check,
+  Star,
+  Smartphone,
 } from "lucide-react";
 
-import Layout from "../components/Layout";
-import HeroSlider from "../components/HeroSlider";
-import { useProducts } from "../contexts/ProductContext";
+import { useProducts } from "@/frontend/contexts/ProductContext";
+import { useUser } from "@/frontend/contexts/UserContext";
+import RecommendedProducts from "@/frontend/components/ui/RecommendedProducts";
+import { updateSEO } from '@/frontend/utils/seo';
+import { imagePresets } from '@/frontend/utils/imageHelper';
+import appStoreBadge from '../../assets/app-store-badge.png';
 
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
+import "./Home.css";
 
-/* --- Debounce Hook --- */
+/* ─── Hooks ─── */
 const useDebounced = (value, delay = 300) => {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -29,325 +38,1186 @@ const useDebounced = (value, delay = 300) => {
   return v;
 };
 
-/* --- Hero Title Motion --- */
-const HeroTitle = ({ children }) => (
-  <motion.h1
-    initial={{ opacity: 0, y: 18 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, ease: "easeOut" }}
-    className="text-3xl sm:text-5xl md:text-6xl font-extrabold leading-tight text-white drop-shadow-xl"
-  >
-    {children}
-  </motion.h1>
-);
+const useCountUp = (end, duration = 2000, inView = false) => {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!inView) return;
+    let start = 0;
+    const step = end / (duration / 16);
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= end) { setCount(end); clearInterval(timer); }
+      else setCount(Math.floor(start));
+    }, 16);
+    return () => clearInterval(timer);
+  }, [end, duration, inView]);
+  return count;
+};
 
-/* --- Image with Fallback --- */
-const ImageWithFallback = ({ src, alt, className }) => {
-  const fallback = "https://placehold.co/800x500?text=Image+Unavailable";
+const useInView = (opts = {}) => {
+  const ref = useRef(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setInView(true); obs.disconnect(); }
+    }, { threshold: 0.2, ...opts });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, inView];
+};
+
+/* ─── Framer Motion helpers ─── */
+const fadeUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (i = 0) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.6, delay: i * 0.1, ease: "easeOut" },
+  }),
+};
+const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
+
+/* ═══════════════════════════════════════════
+                DATA
+   ═══════════════════════════════════════════ */
+const FEATURES = [
+  { icon: Truck, title: "Free Delivery", sub: "On all orders above ₹299" },
+  { icon: ShieldCheck, title: "Secure Payment", sub: "100% safe checkout" },
+  { icon: Leaf, title: "Farm Fresh", sub: "Locally sourced daily" },
+  { icon: CreditCard, title: "Easy Payment", sub: "UPI, Cards & COD" },
+];
+
+const CATEGORIES = [
+  { name: "Vegetables", emoji: "🥦", img: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=200&h=200&fit=crop" },
+  { name: "Fruits", emoji: "🍎", img: "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=200&h=200&fit=crop" },
+  { name: "Grains", emoji: "🌾", img: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=200&h=200&fit=crop" },
+  { name: "Dairy", emoji: "🥛", img: "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop" },
+  { name: "Herbs", emoji: "🌿", img: "https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=200&h=200&fit=crop" },
+  { name: "Eggs", emoji: "🥚", img: "https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop" },
+];
+
+const FARMER_CHECKLIST = [
+  "Harvested within 24 hours of delivery",
+  "Zero middlemen — farmers earn 40% more",
+  "Seasonal & naturally grown options",
+  "Supporting 500+ local farmers across India",
+];
+
+const PRODUCTS = [
+  { id: "p1", name: "Potato", unit: "1 kg", price: 25, priceLabel: "₹25/kg", category: "Vegetables", image: "https://images.unsplash.com/photo-1518977676601-b53f82ber633?w=400&h=300&fit=crop" },
+  { id: "p2", name: "Banana", unit: "1 dozen", price: 50, priceLabel: "₹50/dozen", category: "Fruits", image: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400&h=300&fit=crop" },
+  { id: "p3", name: "Tomatoes", unit: "1 kg", price: 60, priceLabel: "₹60/kg", category: "Vegetables", image: "https://images.unsplash.com/photo-1546470427-e26264be0b11?w=400&h=300&fit=crop" },
+  { id: "p4", name: "Spinach", unit: "500 g", price: 30, priceLabel: "₹30/bundle", category: "Vegetables", image: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=400&h=300&fit=crop" },
+  { id: "p5", name: "Alphonso Mango", unit: "1 kg", price: 120, priceLabel: "₹120/kg", category: "Fruits", image: "https://images.unsplash.com/photo-1553279768-865429fa0078?w=400&h=300&fit=crop" },
+  { id: "p6", name: "Onion", unit: "1 kg", price: 35, priceLabel: "₹35/kg", category: "Vegetables", image: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=400&h=300&fit=crop" },
+];
+
+const TESTIMONIALS = [
+  { name: "Priya S.", city: "Pune", initials: "PS", quote: "Vegetables arrive so fresh! My family has never eaten better." },
+  { name: "Rahul M.", city: "Mumbai", initials: "RM", quote: "Love that I'm supporting local farmers directly. Best decision!" },
+  { name: "Anita K.", city: "Delhi", initials: "AK", quote: "The terracotta packaging is beautiful and produce is always seasonal." },
+];
+
+/* ═══════════════════════════════════════════
+             PRODUCT CARD
+   ═══════════════════════════════════════════ */
+const ProductCard = ({ product, index }) => {
+  const [imgError, setImgError] = useState(false);
+
   return (
-    <img
-      src={src || fallback}
-      alt={alt || "Product image"}
-      loading="lazy"
-      onError={(e) => {
-        if (e.target.src !== fallback) e.target.src = fallback;
-      }}
-      className={className}
-    />
+    <motion.div
+      className="product-card"
+      variants={fadeUp}
+      custom={index}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.2 }}
+    >
+      <div className="product-card__img-wrap">
+        {!imgError ? (
+          <img
+            src={imagePresets.card(product.image)}
+            alt={`Fresh ${product.name} — ${product.priceLabel} | KrishiSaathi`}
+            className="product-card__img"
+            onError={() => setImgError(true)}
+            loading={index < 3 ? "eager" : "lazy"}
+            {...(index < 3 ? { fetchPriority: "high" } : {})}
+          />
+        ) : (
+          <div className="product-card__fallback">
+            <span className="product-card__fallback-emoji">🌿</span>
+            <span className="product-card__fallback-text">Image Coming Soon</span>
+          </div>
+        )}
+        <span className="product-card__badge">🔥 Best Price</span>
+        <span className="product-card__price">{product.priceLabel}</span>
+      </div>
+      <div className="product-card__body">
+        <h3 className="product-card__name">{product.name}</h3>
+        <div className="product-card__category">{product.category}</div>
+        <button className="product-card__cta">View in Marketplace</button>
+      </div>
+    </motion.div>
   );
 };
 
+/* ═══════════════════════════════════════════
+             HOME COMPONENT
+   ═══════════════════════════════════════════ */
 const Home = () => {
   const navigate = useNavigate();
-  const { products = [] } = useProducts();
+  const { products: contextProducts } = useProducts?.() || {};
+  const { user } = useUser() || {};
+  const isFarmer = user?.role === 'farmer';
 
-  const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounced(query, 300);
-  const [openSuggestions, setOpenSuggestions] = useState(false);
-  const suggestionsRef = useRef(null);
-  const inputRef = useRef(null);
-  const [highlightIdx, setHighlightIdx] = useState(-1);
-
-  /* --- Filtered Products --- */
-  const availableProducts = useMemo(
-    () => products.filter((p) => Number(p.quantity) > 0),
-    [products]
-  );
-
-  const filteredProducts = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return [];
-    return availableProducts.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q)
-    );
-  }, [availableProducts, debouncedQuery]);
-
-  /* --- Handle Outside Click --- */
   useEffect(() => {
-    const onDocClick = (e) => {
-      if (!suggestionsRef.current?.contains(e.target) && e.target !== inputRef.current) {
-        setOpenSuggestions(false);
-        setHighlightIdx(-1);
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    updateSEO('/');
   }, []);
 
-  /* --- Navigate with Query --- */
-  const navigateToMarketplace = useCallback(
-    (q = "", opts = {}) => {
-      const search = q.trim() ? `?q=${encodeURIComponent(q)}` : "";
-      navigate(`/marketplace${search}`, { state: opts.state || {} });
-      setOpenSuggestions(false);
-    },
-    [navigate]
-  );
+  // Search
+  const [query, setQuery] = useState("");
+  const [openSuggestions, setOpenSuggestions] = useState(false);
+  const debouncedQuery = useDebounced(query, 250);
+  const suggestionsRef = useRef(null);
 
-  /* --- Slider Settings --- */
-  const sliderSettings = useMemo(
-    () => ({
-      dots: true,
-      infinite: true,
-      autoplay: true,
-      autoplaySpeed: window.innerWidth < 640 ? 5000 : 3500,
-      lazyLoad: "ondemand",
-      pauseOnHover: true,
-      slidesToShow: 3,
-      responsive: [
-        { breakpoint: 1024, settings: { slidesToShow: 2 } },
-        { breakpoint: 640, settings: { slidesToShow: 1 } },
-      ],
-    }),
-    []
-  );
+  const products = useMemo(() => {
+    return contextProducts?.length ? contextProducts : PRODUCTS;
+  }, [contextProducts]);
 
-  /* --- Static Data --- */
-  const features = [
-    { icon: <Truck size={28} />, title: "Free Delivery", desc: "On all orders above ₹299" },
-    { icon: <ShieldCheck size={28} />, title: "Secure Payment", desc: "100% safe checkout" },
-    { icon: <Leaf size={28} />, title: "Fresh from Farmers", desc: "Locally sourced daily" },
-    { icon: <CreditCard size={28} />, title: "Easy Payment", desc: "UPI, Cards & COD" },
-  ];
+  const filtered = useMemo(() => {
+    if (!debouncedQuery) return [];
+    const q = debouncedQuery.toLowerCase();
+    return products.filter((p) =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.category || "").toLowerCase().includes(q)
+    ).slice(0, 5);
+  }, [debouncedQuery, products]);
 
-  const categoriesStatic = [
-    { name: "Leafy Greens", icon: "🥬" },
-    { name: "Lentils & Grains", icon: "🌾" },
-    { name: "Root Veggies", icon: "🥕" },
-    { name: "Fruits", icon: "🍎" },
-    { name: "Dairy", icon: "🥛" },
-  ];
+  useEffect(() => {
+    setOpenSuggestions(filtered.length > 0 && query.length > 0);
+  }, [filtered, query]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setOpenSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const navigateToMarketplace = useCallback((q) => {
+    setOpenSuggestions(false);
+    setQuery("");
+    navigate(q ? `/marketplace?search=${encodeURIComponent(q)}` : "/marketplace");
+  }, [navigate]);
+
+  // App banner counters
+  const [bannerRef, bannerInView] = useInView();
+  const farmerCount = useCountUp(500, 2000, bannerInView);
+  const customerCount = useCountUp(50, 2000, bannerInView);
 
   return (
-    <Layout>
+    <div className="home-page">
 
-      {/* 🔥 HERO SECTION WITH GRADIENT OVERLAY */}
-      <section className="hero relative min-h-[70vh] flex items-center justify-center overflow-hidden">
-        <HeroSlider />
-
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/50 z-[1]" />
-
-        {/* Foreground Content */}
-        <div className="container relative z-[2] text-center text-white py-20">
-          <HeroTitle>Buy Fresh from Farmers — Fast, Fair & Local</HeroTitle>
-          <p className="mt-4 text-gray-200 max-w-2xl mx-auto text-base sm:text-lg">
-            Pure, seasonal produce — delivered to your doorstep. Support local farmers while enjoying the freshest ingredients.
-          </p>
-          <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
-            <motion.button whileHover={{ scale: 1.03 }} className="btn btn-primary" onClick={() => navigate("/marketplace")}>
-              Order Now
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.02 }} className="btn btn-secondary" onClick={() => inputRef.current?.focus()}>
-              Search Produce
-            </motion.button>
-          </div>
-        </div>
-      </section>
-
-      {/* 🌿 SEARCH */}
-      <section className="py-8 bg-green-50 flex justify-center">
-        <div className="w-full max-w-2xl px-4 relative">
-          <Search className="absolute left-4 top-3.5 text-green-700" size={18} />
-
-          <div role="combobox" aria-expanded={openSuggestions} aria-owns="product-suggestions">
-            <input
-              ref={inputRef}
-              type="search"
-              placeholder="Search fresh produce..."
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setOpenSuggestions(true);
+      {/* ═══════ 1. HERO ═══════ */}
+      <section className="hero" style={isFarmer ? {
+        background:
+          'linear-gradient(160deg,' +
+          '#1A2E12 0%,' +
+          '#2D4F1E 35%,' +
+          '#3D6B2A 65%,' +
+          '#4A7C30 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: '90vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      } : {}}>
+        
+        {isFarmer && (
+          <>
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0.08,
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+              backgroundSize: '60px 60px'
+            }} />
+            <svg
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                width: '100%',
+                opacity: 0.20
               }}
-              className="w-full pl-12 pr-4 py-3 rounded-2xl border border-green-200 shadow-lg 
-              focus:ring-2 focus:ring-green-600 bg-green-50/70 backdrop-blur-sm"
-            />
-
-            {/* Dropdown */}
-            <AnimatePresence>
-              {openSuggestions && debouncedQuery && (
-                <motion.div
-                  ref={suggestionsRef}
-                  id="product-suggestions"
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  className="mt-2 bg-white shadow-xl rounded-xl border max-h-72 overflow-auto"
-                >
-                  <div className="px-4 py-3 border-b text-sm text-gray-600 bg-gray-50">
-                    {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} for{" "}
-                    <strong>"{debouncedQuery}"</strong>
-                  </div>
-
-                  <div className="p-1">
-                    {filteredProducts.length === 0 ? (
-                      <div className="text-center text-gray-500 py-6">No products found.</div>
-                    ) : (
-                      filteredProducts.slice(0, 8).map((p, idx) => (
-                        <button
-                          key={p.id ?? idx}
-                          onClick={() => navigateToMarketplace(p.name)}
-                          className="flex w-full items-center gap-3 p-3 hover:bg-green-100/60 rounded-lg transition-all"
-                        >
-                          <ImageWithFallback src={p.image} alt={p.name} className="w-12 h-12 rounded-md object-cover" />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-800">{p.name}</div>
-                            <div className="text-sm text-gray-500">₹{p.price} / {p.unit}</div>
-                            <div className="text-xs text-gray-400">{p.category}</div>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </motion.div>
+              viewBox="0 0 1440 200"
+              preserveAspectRatio="none"
+            >
+              {Array.from({length: 36}).map(
+                (_, i) => (
+                  <g key={i}
+                    transform={`translate(${
+                      i * 40
+                    }, 0)`}
+                  >
+                    <line
+                      x1="20" y1="200"
+                      x2="20" y2="80"
+                      stroke="#EDD9B0"
+                      strokeWidth="1.5"
+                    />
+                    <ellipse
+                      cx="20" cy="70"
+                      rx="6" ry="14"
+                      fill="#EDD9B0"
+                      transform="rotate(-10 20 70)"
+                    />
+                    <ellipse
+                      cx="14" cy="90"
+                      rx="4" ry="10"
+                      fill="#EDD9B0"
+                      opacity="0.7"
+                      transform="rotate(-25 14 90)"
+                    />
+                    <ellipse
+                      cx="26" cy="90"
+                      rx="4" ry="10"
+                      fill="#EDD9B0"
+                      opacity="0.7"
+                      transform="rotate(25 26 90)"
+                    />
+                  </g>
+                )
               )}
-            </AnimatePresence>
-          </div>
-        </div>
+            </svg>
+            <div style={{
+              position: 'absolute',
+              top: -100,
+              right: -100,
+              width: 500,
+              height: 500,
+              borderRadius: '50%',
+              background:
+                'radial-gradient(circle,' +
+                'rgba(237,217,176,0.12) 0%,' +
+                'transparent 70%)',
+              pointerEvents: 'none'
+            }} />
+          </>
+        )}
+
+        {!isFarmer && (
+          <>
+            <div className="hero__overlay" />
+            <div className="hero__blob hero__blob--1" />
+            <div className="hero__blob hero__blob--2" />
+          </>
+        )}
+
+        <motion.div
+          className="hero__content"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          style={isFarmer ? { zIndex: 10 } : {}}
+        >
+          {isFarmer ? (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 16px',
+                borderRadius: 999,
+                background:
+                  'rgba(237,217,176,0.15)',
+                border:
+                  '1px solid rgba(237,217,176,0.30)',
+                fontFamily: 'DM Sans',
+                fontSize: 12,
+                color: '#EDD9B0',
+                marginBottom: 20
+              }}>
+                🌾 Farmer Dashboard Portal
+              </div>
+
+              <h1 style={{
+                fontFamily: 'Playfair Display',
+                fontWeight: 700,
+                fontSize: 'clamp(36px,5vw,64px)',
+                color: 'white',
+                lineHeight: 1.15,
+                margin: '0 0 12px',
+                letterSpacing: '-0.02em'
+              }}>
+                Welcome back,
+                <br />
+                <span style={{
+                  color: '#EDD9B0'
+                }}>
+                  {user?.name?.split(' ')[0]
+                    || 'Farmer'}! 🌾
+                </span>
+              </h1>
+
+              <p style={{
+                fontFamily: 'DM Sans',
+                fontSize: 18,
+                color: 'rgba(255,255,255,0.75)',
+                maxWidth: 480,
+                margin: '0 auto 32px',
+                lineHeight: 1.6
+              }}>
+                Check today's mandi rates,
+                manage your listings, and
+                track your sales.
+              </p>
+
+              {/* Farmer CTAs */}
+              <div style={{
+                display: 'flex',
+                gap: 14,
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}>
+                <button
+                  onClick={() =>
+                    navigate('/farmer-dashboard')
+                  }
+                  style={{
+                    padding: '14px 28px',
+                    background:
+                      'linear-gradient(135deg,' +
+                      '#E27D60,#C96848)',
+                    border: 'none',
+                    borderRadius: 14,
+                    color: 'white',
+                    fontFamily: 'DM Sans',
+                    fontWeight: 700,
+                    fontSize: 15,
+                    cursor: 'pointer',
+                    boxShadow:
+                      '0 4px 16px rgba(226,125,96,0.45)'
+                  }}
+                >
+                  📊 Go to Dashboard →
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/farmer-dashboard')
+                    setTimeout(() => {
+                      window.dispatchEvent(
+                        new CustomEvent(
+                          'farmer-nav',
+                          { detail: 'mandi' }
+                        )
+                      )
+                    }, 100)
+                  }}
+                  style={{
+                    padding: '14px 28px',
+                    background:
+                      'rgba(255,255,255,0.12)',
+                    border:
+                      '1.5px solid rgba(255,255,255,0.25)',
+                    borderRadius: 14,
+                    color: 'white',
+                    fontFamily: 'DM Sans',
+                    fontWeight: 700,
+                    fontSize: 15,
+                    cursor: 'pointer'
+                  }}
+                >
+                  📈 Check Mandi Rates
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="hero__badge">
+                <Sparkles size={16} /> Farm-to-Doorstep Marketplace
+              </div>
+              <h1 className="hero__title">
+                Fresh from Farmers,
+                <br />
+                <span className="hero__accent">Fair & Local</span>
+              </h1>
+              <p className="hero__subtitle">
+                Order farm-fresh vegetables, fruits, grains and dairy — harvested
+                within 24 hours and delivered straight to your doorstep.
+              </p>
+              <div className="hero__actions">
+                <button
+                  className="hero__btn-primary"
+                  onClick={() => navigate("/marketplace")}
+                >
+                  Order Now <ArrowRight size={18} />
+                </button>
+                <button
+                  className="hero__btn-ghost"
+                  onClick={() => document.querySelector('.search-float__input')?.focus()}
+                >
+                  <Search size={18} /> Search Produce
+                </button>
+              </div>
+            </>
+          )}
+        </motion.div>
       </section>
 
-      {/* ⭐ FEATURES */}
-      <section className="py-12 bg-white">
-        <div className="container grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {features.map((f, i) => (
-            <motion.div
-              key={i}
-              whileHover={{ scale: 1.05 }}
-              className="p-6 bg-green-50 rounded-2xl shadow-md hover:shadow-lg transition"
+      {/* ═══════ 2. FLOATING SEARCH ═══════ */}
+      <div className="search-float" ref={suggestionsRef}>
+        <div className="search-float__inner">
+          <span className="search-float__icon"><Search size={20} /></span>
+          <input
+            className="search-float__input"
+            type="text"
+            placeholder="Search fresh vegetables, fruits, grains..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && navigateToMarketplace(query)}
+            onFocus={() => { if (filtered.length > 0) setOpenSuggestions(true); }}
+          />
+          {query && (
+            <button
+              className="search-float__btn"
+              onClick={() => navigateToMarketplace(query)}
             >
-              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3 text-green-700">
-                {f.icon}
+              Search
+            </button>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {openSuggestions && (
+            <motion.div
+              className="search-float__suggestions"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+            >
+              {filtered.map((p) => (
+                <div
+                  key={p.id || p.name}
+                  className="search-float__result-item"
+                  onClick={() => navigateToMarketplace(p.name)}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>🌿</span>
+                  <div>
+                    <div style={{ fontWeight: 600, color: "#4A4A4A" }}>{p.name}</div>
+                    <div style={{ fontSize: "0.78rem", color: "#7A7A7A" }}>{p.category}</div>
+                  </div>
+                  <span style={{ marginLeft: "auto", fontWeight: 700, color: "#2D4F1E", fontSize: "0.85rem" }}>
+                    {p.priceLabel || `₹${p.price}`}
+                  </span>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ═══════ 3. FEATURES STRIP ═══════ */}
+      <section className="features-strip">
+        <motion.div
+          className="features-strip__grid"
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+        >
+          {FEATURES.map((f, i) => (
+            <motion.div className="feature-card" key={f.title} variants={fadeUp} custom={i}>
+              <div className="feature-card__icon">
+                <f.icon size={24} />
               </div>
-              <h3 className="font-bold text-lg">{f.title}</h3>
-              <p className="text-gray-600 text-sm">{f.desc}</p>
+              <div className="feature-card__title">{f.title}</div>
+              <div className="feature-card__sub">{f.sub}</div>
             </motion.div>
           ))}
+        </motion.div>
+      </section>
+
+      {/* ═══════ 4. CATEGORIES ═══════ */}
+      <section className="categories">
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
+          variants={stagger}
+        >
+          <motion.div className="section-tag" variants={fadeUp}>Browse by Category</motion.div>
+          <h2 className="section-heading" variants={fadeUp}>
+            Shop by Category
+          </h2>
+        </motion.div>
+
+        <motion.div
+          className="categories__grid"
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          {CATEGORIES.map((c, i) => (
+            <motion.div
+              className="category-card"
+              key={c.name}
+              variants={fadeUp}
+              custom={i}
+              onClick={() => navigate(`/marketplace?category=${c.name}`)}
+            >
+              <img
+                className="category-card__img"
+                src={c.img}
+                alt={c.name}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.style.display = "none";
+                  e.target.nextSibling && (e.target.nextSibling.style.display = "block");
+                }}
+              />
+              <span className="category-card__label">{c.name}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* ═══════ 5. FARMER STORY ═══════ */}
+      <section className="farmer-story">
+        <div className="farmer-story__grid">
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+          >
+            <motion.div className="section-tag" variants={fadeUp}>Our Promise</motion.div>
+            <motion.h2 className="farmer-story__title" variants={fadeUp}>
+              From Our Farms,<br />To Your Family
+            </motion.h2>
+            <motion.p className="farmer-story__body" variants={fadeUp}>
+              We work directly with 500+ local farmers across India, cutting
+              out middlemen to bring you produce that's fresher, fairer, and
+              full of flavour.
+            </motion.p>
+            <motion.ul className="farmer-story__checklist" variants={fadeUp}>
+              {FARMER_CHECKLIST.map((item) => (
+                <li key={item}>
+                  <span className="farmer-story__check"><Check size={13} strokeWidth={3} /></span>
+                  {item}
+                </li>
+              ))}
+            </motion.ul>
+            <motion.button
+              className="farmer-story__cta"
+              variants={fadeUp}
+              onClick={() => navigate("/about")}
+            >
+              Meet Our Farmers <ArrowRight size={16} />
+            </motion.button>
+          </motion.div>
+
+          <motion.div
+            className="farmer-story__visual"
+            initial={{ opacity: 0, x: 40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7 }}
+            viewport={{ once: true }}
+          >
+            <div className="farmer-story__img farmer-story__img--main">
+              <img
+                src="https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=500&h=400&fit=crop"
+                alt="Indian farmer in field"
+                fetchPriority="high"
+              />
+            </div>
+            <div className="farmer-story__img farmer-story__img--secondary">
+              <img
+                src="https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=500&h=400&fit=crop"
+                alt="Fresh farm produce"
+                fetchPriority="high"
+              />
+            </div>
+            <div className="farmer-story__stat">
+              <strong>500+</strong>
+              <span>Farmers Partnered</span>
+            </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* 🛒 CATEGORIES */}
-      <section className="py-12 bg-gradient-to-r from-green-50 to-white">
-        <div className="container text-center">
-          <h2 className="text-3xl font-bold text-green-700 mb-6">Shop by Category</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
-            {categoriesStatic.map((cat) => (
-              <motion.button
-                key={cat.name}
-                whileHover={{ scale: 1.06, rotate: 1 }}
-                onClick={() => navigate("/marketplace", { state: { category: cat.name } })}
-                className="bg-white border border-green-100 rounded-2xl py-6 flex flex-col items-center shadow-md hover:bg-green-50 transition"
-              >
-                <span className="text-4xl mb-2">{cat.icon}</span>
-                <h4 className="font-semibold text-green-700">{cat.name}</h4>
-              </motion.button>
-            ))}
-          </div>
+      {/* ═══════ 6. FEATURED PRODUCTS ═══════ */}
+      <section className="products">
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
+          variants={stagger}
+        >
+          <motion.div className="section-tag" variants={fadeUp}>Just Picked</motion.div>
+          <h2 className="section-heading" variants={fadeUp}>
+            Featured Products
+          </h2>
+          <motion.p className="section-subtitle" variants={fadeUp}>
+            Freshest produce available right now
+          </motion.p>
+        </motion.div>
+
+        <div className="products__grid">
+          {(products.length > 0 ? products.slice(0, 6) : PRODUCTS).map((p, i) => (
+            <ProductCard key={p.id || p.name} product={p} index={i} />
+          ))}
         </div>
+
+        <motion.button
+          className="products__view-all"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => navigate("/marketplace")}
+        >
+          View All Products <ArrowRight size={18} />
+        </motion.button>
       </section>
 
-      {/* 🎁 OFFER SLIDER */}
-{/* 🎁 OFFER SLIDER */}
-<section className="py-12 bg-white">
-  <div className="container">
-    <h2 className="text-3xl font-bold text-green-700 mb-6 text-center">
-      Today’s Bumper Offers
-    </h2>
+      <RecommendedProducts />
 
-    {availableProducts.length === 0 ? (
-      <div className="text-center text-gray-500 py-8">
-        No products available right now.
-      </div>
-    ) : (
-      <Slider {...sliderSettings}>
-        {availableProducts
-          .sort((a, b) => a.price - b.price)   // 🔥 Best Price First
-          .slice(0, 12)                        // 🔥 Top 12 Offers
-          .map((p) => (
-            <motion.div key={p.id} whileHover={{ scale: 1.03 }} className="p-3 relative">
+      {/* ═══════ 7. TESTIMONIALS ═══════ */}
+      <section className="testimonials">
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
+          variants={stagger}
+        >
+          <motion.div className="section-tag" variants={fadeUp}>Happy Customers</motion.div>
+          <h2 className="section-heading section-heading--white" variants={fadeUp}>
+            What Farmers Say
+          </h2>
+        </motion.div>
 
-              {/* 🔥 Ribbon */}
-              <div className="absolute top-3 left-3 bg-red-500 text-white text-xs px-2 py-1 rounded shadow">
-                Best Price
-              </div>
-
-              <div className="bg-white shadow-md rounded-2xl overflow-hidden">
-                <ImageWithFallback
-                  src={p.image}
-                  alt={p.name}
-                  className="h-56 w-full object-cover"
-                />
-
-                <div className="p-4 text-center">
-                  <h4 className="font-semibold text-lg">{p.name}</h4>
-                  <p className="text-green-700 font-bold">
-                    ₹{p.price} / {p.unit}
-                  </p>
-
-                  <button
-                    onClick={() =>
-                      navigate("/marketplace", { state: { productId: p.id } })
-                    }
-                    className="mt-3 btn btn-primary"
-                  >
-                    View in Marketplace
-                  </button>
+        <motion.div
+          className="testimonials__grid"
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          {TESTIMONIALS.map((t, i) => (
+            <motion.div className="testimonial-card" key={t.name} variants={fadeUp} custom={i}>
+              <div className="testimonial-card__quote-mark">"</div>
+              <p className="testimonial-card__text">{t.quote}</p>
+              <div className="testimonial-card__footer">
+                <div className="testimonial-card__avatar">{t.initials}</div>
+                <div>
+                  <div className="testimonial-card__name">{t.name}</div>
+                  <div className="testimonial-card__city">{t.city}</div>
+                </div>
+                <div className="testimonial-card__stars" style={{ marginLeft: "auto" }}>
+                  ★★★★★
                 </div>
               </div>
-
             </motion.div>
           ))}
-      </Slider>
-    )}
-  </div>
-</section>
+        </motion.div>
+      </section>
 
+      {/* ═══════ 8. APP DOWNLOAD BANNER ═══════ */}
+      <section className="app-banner" ref={bannerRef}>
+        {/* CHANGE 1 — Background glows & dots */}
+        <div style={{
+          position: 'absolute', top: -80, left: -80,
+          width: 350, height: 350,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle,rgba(226,125,96,0.18) 0%,transparent 70%)',
+          pointerEvents: 'none', zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute', bottom: -80, right: 200,
+          width: 400, height: 400,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle,rgba(45,79,30,0.40) 0%,transparent 70%)',
+          pointerEvents: 'none', zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0,
+          opacity: 0.04,
+          backgroundImage: 'radial-gradient(circle,#ffffff 1px,transparent 1px)',
+          backgroundSize: '28px 28px',
+          pointerEvents: 'none', zIndex: 0
+        }} />
 
-      {/* 🌱 FOOTER CTA */}
-      <footer className="bg-gradient-to-r from-green-700 to-green-600 text-white py-16 text-center">
-        <div className="flex justify-center items-center gap-3 mb-6">
-          <Leaf className="text-lime-200" />
-          <h2 className="text-2xl font-bold">Why Shop from KrishiSaathi?</h2>
+        {/* Wave top */}
+        <div className="app-banner__wave">
+          <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <path d="M0 80L60 68C120 56 240 32 360 24C480 16 600 24 720 36C840 48 960 64 1080 64C1200 64 1320 48 1380 40L1440 32V0H0Z" fill="#2D4F1E" />
+          </svg>
         </div>
 
-        <p className="max-w-2xl mx-auto text-gray-100 text-lg mb-6">
-          Empowering local farmers, ensuring fair trade, and delivering the freshest produce straight to your kitchen.
-        </p>
-
-        <div className="flex justify-center">
-          <button
-            onClick={() => navigate("/marketplace")}
-            className="bg-lime-400 hover:bg-lime-300 text-green-900 px-6 py-3 rounded-full font-semibold flex items-center gap-2 transition"
+        <div className="app-banner__grid">
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            style={{ position: 'relative', zIndex: 1 }}
           >
-            <ShoppingBag size={18} /> Start Shopping
-          </button>
-        </div>
-      </footer>
+            {/* CHANGE 2 — Now on Mobile tag */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 16
+            }}>
+              <style>{`
+                @keyframes ks-ping {
+                  0% { transform:scale(1); opacity:0.7; }
+                  100% { transform:scale(2.8); opacity:0; }
+                }
+              `}</style>
+              <div style={{
+                position: 'relative',
+                width: 8, height: 8, flexShrink: 0
+              }}>
+                <div style={{
+                  width: 8, height: 8,
+                  borderRadius: '50%',
+                  background: '#E27D60',
+                  position: 'absolute'
+                }} />
+                <div style={{
+                  width: 8, height: 8,
+                  borderRadius: '50%',
+                  background: '#E27D60',
+                  position: 'absolute',
+                  animation: 'ks-ping 1.5s ease-out infinite'
+                }} />
+              </div>
+              <span style={{
+                fontFamily: 'Caveat',
+                fontSize: 20,
+                color: '#E27D60',
+                fontWeight: 600
+              }}>
+                Now on Mobile
+              </span>
+            </div>
 
-    </Layout>
+            <motion.h2 className="app-banner__title" variants={fadeUp}>
+              Order Fresh,<br />Anytime, Anywhere
+            </motion.h2>
+            <motion.p className="app-banner__subtitle" variants={fadeUp}>
+              Download the KrishiSaathi app for exclusive deals and real-time
+              farm updates.
+            </motion.p>
+
+            {/* CHANGE 3 — Store Buttons */}
+            <motion.div
+              variants={fadeUp}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+                marginTop: '32px'
+              }}
+            >
+              {/* App Store Button */}
+              <a
+                href="https://apps.apple.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '11px 20px',
+                  background: '#000',
+                  border: '1.5px solid rgba(255,255,255,0.20)',
+                  borderRadius: 14,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 220ms ease',
+                  minWidth: 158,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.40)'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+                  e.currentTarget.style.boxShadow = '0 14px 32px rgba(0,0,0,0.55)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.40)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'none'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.40)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.20)'
+                }}
+              >
+                <svg width="24" height="28"
+                  viewBox="0 0 22 26" fill="white"
+                  style={{ flexShrink: 0 }}>
+                  <path d="M18.07 13.77C18.04 10.66 20.64 9.15 20.76 9.08C19.29 6.92 17.01 6.63 16.21 6.61C14.26 6.41 12.37 7.77 11.37 7.77C10.37 7.77 8.83 6.63 7.18 6.67C5.06 6.70 3.09 7.93 2.01 9.83C-0.22 13.68 1.44 19.34 3.57 22.45C4.64 23.97 5.89 25.67 7.54 25.61C9.15 25.54 9.76 24.57 11.71 24.57C13.64 24.57 14.21 25.61 15.90 25.57C17.63 25.54 18.72 24.03 19.75 22.50C20.99 20.76 21.49 19.05 21.51 18.96C21.47 18.95 18.10 17.71 18.07 13.77Z" />
+                  <path d="M14.96 4.49C15.83 3.42 16.42 1.95 16.25 0.46C15.00 0.52 13.45 1.34 12.54 2.39C11.74 3.32 11.03 4.83 11.22 6.28C12.62 6.39 14.05 5.54 14.96 4.49Z" />
+                </svg>
+                <div>
+                  <div style={{ fontFamily: 'DM Sans', fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
+                    Available on the
+                  </div>
+                  <div style={{ fontFamily: 'DM Sans', fontWeight: 700, fontSize: 16, color: 'white', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
+                    App Store
+                  </div>
+                </div>
+              </a>
+
+              {/* Google Play Button */}
+              <a
+                href="https://play.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '11px 20px',
+                  background: '#000',
+                  border: '1.5px solid rgba(255,255,255,0.20)',
+                  borderRadius: 14,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 220ms ease',
+                  minWidth: 158,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.40)'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+                  e.currentTarget.style.boxShadow = '0 14px 32px rgba(0,0,0,0.55)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.40)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'none'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.40)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.20)'
+                }}
+              >
+                <svg width="24" height="24"
+                  viewBox="0 0 24 24" fill="none"
+                  style={{ flexShrink: 0 }}>
+                  <path d="M3.18 23.76C3.07 23.52 3 23.23 3 22.87V1.13C3 0.77 3.07 0.48 3.19 0.24L3.27 0.16L14.44 11.33V11.67L3.27 22.84Z" fill="url(#gpa)" />
+                  <path d="M18.12 15.26L14.44 11.58V11.24L18.12 7.56L22.57 10.09C23.8 10.79 23.8 11.93 22.57 12.63L18.22 15.1Z" fill="url(#gpb)" />
+                  <path d="M18.22 15.1L14.44 11.32L3.18 22.58C3.59 23.01 4.27 23.07 5.04 22.64Z" fill="url(#gpc)" />
+                  <path d="M18.22 7.54L5.04 0.02C4.27 -0.41 3.59 -0.35 3.18 0.08L14.44 11.32L18.22 7.54Z" fill="url(#gpd)" />
+                  <defs>
+                    <linearGradient id="gpa" x1="13.47" y1="1.16" x2="5.05" y2="22.96" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#00A0FF" />
+                      <stop offset="1" stopColor="#00E3FF" />
+                    </linearGradient>
+                    <linearGradient id="gpb" x1="24.83" y1="11.5" x2="2.74" y2="11.5" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#FFE000" />
+                      <stop offset="1" stopColor="#FF9C00" />
+                    </linearGradient>
+                    <linearGradient id="gpc" x1="16.13" y1="13.41" x2="-0.48" y2="30.89" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#FF3A44" />
+                      <stop offset="1" stopColor="#C31162" />
+                    </linearGradient>
+                    <linearGradient id="gpd" x1="1.08" y1="-5.84" x2="8.78" y2="2.47" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#32A071" />
+                      <stop offset="1" stopColor="#00F076" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div>
+                  <div style={{ fontFamily: 'DM Sans', fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
+                    Get it on
+                  </div>
+                  <div style={{ fontFamily: 'DM Sans', fontWeight: 700, fontSize: 16, color: 'white', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
+                    Google Play
+                  </div>
+                </div>
+              </a>
+            </motion.div>
+
+            {/* CHANGE 4 — Stats row */}
+            <div style={{
+              display: 'flex',
+              gap: 28,
+              marginTop: 24,
+              flexWrap: 'wrap',
+              alignItems: 'center'
+            }}>
+              {[
+                { num: `${farmerCount}+`, label: 'Local Farmers', icon: '🌾' },
+                { num: `${customerCount}k+`, label: 'Happy Customers', icon: '😊' },
+                { num: '4.8★', label: 'App Rating', icon: '⭐', gold: true }
+              ].map((s, i) => (
+                <React.Fragment key={s.label}>
+                  {i > 0 && (
+                    <div style={{
+                      width: 1, height: 32,
+                      background: 'rgba(255,255,255,0.12)'
+                    }} />
+                  )}
+                  <div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5, marginBottom: 3
+                    }}>
+                      <span style={{ fontSize: 14 }}>
+                        {s.icon}
+                      </span>
+                      <span style={{
+                        fontFamily: 'Playfair Display',
+                        fontWeight: 700,
+                        fontSize: 26,
+                        color: s.gold
+                          ? '#FFD700' : '#EDD9B0',
+                        lineHeight: 1
+                      }}>
+                        {s.num}
+                      </span>
+                    </div>
+                    <div style={{
+                      fontFamily: 'DM Sans',
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.50)',
+                      fontWeight: 500
+                    }}>
+                      {s.label}
+                    </div>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="app-banner__phone"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+            viewport={{ once: true }}
+          >
+            {/* CHANGE 6 — Glow behind phone */}
+            <div style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {/* Glow */}
+              <div style={{
+                position: 'absolute',
+                width: '140%', height: '75%',
+                borderRadius: '50%',
+                background: 'radial-gradient(ellipse,rgba(45,79,30,0.55) 0%,transparent 70%)',
+                filter: 'blur(28px)',
+                zIndex: 0
+              }} />
+
+              {/* CHANGE 5 — Rich Phone frame content */}
+              <div className="app-banner__phone-frame" style={{ position: 'relative', zIndex: 1 }}>
+                <div className="app-banner__phone-notch" />
+                
+                {/* Status bar */}
+                <div style={{
+                  padding: '10px 14px 4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  width: '100%',
+                  marginTop: '12px'
+                }}>
+                  <span style={{
+                    fontFamily: 'DM Sans', fontSize: 10,
+                    fontWeight: 700, color: 'white'
+                  }}>9:41</span>
+                  <div style={{
+                    width: 16, height: 9,
+                    borderRadius: 2,
+                    border: '1.5px solid rgba(255,255,255,0.60)',
+                    position: 'relative', overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: '80%', height: '100%',
+                      background: '#4CAF50', borderRadius: 1
+                    }} />
+                  </div>
+                </div>
+
+                {/* App header */}
+                <div style={{
+                  padding: '4px 14px 8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  width: '100%'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center', gap: 6
+                  }}>
+                    <div style={{
+                      width: 22, height: 22,
+                      borderRadius: 6,
+                      background: '#E27D60',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11
+                    }}>🌾</div>
+                    <span style={{
+                      fontFamily: 'Playfair Display',
+                      fontWeight: 700, fontSize: 12,
+                      color: 'white'
+                    }}>KrishiSaathi</span>
+                  </div>
+                  <span style={{ fontSize: 12 }}>🔔</span>
+                </div>
+
+                {/* Mandi rate card */}
+                <div style={{
+                  margin: '0 10px 7px',
+                  background: 'linear-gradient(135deg,rgba(45,79,30,0.85),rgba(26,46,18,0.95))',
+                  borderRadius: 11,
+                  padding: '9px 11px',
+                  border: '1px solid rgba(237,217,176,0.20)',
+                  width: 'calc(100% - 20px)'
+                }}>
+                  <div style={{
+                    fontFamily: 'DM Sans', fontSize: 8,
+                    color: 'rgba(255,255,255,0.55)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    marginBottom: 3
+                  }}>🍅 Tomato · Today</div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-end'
+                  }}>
+                    <div>
+                      <span style={{
+                        fontFamily: 'Playfair Display',
+                        fontWeight: 700, fontSize: 20,
+                        color: 'white'
+                      }}>₹13.14</span>
+                      <span style={{
+                        fontFamily: 'DM Sans', fontSize: 9,
+                        color: 'rgba(255,255,255,0.50)',
+                        marginLeft: 2
+                      }}>/kg</span>
+                    </div>
+                    <div style={{
+                      background: 'rgba(76,175,80,0.28)',
+                      borderRadius: 6, padding: '2px 7px',
+                      fontFamily: 'DM Sans', fontSize: 9,
+                      fontWeight: 700, color: '#81C784'
+                    }}>↑ 2.1%</div>
+                  </div>
+                </div>
+
+                {/* Forecast bars */}
+                <div style={{
+                  margin: '0 10px 7px',
+                  background: 'rgba(255,255,255,0.06)',
+                  borderRadius: 10, padding: '8px 10px',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  width: 'calc(100% - 20px)'
+                }}>
+                  <div style={{
+                    fontFamily: 'DM Sans', fontSize: 7,
+                    color: 'rgba(255,255,255,0.40)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: 5
+                  }}>7-Day ML Forecast</div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: 3, height: 32
+                  }}>
+                    {[55, 65, 58, 72, 80, 76, 90].map((h, i) => (
+                      <div key={i} style={{
+                        flex: 1,
+                        height: `${h}%`,
+                        borderRadius: '3px 3px 0 0',
+                        background: i === 6
+                          ? '#E27D60'
+                          : i >= 4
+                            ? 'rgba(76,175,80,0.55)'
+                            : 'rgba(237,217,176,0.22)'
+                      }} />
+                    ))}
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginTop: 3
+                  }}>
+                    {['M', 'T', 'W', 'T', 'F', 'S', 'S']
+                      .map((d, i) => (
+                        <span key={i} style={{
+                          flex: 1, textAlign: 'center',
+                          fontFamily: 'DM Sans', fontSize: 7,
+                          color: i === 6
+                            ? '#E27D60'
+                            : 'rgba(255,255,255,0.25)'
+                        }}>{d}</span>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Action grid */}
+                <div style={{
+                  margin: '0 10px',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 5,
+                  width: 'calc(100% - 20px)'
+                }}>
+                  {[
+                    {
+                      icon: '🌿', label: 'Products',
+                      bg: 'rgba(45,79,30,0.55)'
+                    },
+                    {
+                      icon: '📈', label: 'Mandi',
+                      bg: 'rgba(226,125,96,0.32)'
+                    },
+                    {
+                      icon: '💰', label: 'Sales',
+                      bg: 'rgba(76,175,80,0.28)'
+                    },
+                    {
+                      icon: '🤖', label: 'AI Price',
+                      bg: 'rgba(100,100,255,0.22)'
+                    }
+                  ].map(item => (
+                    <div key={item.label} style={{
+                      background: item.bg,
+                      borderRadius: 9,
+                      padding: '7px 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      border: '1px solid rgba(255,255,255,0.08)'
+                    }}>
+                      <span style={{ fontSize: 12 }}>
+                        {item.icon}
+                      </span>
+                      <span style={{
+                        fontFamily: 'DM Sans',
+                        fontSize: 9, fontWeight: 600,
+                        color: 'rgba(255,255,255,0.85)'
+                      }}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+    </div>
   );
 };
 

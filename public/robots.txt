@@ -1,0 +1,35 @@
+# KrishiSaathi Robots.txt
+# https://krishisaathi.vercel.app
+
+User-agent: *
+
+# Allow public pages
+Allow: /
+Allow: /marketplace
+Allow: /about
+Allow: /contact
+Allow: /support
+Allow: /login
+Allow: /register
+
+# Block private pages
+Disallow: /dashboard/farmer
+Disallow: /dashboard/buyer
+Disallow: /profile
+Disallow: /checkout
+Disallow: /thank-you
+Disallow: /order-history
+Disallow: /api/
+Disallow: /admin/
+Disallow: /*.json$
+
+# Block crawl parameters
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+Disallow: /*?*search=
+
+# Sitemap location
+Sitemap: https://krishisaathi.vercel.app/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 10

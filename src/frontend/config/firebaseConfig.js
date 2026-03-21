@@ -2,16 +2,20 @@ import { initializeApp } from "firebase/app";
 // ❌ remove analytics for now
 // import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAiRZMkY19z_roa_8xGuwcS0QtMvavA-90",
-  authDomain: "krishisaathi-f77c7.firebaseapp.com",
-  projectId: "krishisaathi-f77c7",
-  storageBucket: "krishisaathi-f77c7.firebasestorage.app",
-  messagingSenderId: "579116463043",
-  appId: "1:579116463043:web:3e137a8c18155c61924376",
-  measurementId: "G-R6L6531GTL",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
@@ -20,5 +24,11 @@ const app = initializeApp(firebaseConfig);
 // const analytics = getAnalytics(app);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Enable offline persistence
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
 export { app };

@@ -8,21 +8,88 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
 } from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
-import { useUser } from "../contexts/UserContext";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { motion } from "framer-motion";
-import { Truck, Leaf } from "lucide-react";
+import { auth } from "@/frontend/config/firebaseConfig";
+import { useUser } from "@/frontend/contexts/UserContext";
+import { useToast } from "@/frontend/contexts/ToastContext";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Leaf,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Phone,
+  ArrowRight,
+  ShieldCheck,
+  Truck,
+  Sparkles,
+  ChevronLeft,
+  CreditCard,
+  AlertCircle,
+} from "lucide-react";
+
+import "./Login.css";
+import { updateSEO } from '@/frontend/utils/seo';
+import Breadcrumb from '@/frontend/components/ui/Breadcrumb';
+import Input from "@/frontend/components/ui/Input";
+import Button from "@/frontend/components/ui/Button";
+
+/* ─── Animation Variants ─── */
+const leftPanel = {
+  hidden: { opacity: 0, x: -30 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: "easeOut" } },
+};
+const rightPanel = {
+  hidden: { opacity: 0, x: 30 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: "easeOut" } },
+};
+const cardAnim = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.2, ease: "easeOut" } },
+};
 
 const PHONE_MIN_DIGITS = 10;
+
+/* ─── Responsive hook ─── */
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 641);
+    handler();
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return mobile;
+}
+
+/* ─── Google SVG ─── */
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
+  );
+}
+
+/* ════════════════════════════════════════ */
+/*           LOGIN COMPONENT               */
+/* ════════════════════════════════════════ */
 
 export default function Login() {
   const navigate = useNavigate();
   const { setUser } = useUser();
+  const toast = useToast();
+  const isMobile = useIsMobile();
+
+  useEffect(() => {
+    updateSEO('/login');
+  }, []);
 
   // Form state
-  const [role, setRole] = useState(localStorage.getItem("userRole") || "");
+  const [role, setRole] = useState(localStorage.getItem("userRole") || "farmer");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -41,9 +108,10 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [inlineError, setInlineError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [errors, setErrors] = useState({});
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   const verifierRef = useRef(null);
-
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneDigitsOnly = (s) => (s || "").replace(/\D/g, "");
   const identifierRef = useRef(null);
@@ -58,56 +126,62 @@ export default function Login() {
     return trimmed;
   };
 
-  // =======================
-  // reCAPTCHA Setup
-  // =======================
+  // Is phone input?
+  const isPhone = (() => {
+    const t = (identifier || "").trim();
+    if (!t) return false;
+    if (t.startsWith("+")) return true;
+    const d = phoneDigitsOnly(t);
+    return d.length >= PHONE_MIN_DIGITS && /^[\d+\-() ]+$/.test(t);
+  })();
+
+  // ─── reCAPTCHA Setup ───
   const setupRecaptcha = useCallback(async () => {
     if (window.__KS_RECAPTCHA) {
       verifierRef.current = window.__KS_RECAPTCHA;
       return window.__KS_RECAPTCHA;
     }
     try {
-      const verifier = new RecaptchaVerifier(
-        "recaptcha-container",
-        { size: "invisible" },
-        auth
-      );
-      await verifier.render();
-      window.__KS_RECAPTCHA = verifier;
-      verifierRef.current = verifier;
-      return verifier;
-    } catch {
+      const container = document.getElementById("recaptcha-container");
+      if (!container) throw new Error("recaptcha-container not found");
+      const v = new RecaptchaVerifier(auth, container, { size: "invisible" });
+      await v.render();
+      verifierRef.current = v;
+      window.__KS_RECAPTCHA = v;
+      return v;
+    } catch (err) {
+      toast.error("reCAPTCHA init failed: " + err.message);
       return null;
     }
   }, []);
 
+  // Resend timer
   useEffect(() => {
-    return () => {
-      try {
-        if (window.__KS_RECAPTCHA) {
-          window.__KS_RECAPTCHA.clear?.();
-          window.__KS_RECAPTCHA = null;
-        }
-      } catch {}
-    };
+    if (resendTimer <= 0) return;
+    const t = setInterval(() => setResendTimer((p) => Math.max(0, p - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendTimer]);
+
+  // Auto-focus
+  useEffect(() => {
+    identifierRef.current?.focus();
   }, []);
 
-  // =======================
-  // Onboarding (unchanged)
-  // =======================
+  // ─── Onboard user ───
   const onboardUser = useCallback(
     async (user) => {
       try {
         if (!user) throw new Error("No user");
         let idToken = await user.getIdToken(true);
 
-        const res = await fetch("http://localhost:5002/api/users/onboard", {
+        const res = await fetch("/api/users/onboard", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify({
+            uid: user.uid,
             email: user.email || "",
             phone: user.phoneNumber || "",
             role,
@@ -117,610 +191,717 @@ export default function Login() {
         const data = await res.json().catch(() => null);
 
         if (!res.ok) {
-          toast.warn(
-            data?.message ||
-              "Onboarding server unavailable — continuing offline"
-          );
-
-          const localUser = {
-            uid: user.uid,
-            email: user.email || "",
-            phone: user.phoneNumber || "",
-            role,
-          };
-
-          try {
-            setUser?.(localUser);
-          } catch {}
-
+          const localUser = { uid: user.uid, email: user.email || "", phone: user.phoneNumber || "", role };
+          try { setUser?.(localUser); } catch { }
           localStorage.setItem("isLoggedIn", "true");
           localStorage.setItem("userRole", role);
           localStorage.setItem("userEmail", user.email || "");
-
-          navigate(
-            role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard"
-          );
+          navigate(role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard");
           return;
         }
 
-        const serverUser =
-          data?.user || {
-            uid: user.uid,
-            email: user.email || "",
-            phone: user.phoneNumber || "",
-            role,
-          };
-
-        try {
-          setUser?.(serverUser);
-        } catch {}
-
+        const resolvedRole = data?.user?.role || role;
+        const serverUser = data?.user || { uid: user.uid, email: user.email || "", phone: user.phoneNumber || "", role: resolvedRole };
+        try { setUser?.(serverUser); } catch { }
         localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("userRole", role);
-        localStorage.setItem(
-          "userEmail",
-          serverUser.email || user.email || ""
-        );
-
+        localStorage.setItem("userRole", resolvedRole);
+        localStorage.setItem("userEmail", serverUser.email || user.email || "");
         navigate(
-          data?.isNewUser ? "/onboarding" : role === "farmer"
-            ? "/farmer-dashboard"
-            : "/buyer-dashboard"
+          data?.isNewUser
+            ? "/onboarding"
+            : resolvedRole === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard"
         );
       } catch {
-        toast.warn("Onboarding error — continuing offline");
-
-        try {
-          setUser?.({
-            uid: user?.uid || null,
-            email: user?.email || "",
-            role,
-          });
-        } catch {}
-
+        try { setUser?.({ uid: user?.uid || null, email: user?.email || "", role }); } catch { }
         localStorage.setItem("isLoggedIn", "true");
         localStorage.setItem("userRole", role);
         localStorage.setItem("userEmail", user?.email || "");
-
-        navigate(
-          role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard"
-        );
+        navigate(role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard");
       }
     },
     [role, navigate, setUser]
   );
 
-  // =======================
-  // Validation
-  // =======================
+  // ─── Validation ───
   const validate = () => {
-    setInlineError("");
-
-    if (!role) {
-      toast.warn("Select Farmer or Buyer");
-      return false;
+    const errs = {};
+    const id = identifier.trim();
+    if (!id) {
+      errs.identifier = "Enter a valid email or +91 phone number";
+    } else if (!emailRegex.test(id) && phoneDigitsOnly(id).length < PHONE_MIN_DIGITS) {
+      errs.identifier = "Enter a valid email or +91 phone number";
     }
-
-    if (!identifier) {
-      setInlineError("Enter email or phone");
-      return false;
+    if (!isPhone && !password.trim()) {
+      errs.password = "Password is required";
+    } else if (!isPhone && password.length < 6) {
+      errs.password = "Password must be at least 6 characters";
     }
-
-    const digits = phoneDigitsOnly(identifier);
-    const isPhone = digits.length >= PHONE_MIN_DIGITS;
-
-    if (!isPhone) {
-      if (!emailRegex.test(identifier)) {
-        setInlineError("Invalid email");
-        return false;
-      }
-      if (!password || password.length < 6) {
-        setInlineError("Password must be at least 6 characters");
-        return false;
-      }
-    }
-
-    return true;
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
-  // =======================
-  // Email login
-  // =======================
+  // ─── Email login ───
   const handleEmailLogin = async () => {
     try {
       setLoading(true);
-      const cred = await signInWithEmailAndPassword(
-        auth,
-        identifier,
-        password
-      );
-
-      toast.success("Login successful");
-
-      try {
-        setUser?.({
-          uid: cred.user?.uid || null,
-          email: cred.user?.email || "",
-          role,
-        });
-      } catch {}
-
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userRole", role);
-      localStorage.setItem("userEmail", cred.user?.email || "");
-
-      navigate(
-        role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard"
-      );
-
-      onboardUser(cred.user).catch(() => {});
+      const cred = await signInWithEmailAndPassword(auth, identifier, password);
+      // Wait for onboardUser to sync the correct server role and redirect
+      await onboardUser(cred.user);
+      setLoginSuccess(true);
+      // No toast — dashboard redirect is the feedback
     } catch (err) {
-      toast.error(err.message || "Email login failed");
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setErrors({ identifier: 'Invalid email or password.' });
+      } else if (err.code === 'auth/too-many-requests') {
+        setInlineError('Too many attempts. Please try again later.');
+      } else {
+        setInlineError(err.message || 'Email login failed. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (!loginSuccess) setLoading(false);
     }
   };
 
-  // =======================
-  // Send OTP
-  // =======================
+  // ─── Send OTP ───
   const sendOtp = async () => {
     try {
       setLoading(true);
+      setInlineError("");
       setStatusMessage("Preparing OTP...");
-
       const verifier = await setupRecaptcha();
       if (!verifier) throw new Error("reCAPTCHA failed to initialize");
-
       const phone = formatE164(identifier);
+      if (!phone || phoneDigitsOnly(phone).length < PHONE_MIN_DIGITS) {
+        setErrors({ identifier: "Enter a valid 10-digit phone number." });
+        return;
+      }
       const result = await signInWithPhoneNumber(auth, phone, verifier);
-
       setConfirmationResult(result);
       setShowOtpInput(true);
-      setResendTimer(30);
+      setResendTimer(60); // Increased to 60s
       setOtp("");
-
-      toast.info(`OTP sent to ${phone}`);
+      // Silent success status or minimal feedback
+      setStatusMessage(""); 
     } catch (err) {
-      toast.error(err.message || "Failed to send OTP");
+      console.error("OTP send error:", err);
+      // Clear cached recaptcha so resend works fresh
+      window.__KS_RECAPTCHA?.clear?.();
+      window.__KS_RECAPTCHA = null;
+      verifierRef.current = null;
+      if (err.code === 'auth/invalid-phone-number') {
+        setInlineError("Invalid phone number format. Use +91 followed by 10 digits.");
+      } else if (err.code === 'auth/too-many-requests') {
+        setInlineError("Too many attempts. Please try again later.");
+      } else if (err.code === 'auth/captcha-check-failed') {
+        setInlineError("reCAPTCHA check failed. Please refresh and try again.");
+      } else {
+        setInlineError("Could not send OTP. Please try again.");
+      }
     } finally {
       setLoading(false);
-      setStatusMessage("");
+      if (!showOtpInput) setStatusMessage("");
     }
   };
 
-  // =======================
-  // Verify OTP
-  // =======================
+  // ─── Verify OTP ───
   const verifyOtp = async () => {
-    if (!confirmationResult) {
-      setInlineError("No OTP session");
+    if (!confirmationResult) { setInlineError("No OTP session. Please send OTP first."); return; }
+    if (!otp.trim() || otp.replace(/\D/g, "").length < 6) {
+      setInlineError("Please enter the complete 6-digit OTP.");
       return;
     }
-
     try {
       setLoading(true);
+      setInlineError("");
       const res = await confirmationResult.confirm(otp.trim());
-
-      toast.success("OTP verified");
-
-      try {
-        setUser?.({
-          uid: res.user?.uid,
-          email: res.user?.email || "",
-          role,
-        });
-      } catch {}
-
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userRole", role);
-      localStorage.setItem(
-        "userEmail",
-        res.user?.email || ""
-      );
-
-      navigate(
-        role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard"
-      );
-
-      onboardUser(res.user).catch(() => {});
-    } catch {
-      toast.error("Invalid OTP");
+      // Onboard user silently (no toasts)
+      await onboardUser(res.user);
+      setLoginSuccess(true);
+      // Silent redirect happens via onboardUser -> navigate
+    } catch (err) {
+      console.error("OTP verify error:", err);
+      if (err.code === 'auth/invalid-verification-code') {
+        setInlineError("Wrong OTP. Please check and try again.");
+      } else if (err.code === 'auth/code-expired') {
+        setInlineError("OTP has expired. Please resend.");
+        setShowOtpInput(false);
+        setConfirmationResult(null);
+      } else {
+        setInlineError("Verification failed. Please try again.");
+      }
     } finally {
-      setLoading(false);
+      if (!loginSuccess) setLoading(false);
     }
   };
 
-  // =======================
-  // Resend OTP
-  // =======================
+  // ─── Resend OTP ───
   const resendOtp = async () => {
     if (resendTimer > 0) return;
-
     window.__KS_RECAPTCHA?.clear?.();
     window.__KS_RECAPTCHA = null;
     verifierRef.current = null;
-
     await sendOtp();
   };
 
-  // =======================
-  // Google Login
-  // =======================
+  // ─── Google Login ───
   const handleGoogleLogin = async () => {
-    if (!role) return toast.warn("Choose a role first");
-
+    if (!role) { setInlineError("Please choose a role first (Farmer / Buyer)."); return; }
     try {
       setLoading(true);
+      setInlineError("");
       const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      // Wait for onboardUser to sync the correct server role and redirect
+      await onboardUser(result.user);
+      setLoginSuccess(true);
+      // No toast — dashboard redirect is the feedback
+    } catch (err) {
+      if (err.code === 'auth/popup-closed-by-user') {
+        // User dismissed the popup — not an error
+      } else if (err.code === 'auth/too-many-requests') {
+        setInlineError('Too many attempts. Please try again later.');
+      } else {
+        setInlineError(err.message || 'Google login failed. Please try again.');
+      }
+    } finally {
+      if (!loginSuccess) setLoading(false);
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    setLoading(true);
+    setInlineError("");
+    try {
+      const { FacebookAuthProvider, signInWithPopup } = await import("firebase/auth");
+      const provider = new FacebookAuthProvider();
+      provider.addScope('email');
+      provider.addScope('public_profile');
 
       const result = await signInWithPopup(auth, provider);
-
-      toast.success("Google login successful");
-
-      try {
-        setUser?.({
-          uid: result.user?.uid,
-          email: result.user?.email || "",
-          role,
-        });
-      } catch {}
-
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userRole", role);
-      localStorage.setItem(
-        "userEmail",
-        result.user?.email || ""
-      );
-
-      navigate(
-        role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard"
-      );
-
-      onboardUser(result.user).catch(() => {});
-    } catch {
-      toast.error("Google login error");
+      await onboardUser(result.user);
+      setLoginSuccess(true);
+    } catch (err) {
+      console.error("Facebook login error:", err);
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        setInlineError("Account exists with different login method. Try Google login.");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        // Closed by user
+      } else {
+        setInlineError(err.message || "Facebook login failed");
+      }
     } finally {
-      setLoading(false);
+      if (!loginSuccess) setLoading(false);
     }
   };
 
-  // =======================
-  // Submit Handler
-  // =======================
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
-
-    const digits = phoneDigitsOnly(identifier);
-    const isPhone = digits.length >= PHONE_MIN_DIGITS;
-
-    if (isPhone) await sendOtp();
-    else await handleEmailLogin();
-  };
-
-  // Resend timer
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const t = setInterval(() => setResendTimer((s) => s - 1), 1000);
-    return () => clearInterval(t);
-  }, [resendTimer]);
-
-  const isLikelyPhone = () => phoneDigitsOnly(identifier).length >= 6;
-
-  // Mask phone
-  const maskedPhone = () => {
+  const handleAppleLogin = async () => {
+    setLoading(true);
+    setInlineError("");
     try {
-      const phone = formatE164(identifier);
-      const digits = phoneDigitsOnly(phone);
+      const { OAuthProvider, signInWithPopup } = await import("firebase/auth");
+      const provider = new OAuthProvider('apple.com');
+      provider.addScope('email');
+      provider.addScope('name');
 
-      if (digits.length <= 4) return phone;
-
-      const last3 = digits.slice(-3);
-      const prefix = phone.slice(0, phone.length - 3);
-
-      return `${prefix}***${last3}`;
-    } catch {
-      return formatE164(identifier);
+      const result = await signInWithPopup(auth, provider);
+      await onboardUser(result.user);
+      setLoginSuccess(true);
+    } catch (err) {
+      console.error("Apple login error:", err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        // Closed by user
+      } else {
+        setInlineError(err.message || "Apple login failed");
+      }
+    } finally {
+      if (!loginSuccess) setLoading(false);
     }
   };
 
-  // OTP focus behavior
-  useEffect(() => {
-    if (showOtpInput) {
-      setTimeout(() => otpRefs.current[0].current?.focus(), 150);
+
+  // ─── Submit handler ───
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    setInlineError("");
+    if (!role) return;
+    if (!validate()) return;
+    if (showOtpInput) { verifyOtp(); return; }
+    if (isPhone) { sendOtp(); } else { handleEmailLogin(); }
+  };
+
+  // ─── OTP input handler ───
+  const handleOtpDigit = (i, value) => {
+    const d = value.replace(/\D/, "").slice(-1);
+    const arr = otp.split("");
+    arr[i] = d;
+    setOtp(arr.join(""));
+    if (d && i < 5) {
+      otpRefs.current[i + 1]?.current?.focus();
     }
-  }, [showOtpInput]);
-
-  const handleOtpBoxChange = (val, idx) => {
-    if (!/^\d*$/.test(val)) return;
-
-    const digits = (otp || "").split("");
-    digits[idx] = val ? val[val.length - 1] : "";
-    const output = digits.join("").slice(0, 6);
-
-    setOtp(output);
-
-    if (val && idx < 5) otpRefs.current[idx + 1].current?.focus();
   };
 
-  const handleOtpKeyDown = (e, idx) => {
-    if (e.key === "Backspace" && !otp[idx] && idx > 0)
-      otpRefs.current[idx - 1].current?.focus();
-
-    if (e.key === "ArrowLeft" && idx > 0)
-      otpRefs.current[idx - 1].current?.focus();
-
-    if (e.key === "ArrowRight" && idx < 5)
-      otpRefs.current[idx + 1].current?.focus();
+  const handleOtpKeyDown = (i, e) => {
+    if (e.key === "Backspace" && !otp[i] && i > 0) {
+      otpRefs.current[i - 1]?.current?.focus();
+    }
   };
 
-  // ======================================================
-  // UI Rendering
-  // ======================================================
+  /* ────────────────────────────────────── */
+  /*                 RENDER                 */
+  /* ────────────────────────────────────── */
+
+  const features = [
+    { icon: <Truck size={22} color="#E27D60" />, label: "Fast Delivery" },
+    { icon: <ShieldCheck size={22} color="#E27D60" />, label: "Secure Pay" },
+    { icon: <Leaf size={22} color="#E27D60" />, label: "Farm Fresh" },
+    { icon: <CreditCard size={22} color="#E27D60" />, label: "Easy Checkout" },
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gradient-to-br from-green-50 to-green-100">
-      
-      {/* LEFT SIDE */}
-      <aside className="md:w-1/2 bg-gradient-to-b from-green-700 to-green-600 flex items-center justify-center p-8 text-white">
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="max-w-lg text-center">
-          
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-              <Truck className="text-white" size={20} />
-            </div>
-            <h1 className="text-3xl font-extrabold">KrishiSaathi</h1>
-          </div>
-
-          <p className="opacity-90 text-lg">
-            Farmer ↔ Buyer marketplace — fresh produce, fair prices.
-          </p>
-
-          <div className="mt-8 bg-white/5 rounded-xl p-4 text-left">
-            <h3 className="font-semibold">Why KrishiSaathi?</h3>
-            <ul className="mt-2 text-sm opacity-90 space-y-1">
-              <li>• Direct sourcing from farmers</li>
-              <li>• Secure & easy payments</li>
-              <li>• Fast doorstep delivery</li>
-            </ul>
-          </div>
-
-          <div className="mt-8 flex items-center gap-2 justify-center text-sm">
-            <Leaf size={16} /> Safe • Local • Fresh
-          </div>
-
-        </motion.div>
-      </aside>
-
-      {/* RIGHT SIDE */}
-      <main className="md:w-1/2 flex items-center justify-center p-8">
-        <motion.div 
-          initial={{ opacity: 0, y: 8 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          className="w-full max-w-md bg-white rounded-xl shadow-[0_8px_30px_rgba(2,6,23,0.08)] p-6"
+    <div className="login-page">
+      {/* ═══════ LEFT PANEL ═══════ */}
+      {!isMobile && (
+        <motion.div
+          className="login-left"
+          initial="hidden"
+          animate="visible"
+          variants={leftPanel}
         >
+          <div className="login-left__content">
+            {/* Brand */}
+            <div className="login-left__brand">
+              <div className="login-left__brand-icon">
+                <Leaf size={22} color="white" />
+              </div>
+              <span className="login-left__brand-name">KrishiSaathi</span>
+            </div>
 
-          <div className="flex items-center justify-between">
-            <Link to="/" className="text-green-600 text-sm hover:underline">← Back to Home</Link>
-            <div className="text-xs text-gray-400">
-              Need help? <a href="/support" className="text-green-600">Support</a>
+            {/* Tagline */}
+            <p className="login-left__tagline">
+              India's trusted farmer ↔ buyer marketplace.
+              <br />
+              Fresh produce, fair prices — delivered to you.
+            </p>
+
+            {/* Feature Cards */}
+            <div className="login-left__features">
+              {features.map((f, i) => (
+                <motion.div
+                  key={i}
+                  className="login-left__feature"
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="login-left__feature-icon">
+                    {f.icon}
+                  </div>
+                  <div className="login-left__feature-label">{f.label}</div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Trust Badge */}
+            <div className="login-left__trust">
+              <Sparkles size={16} color="#E27D60" />
+              Trusted by 500+ farmers across India
             </div>
           </div>
+        </motion.div>
+      )}
 
-          <h2 className="text-2xl font-bold text-center mt-3">Welcome Back</h2>
-          <p className="text-center text-sm text-gray-500">Sign in to continue</p>
+      {/* ═══════ RIGHT PANEL ═══════ */}
+      <motion.div
+        className="login-right"
+        initial="hidden"
+        animate="visible"
+        variants={rightPanel}
+      >
+        {/* Top bar */}
+        <div className="login-right__topbar">
+          <Link to="/" className="login-right__back">
+            <ChevronLeft size={16} /> Home
+          </Link>
+          <div className="login-right__support">
+            <span>Need help?</span>
+            <Link to="/support">Support</Link>
+          </div>
+        </div>
 
-          {/* ROLE SELECTION */}
-          <div className="mt-5">
-            <div className="text-sm text-gray-600 mb-2">I am a</div>
-            <div className="flex gap-2">
-              
-              <button
-                onClick={() => setRole("farmer")}
-                className={`flex-1 flex items-center gap-2 justify-center px-4 py-2 rounded-full transition 
-                ${role === "farmer" ? "bg-green-600 text-white shadow-md" : "bg-white border border-gray-200"}`}
+        {/* Form Card */}
+        <motion.div className="login-card" variants={cardAnim}>
+          <Breadcrumb items={[
+            { label: 'Home', path: '/' },
+            { label: 'Login' }
+          ]} />
+          {/* Mobile brand */}
+          {isMobile && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.25rem" }}>
+              <div className="login-left__brand-icon" style={{ width: 36, height: 36, borderRadius: 10 }}>
+                <Leaf size={18} color="white" />
+              </div>
+              <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#2D4F1E" }}>KrishiSaathi</span>
+            </div>
+          )}
+
+          <h1 className="login-card__heading">Welcome Back</h1>
+          <p className="login-card__subheading">Sign in to continue to your dashboard</p>
+
+          {/* Role Selector */}
+          <div className="login-role__label">I AM A</div>
+          <div className="login-role__grid">
+            <button
+              type="button"
+              className={`login-role__btn ${role === "farmer" ? "login-role__btn--farmer-active" : ""}`}
+              onClick={() => setRole("farmer")}
+            >
+              🌾 Farmer
+            </button>
+            <button
+              type="button"
+              className={`login-role__btn ${role === "buyer" ? "login-role__btn--buyer-active" : ""}`}
+              onClick={() => setRole("buyer")}
+            >
+              🛒 Buyer
+            </button>
+          </div>
+
+          {/* Error box */}
+          <AnimatePresence>
+            {inlineError && (
+              <motion.div
+                className="login-error-box"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
               >
-                👨‍🌾 <span className="text-sm">Farmer</span>
-              </button>
+                <AlertCircle size={16} /> {inlineError}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              <button
-                onClick={() => setRole("buyer")}
-                className={`flex-1 flex items-center gap-2 justify-center px-4 py-2 rounded-full transition 
-                ${role === "buyer" ? "bg-green-600 text-white shadow-md" : "bg-white border border-gray-200"}`}
-              >
-                🛒 <span className="text-sm">Buyer</span>
-              </button>
-
-            </div>
-
-            <p className="text-xs text-gray-400 mt-1">Select your role to continue.</p>
-          </div>
-
-          {/* STEP INDICATOR */}
-          <div className="mt-6 flex items-center justify-center gap-2">
-            <div className={`w-8 h-1 rounded ${showOtpInput ? "bg-green-300" : "bg-green-600"}`} />
-            <div className="text-xs text-gray-400">
-              {showOtpInput ? "OTP Verification" : "Credentials"}
-            </div>
-          </div>
-
-          {/* FORM */}
-          <form onSubmit={handleLogin} className="space-y-4 mt-4">
-
-            <label className="block text-sm font-medium text-gray-700">
-              Email or Phone
-            </label>
-
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-gray-400">📧</span>
-              <input
-                ref={identifierRef}
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="Email or +91 phone"
-                className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-400"
-              />
-            </div>
-
-            {/* EMAIL PASSWORD FIELD */}
-            {!isLikelyPhone() && !showOtpInput && (
+          <form onSubmit={handleSubmit} noValidate>
+            {/* ─── Email / Phone ─── */}
+            {!showOtpInput && (
               <>
-                <label className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
+                <Input
+                  label="Email or Phone"
+                  type={isPhone ? "tel" : "email"}
+                  placeholder="farmer@example.com or +91 98765 43210"
+                  value={identifier}
+                  onChange={(e) => {
+                    setIdentifier(e.target.value);
+                    setErrors((p) => ({ ...p, identifier: "" }));
+                  }}
+                  icon={isPhone ? Phone : Mail}
+                  error={errors.identifier}
+                  required
+                />
 
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-gray-400">🔒</span>
-                  <input
+                {!isPhone && (
+                  <Input
+                    label="Password"
                     type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                    className="w-full pl-10 pr-20 py-2 border rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-400"
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setErrors((p) => ({ ...p, password: "" }));
+                    }}
+                    icon={Lock}
+                    error={errors.password}
+                    required
+                    rightIcon={
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0A898', padding: 0, display: 'flex' }}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    }
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3 top-2 text-sm text-green-600"
-                  >
-                    {showPassword ? "Hide" : "Show"}
-                  </button>
-                </div>
+                )}
+
+                {/* Forgot password link */}
+                {!isPhone && (
+                  <Link to="/forgot-password" className="login-forgot">
+                    Forgot password?
+                  </Link>
+                )}
               </>
             )}
 
-            {/* reCAPTCHA */}
-            <div id="recaptcha-container" />
-
-            {inlineError && (
-              <div className="text-sm text-red-600">{inlineError}</div>
-            )}
-
-            {/* ====== MAIN AUTH BUTTONS ====== */}
-            {!showOtpInput ? (
-              <div className="space-y-3">
-
-                {/* PRIMARY SUBMIT */}
-                <div className="flex gap-3">
-
-  <button
-    type="submit"
-    className="flex-1 py-3 bg-green-600 text-white rounded-lg font-medium shadow-sm hover:bg-green-700 transition"
-  >
-    {loading ? "Processing…" : isLikelyPhone() ? "Send OTP" : "Sign In"}
-  </button>
-
-  <button
-    type="button"
-    onClick={() => {
-      setIdentifier("");
-      setPassword("");
-      setInlineError("");
-    }}
-    className="px-4 py-3 border rounded-lg text-sm whitespace-nowrap hover:bg-gray-50 transition"
-  >
-    Reset
-  </button>
-
-</div>
-
-              </div>
-            ) : (
-              /* ====== OTP MODE ====== */
-              <div className="space-y-3">
-                <div className="text-sm text-gray-600">
-                  We sent a 6-digit code to <strong>{maskedPhone()}</strong>
-                </div>
-
-                <div className="flex gap-2 justify-center mt-2">
-                  {Array.from({ length: 6 }).map((_, idx) => (
+            {/* ─── OTP Input ─── */}
+            {showOtpInput && (
+              <div style={{ marginBottom: "1rem" }}>
+                <label className="login-input__label" style={{ textAlign: "center", marginBottom: 12 }}>
+                  Enter the 6-digit OTP sent to {formatE164(identifier)}
+                </label>
+                <div className="login-otp__row">
+                  {Array(6).fill(0).map((_, i) => (
                     <input
-                      key={idx}
-                      ref={otpRefs.current[idx]}
-                      value={otp[idx] || ""}
-                      onChange={(e) => handleOtpBoxChange(e.target.value, idx)}
-                      onKeyDown={(e) => handleOtpKeyDown(e, idx)}
-                      inputMode="numeric"
+                      key={i}
+                      ref={otpRefs.current[i]}
+                      className="login-otp__input"
                       maxLength={1}
-                      className="w-10 h-10 text-center border rounded-lg focus:ring-2 focus:ring-green-200"
+                      inputMode="numeric"
+                      value={otp[i] || ""}
+                      onChange={(e) => handleOtpDigit(i, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
                     />
                   ))}
                 </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={verifyOtp}
-                    type="button"
-                    className="flex-1 py-2 bg-green-600 text-white rounded-lg"
-                    disabled={otp.length < 6}
-                  >
-                    Verify OTP
-                  </button>
-
-                  <button
-                    onClick={resendOtp}
-                    type="button"
-                    disabled={resendTimer > 0}
-                    className="px-4 py-2 border rounded-lg"
-                  >
-                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend OTP"}
-                  </button>
+                <div style={{ textAlign: "center", fontSize: "0.82rem", color: "#7A7A7A" }}>
+                  {resendTimer > 0 ? (
+                    <span>Resend in {resendTimer}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={resendOtp}
+                      style={{ background: "none", border: "none", color: "#E27D60", cursor: "pointer", fontWeight: 600, fontFamily: "inherit", fontSize: "inherit" }}
+                    >
+                      Resend OTP
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
+
+
+            {/* Sign In Button */}
+            <Button
+              type="submit"
+              variant={loginSuccess ? "success" : "primary"}
+              loading={loading}
+              fullWidth
+              size="lg"
+              icon={!loading && !loginSuccess && <ArrowRight size={18} />}
+              iconPosition="right"
+              style={{ marginTop: 20 }}
+            >
+              {loginSuccess ? "Welcome back!" : showOtpInput ? "Verify OTP" : "Sign In"}
+            </Button>
           </form>
 
-          {/* DIVIDER */}
-          <div className="mt-5 flex items-center">
-            <div className="flex-grow h-px bg-gray-200" />
-            <span className="mx-2 text-gray-400 text-sm">OR</span>
-            <div className="flex-grow h-px bg-gray-200" />
+          {/* Status message */}
+          {statusMessage && <p className="login-status">{statusMessage}</p>}
+
+          {/* Divider */}
+          {!showOtpInput && (
+            <div className="login-divider">
+              <div className="login-divider__line" />
+              <span className="login-divider__text">OR</span>
+              <div className="login-divider__line" />
+            </div>
+          )}
+
+          {/* Social buttons - brand style */}
+          {!showOtpInput && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              marginTop: 10
+            }}>
+
+              {/* Google — white brand style */}
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  padding: '12px 20px',
+                  background: 'white',
+                  border: '1.5px solid #D0D5DD',
+                  borderRadius: 8,
+                  cursor: loading
+                    ? 'not-allowed' : 'pointer',
+                  fontFamily: 'DM Sans',
+                  fontWeight: 600,
+                  fontSize: 15,
+                  color: '#344054',
+                  transition: 'all 150ms ease',
+                  boxShadow:
+                    '0 1px 3px rgba(16,24,40,0.08)',
+                  opacity: loading ? 0.7 : 1,
+                  letterSpacing: '0.01em'
+                }}
+                onMouseEnter={e => {
+                  if (!loading) {
+                    e.currentTarget.style.boxShadow
+                      = '0 4px 10px rgba(16,24,40,0.12)'
+                    e.currentTarget.style.borderColor
+                      = '#98A2B3'
+                  }
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow
+                    = '0 1px 3px rgba(16,24,40,0.08)'
+                  e.currentTarget.style.borderColor
+                    = '#D0D5DD'
+                }}
+              >
+                {/* Google colored G icon */}
+                <svg width="20" height="20"
+                  viewBox="0 0 20 20" fill="none"
+                  style={{ flexShrink: 0 }}>
+                  <path
+                    d="M19.6 10.23c0-.68-.06-1.36-.18-2H10v3.79h5.4a4.63 4.63 0 01-2 3.04v2.52h3.24c1.9-1.75 3-4.33 3-7.35z"
+                    fill="#4285F4"/>
+                  <path
+                    d="M10 20c2.7 0 4.97-.9 6.62-2.42l-3.24-2.52c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H1.07v2.6A10 10 0 0010 20z"
+                    fill="#34A853"/>
+                  <path
+                    d="M4.41 11.9A6.03 6.03 0 014.1 10c0-.66.12-1.3.31-1.9V5.5H1.07A10 10 0 000 10c0 1.61.38 3.14 1.07 4.5l3.34-2.6z"
+                    fill="#FBBC04"/>
+                  <path
+                    d="M10 3.96c1.47 0 2.79.5 3.82 1.5l2.86-2.86C14.96.9 12.7 0 10 0A10 10 0 001.07 5.5l3.34 2.6C5.2 5.72 7.4 3.96 10 3.96z"
+                    fill="#EA4335"/>
+                </svg>
+                {loading
+                  ? 'Signing in...'
+                  : 'Sign in with Google'
+                }
+              </button>
+
+              {/* Facebook — blue brand style */}
+              <button
+                type="button"
+                onClick={handleFacebookLogin}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  padding: '12px 20px',
+                  background: '#1877F2',
+                  border: '1.5px solid #1877F2',
+                  borderRadius: 8,
+                  cursor: loading
+                    ? 'not-allowed' : 'pointer',
+                  fontFamily: 'DM Sans',
+                  fontWeight: 600,
+                  fontSize: 15,
+                  color: 'white',
+                  transition: 'all 150ms ease',
+                  boxShadow:
+                    '0 1px 3px rgba(24,119,242,0.30)',
+                  opacity: loading ? 0.7 : 1,
+                  letterSpacing: '0.01em'
+                }}
+                onMouseEnter={e => {
+                  if (!loading) {
+                    e.currentTarget.style.background
+                      = '#166FE5'
+                    e.currentTarget.style.borderColor
+                      = '#166FE5'
+                    e.currentTarget.style.boxShadow
+                      = '0 4px 10px rgba(24,119,242,0.40)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background
+                    = '#1877F2'
+                  e.currentTarget.style.borderColor
+                    = '#1877F2'
+                  e.currentTarget.style.boxShadow
+                    = '0 1px 3px rgba(24,119,242,0.30)'
+                }}
+              >
+                {/* Facebook F icon */}
+                <svg width="22" height="22"
+                  viewBox="0 0 24 24" fill="none"
+                  style={{ flexShrink: 0 }}>
+                  <rect width="24" height="24"
+                    rx="6" fill="white"
+                    fillOpacity="0.20"/>
+                  <path
+                    d="M16 8h-2a1 1 0 00-1 1v2h3l-.5 3H13v7h-3v-7H8v-3h2V9a4 4 0 014-4h2v3z"
+                    fill="white"/>
+                </svg>
+                Sign in with Facebook
+              </button>
+
+              {/* Apple — black brand style */}
+              <button
+                type="button"
+                onClick={handleAppleLogin}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  padding: '12px 20px',
+                  background: '#000000',
+                  border: '1.5px solid #000000',
+                  borderRadius: 8,
+                  cursor: loading
+                    ? 'not-allowed' : 'pointer',
+                  fontFamily: 'DM Sans',
+                  fontWeight: 600,
+                  fontSize: 15,
+                  color: 'white',
+                  transition: 'all 150ms ease',
+                  boxShadow:
+                    '0 1px 3px rgba(0,0,0,0.25)',
+                  opacity: loading ? 0.7 : 1,
+                  letterSpacing: '0.01em'
+                }}
+                onMouseEnter={e => {
+                  if (!loading) {
+                    e.currentTarget.style.background
+                      = '#1A1A1A'
+                    e.currentTarget.style.borderColor
+                      = '#1A1A1A'
+                    e.currentTarget.style.boxShadow
+                      = '0 4px 10px rgba(0,0,0,0.35)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background
+                    = '#000000'
+                  e.currentTarget.style.borderColor
+                    = '#000000'
+                  e.currentTarget.style.boxShadow
+                    = '0 1px 3px rgba(0,0,0,0.25)'
+                }}
+              >
+                {/* Apple icon */}
+                <svg width="18" height="21"
+                  viewBox="0 0 22 26"
+                  fill="white"
+                  style={{ flexShrink: 0 }}>
+                  <path d="M18.07 13.77C18.04 10.66 20.64 9.15 20.76 9.08C19.29 6.92 17.01 6.63 16.21 6.61C14.26 6.41 12.37 7.77 11.37 7.77C10.37 7.77 8.83 6.63 7.18 6.67C5.06 6.70 3.09 7.93 2.01 9.83C-0.22 13.68 1.44 19.34 3.57 22.45C4.64 23.97 5.89 25.67 7.54 25.61C9.15 25.54 9.76 24.57 11.71 24.57C13.64 24.57 14.21 25.61 15.90 25.57C17.63 25.54 18.72 24.03 19.75 22.50C20.99 20.76 21.49 19.05 21.51 18.96C21.47 18.95 18.10 17.71 18.07 13.77Z"/>
+                  <path d="M14.96 4.49C15.83 3.42 16.42 1.95 16.25 0.46C15.00 0.52 13.45 1.34 12.54 2.39C11.74 3.32 11.03 4.83 11.22 6.28C12.62 6.39 14.05 5.54 14.96 4.49Z"/>
+                </svg>
+                Sign in with Apple
+              </button>
+
+            </div>
+          )}
+
+
+          {/* Bottom links */}
+          <div className="login-bottom">
+            Don't have an account?
+            <Link to="/register">Create account</Link>
           </div>
 
-          {/* GOOGLE LOGIN */}
-          <button
-            onClick={handleGoogleLogin}
-            disabled={!role}
-            className={`w-full py-2 mt-3 border rounded-lg flex items-center justify-center gap-3 ${
-              !role ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            <svg width="18" height="18" viewBox="0 0 533.5 544.3">
-              <path
-                d="M533.5 278.4c0-17.9-1.6-35.1-4.6-51.8H272v98.1h146.9c-6.3 34-25 62.9-53.3 82v68h86.1c50.3-46.5 79.8-114.6 79.8-196.3z"
-                fill="#4285F4"
-              />
-              <path
-                d="M272 544.3c72.6 0 133.6-24 178.2-65.3l-86.1-68c-24 16.1-54.7 25.6-92.1 25.6-70.7 0-130.6-47.7-152-111.6H32.8v70.1C77.3 483.3 169 544.3 272 544.3z"
-                fill="#34A853"
-              />
-              <path
-                d="M119.9 322.7c-10.6-31.7-10.6-65.6 0-97.3V155.3H32.8c-39.4 76.6-39.4 170.5 0 247.1l87.1-79.7z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M272 107.7c38.6 0 73.3 13.3 100.7 39.4l75.5-75.5C405.6 24.9 344.6 0 272 0 169 0 77.3 61 32.8 155.3l87.1 70.1c21.4-63.9 81.3-111.6 152-111.6z"
-                fill="#EA4335"
-              />
-            </svg>
-            Continue with Google
-          </button>
-
-          <div className="flex justify-between mt-4 text-sm">
-            <Link to="/forgot-password" className="text-green-600">
-              Forgot password?
-            </Link>
-            <Link to="/register" className="text-green-600">
-              Register
-            </Link>
-          </div>
-
-          <p className="mt-3 text-xs text-gray-500">{statusMessage}</p>
-
+          {/* reCAPTCHA container */}
+          <div id="recaptcha-container" />
         </motion.div>
-      </main>
+      </motion.div>
     </div>
   );
 }
