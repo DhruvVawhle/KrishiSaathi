@@ -1,4 +1,5 @@
 // src/backend/userserver.js
+import "./utils/env.js";
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";

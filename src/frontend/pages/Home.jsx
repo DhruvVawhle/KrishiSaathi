@@ -15,6 +15,7 @@ import {
   Check,
   Star,
   Smartphone,
+  ChevronLeft,
 } from "lucide-react";
 
 import { useProducts } from "@/frontend/contexts/ProductContext";
@@ -77,7 +78,37 @@ const fadeUp = {
     transition: { duration: 0.6, delay: i * 0.1, ease: "easeOut" },
   }),
 };
-const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
+const stagger = { visible: { transition: { staggerChildren: 0.15 } } };
+
+/* ─── Carousel Variants ─── */
+const slideVariants = {
+  enter: (direction) => ({
+    x: direction > 0 ? "100%" : "-100%",
+    opacity: 0,
+    scale: 1.1,
+  }),
+  center: {
+    zIndex: 1,
+    x: 0,
+    opacity: 1,
+    scale: 1,
+  },
+  exit: (direction) => ({
+    zIndex: 0,
+    x: direction < 0 ? "100%" : "-100%",
+    opacity: 0,
+    scale: 0.9,
+  }),
+};
+
+const contentVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    transition: { duration: 0.8, ease: "easeOut" } 
+  },
+};
 
 /* ═══════════════════════════════════════════
                 DATA
@@ -118,6 +149,33 @@ const TESTIMONIALS = [
   { name: "Priya S.", city: "Pune", initials: "PS", quote: "Vegetables arrive so fresh! My family has never eaten better." },
   { name: "Rahul M.", city: "Mumbai", initials: "RM", quote: "Love that I'm supporting local farmers directly. Best decision!" },
   { name: "Anita K.", city: "Delhi", initials: "AK", quote: "The terracotta packaging is beautiful and produce is always seasonal." },
+];
+
+const SLIDES = [
+  {
+    id: 0,
+    title: "Fresh from Farmers,",
+    accent: "Fair & Local",
+    subtitle: "Order farm-fresh vegetables, fruits, grains and dairy — harvested within 24 hours and delivered straight to your doorstep.",
+    badge: "🌾 Farm-to-Doorstep Marketplace",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1600&q=80",
+  },
+  {
+    id: 1,
+    title: "Direct Sourcing,",
+    accent: "Better Earnings",
+    subtitle: "By cutting out middlemen, we ensure farmers get 40% more for their produce while you get the best prices.",
+    badge: "👨‍🌾 Supporting Local Farmers",
+    image: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=1600&q=80",
+  },
+  {
+    id: 2,
+    title: "Organic & Seasonal",
+    accent: "Handpicked Daily",
+    subtitle: "Discover the taste of nature with our handpicked selection of organic and seasonal harvest, delivered fresh.",
+    badge: "🍃 100% Natural & Organic",
+    image: "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=1600&q=80",
+  }
 ];
 
 /* ═══════════════════════════════════════════
@@ -221,24 +279,56 @@ const Home = () => {
   const farmerCount = useCountUp(500, 2000, bannerInView);
   const customerCount = useCountUp(50, 2000, bannerInView);
 
+  // Carousel Logic
+  const [[slideIndex, direction], setSlide] = useState([0, 0]);
+  const [isPaused, setIsPaused] = useState(false);
+  const slideCount = SLIDES.length;
+
+  const paginate = useCallback((newDirection) => {
+    setSlide(([prevIdx]) => {
+      const nextIdx = (prevIdx + newDirection + slideCount) % slideCount;
+      return [nextIdx, newDirection];
+    });
+  }, [slideCount]);
+
+  useEffect(() => {
+    if (isFarmer || isPaused) return;
+    const timer = setInterval(() => {
+      paginate(1);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [isFarmer, isPaused, paginate]);
+
+  const goToSlide = (idx) => {
+    setSlide((prev) => {
+      const dir = idx > prev[0] ? 1 : -1;
+      return [idx, dir];
+    });
+  };
+
   return (
     <div className="home-page">
 
       {/* ═══════ 1. HERO ═══════ */}
-      <section className="hero" style={isFarmer ? {
-        background:
-          'linear-gradient(160deg,' +
-          '#1A2E12 0%,' +
-          '#2D4F1E 35%,' +
-          '#3D6B2A 65%,' +
-          '#4A7C30 100%)',
-        position: 'relative',
-        overflow: 'hidden',
-        minHeight: '90vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      } : {}}>
+      <section 
+        className="hero" 
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        style={isFarmer ? {
+          background:
+            'linear-gradient(160deg,' +
+            '#1A2E12 0%,' +
+            '#2D4F1E 35%,' +
+            '#3D6B2A 65%,' +
+            '#4A7C30 100%)',
+          position: 'relative',
+          overflow: 'hidden',
+          minHeight: '90vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        } : {}}
+      >
         
         {isFarmer && (
           <>
@@ -315,20 +405,104 @@ const Home = () => {
 
         {!isFarmer && (
           <>
-            <div className="hero__overlay" />
+            <div className="hero__container">
+              <AnimatePresence initial={false} custom={direction}>
+                <motion.div
+                  key={slideIndex}
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    x: { type: "spring", stiffness: 300, damping: 30 },
+                    opacity: { duration: 0.3 },
+                  }}
+                  className="hero__slide"
+                  style={{ backgroundImage: `url(${SLIDES[slideIndex].image})` }}
+                >
+                  <div className="hero__slide-overlay" />
+                  
+                  <motion.div
+                    className="hero__content"
+                    variants={stagger}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <motion.div variants={contentVariants} className="hero__badge">
+                      <Sparkles size={16} /> {SLIDES[slideIndex].badge}
+                    </motion.div>
+                    
+                    <motion.h1 variants={contentVariants} className="hero__title">
+                      {SLIDES[slideIndex].title}
+                      <br />
+                      <span className="hero__accent">{SLIDES[slideIndex].accent}</span>
+                    </motion.h1>
+                    
+                    <motion.p variants={contentVariants} className="hero__subtitle">
+                      {SLIDES[slideIndex].subtitle}
+                    </motion.p>
+                    
+                    <motion.div variants={contentVariants} className="hero__actions">
+                      <button
+                        className="hero__btn-primary"
+                        onClick={() => navigate("/marketplace")}
+                      >
+                        Order Now <ArrowRight size={18} />
+                      </button>
+                      <button
+                        className="hero__btn-ghost"
+                        onClick={() => document.querySelector('.search-float__input')?.focus()}
+                      >
+                        <Search size={18} /> Search Produce
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* Carousel Controls */}
+            <button className="hero__arrow hero__arrow--prev" onClick={() => paginate(-1)}>
+              <ChevronLeft size={24} />
+            </button>
+            <button className="hero__arrow hero__arrow--next" onClick={() => paginate(1)}>
+              <ChevronRight size={24} />
+            </button>
+
+            <div className="hero__nav-dots">
+              {SLIDES.map((_, idx) => (
+                <button
+                  key={idx}
+                  className={`hero__dot ${slideIndex === idx ? 'hero__dot--active' : ''}`}
+                  onClick={() => goToSlide(idx)}
+                >
+                   {slideIndex === idx && (
+                     <motion.div 
+                        className="hero__dot-progress"
+                        initial={{ width: 0 }}
+                        animate={{ width: "100%" }}
+                        transition={{ duration: 5, ease: "linear" }}
+                        key={slideIndex}
+                     />
+                   )}
+                </button>
+              ))}
+            </div>
+
             <div className="hero__blob hero__blob--1" />
             <div className="hero__blob hero__blob--2" />
           </>
         )}
 
-        <motion.div
-          className="hero__content"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-          style={isFarmer ? { zIndex: 10 } : {}}
-        >
-          {isFarmer ? (
+        {isFarmer && (
+          <motion.div
+            className="hero__content"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            style={{ zIndex: 10 }}
+          >
             <div style={{ textAlign: 'center' }}>
               <div style={{
                 display: 'inline-flex',
@@ -414,10 +588,10 @@ const Home = () => {
                     navigate('/farmer-dashboard')
                     setTimeout(() => {
                       window.dispatchEvent(
-                        new CustomEvent(
-                          'farmer-nav',
-                          { detail: 'mandi' }
-                        )
+                          new CustomEvent(
+                              'farmer-nav',
+                              { detail: 'mandi' }
+                          )
                       )
                     }, 100)
                   }}
@@ -439,37 +613,8 @@ const Home = () => {
                 </button>
               </div>
             </div>
-          ) : (
-            <>
-              <div className="hero__badge">
-                <Sparkles size={16} /> Farm-to-Doorstep Marketplace
-              </div>
-              <h1 className="hero__title">
-                Fresh from Farmers,
-                <br />
-                <span className="hero__accent">Fair & Local</span>
-              </h1>
-              <p className="hero__subtitle">
-                Order farm-fresh vegetables, fruits, grains and dairy — harvested
-                within 24 hours and delivered straight to your doorstep.
-              </p>
-              <div className="hero__actions">
-                <button
-                  className="hero__btn-primary"
-                  onClick={() => navigate("/marketplace")}
-                >
-                  Order Now <ArrowRight size={18} />
-                </button>
-                <button
-                  className="hero__btn-ghost"
-                  onClick={() => document.querySelector('.search-float__input')?.focus()}
-                >
-                  <Search size={18} /> Search Produce
-                </button>
-              </div>
-            </>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
       </section>
 
       {/* ═══════ 2. FLOATING SEARCH ═══════ */}

@@ -1226,7 +1226,7 @@ const Navbar = ({ onOpenCart }) => {
                                 src={
                                   p.image ||
                                   p.thumb ||
-                                  "https://via.placeholder.com/48"
+                                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect fill='%23E8E8E8' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='10' fill='%23999' text-anchor='middle' dy='.3em'%3ENo Img%3C/text%3E%3C/svg%3E"
                                 }
                                 alt={p.name}
                                 style={{

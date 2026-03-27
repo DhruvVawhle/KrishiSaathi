@@ -11,7 +11,7 @@ import Card from "@/frontend/components/ui/Card";
 
 const API_BASE = "/api";
 const PLACEHOLDER =
-  "https://via.placeholder.com/420x300.png?text=Product+Image";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='300'%3E%3Crect fill='%23E8E8E8' width='420' height='300'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='20' fill='%23999' text-anchor='middle' dy='.3em'%3ENo Product Image%3C/text%3E%3C/svg%3E";
 
 import { addProductToFirestore } from '../services/firestoreService';
 

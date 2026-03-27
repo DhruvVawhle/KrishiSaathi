@@ -1,10 +1,10 @@
 // src/backend/server.js
+import "./utils/env.js";
 // General-purpose Express server on port 3000
 // (phone number verification stub — Firebase Phone OTP is handled client-side)
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
-import * as dotenv from "dotenv";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import recommendationRoutes from './routes/recommendations.js';
@@ -13,7 +13,6 @@ import productRoutes from './routes/products.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '../../.env') });
 
 const app = express();
 app.use(express.json());

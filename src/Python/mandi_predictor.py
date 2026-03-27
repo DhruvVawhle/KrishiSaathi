@@ -811,20 +811,27 @@ def get_rates(
   rates = []
 
   if today_data:
-    rates.append({
-      'market':       'National Average',
-      'district':     'All India',
-      'commodity':    today_data['commodity'],
-      'variety':      'All',
-      'min_price':    today_data.get('p12_kg', today_data['price_kg']),
-      'max_price':    today_data['price_kg'],
-      'modal_price':  today_data['price_qtl'] if 'price_qtl' in today_data else today_data['price_kg'],
-      'modal_price_kg': today_data['price_kg'],
-      'arrival_date': datetime.now().strftime('%d/%m/%Y'),
-      'arrival_mt':   today_data.get('arrival'),
-      'msp_kg':       today_data.get('msp_kg'),
-      'source':       'Agmarknet Marketwise'
-    })
+    # Handle both formats: today returns p14_kg, historical returns price_kg
+    price_kg = today_data.get('price_kg') or today_data.get('p14_kg') or today_data.get('p14_qtl', 0) / 100
+    min_price = today_data.get('min_price') or today_data.get('p12_kg') or price_kg
+    max_price = today_data.get('max_price') or today_data.get('p14_kg') or price_kg
+    modal_price = today_data.get('price_qtl') or today_data.get('p14_qtl') or (price_kg * 100)
+    
+    if price_kg:  # Only add if we have a price
+      rates.append({
+        'market':       'National Average',
+        'district':     'All India',
+        'commodity':    today_data['commodity'],
+        'variety':      'All',
+        'min_price':    min_price,
+        'max_price':    max_price,
+        'modal_price':  modal_price,
+        'modal_price_kg': price_kg,
+        'arrival_date': datetime.now().strftime('%d/%m/%Y'),
+        'arrival_mt':   today_data.get('arrival'),
+        'msp_kg':       today_data.get('msp_kg'),
+        'source':       'Agmarknet Marketwise'
+      })
 
   for h in historical[:15]:
     rates.append({
@@ -832,10 +839,10 @@ def get_rates(
       'district':    h['district'],
       'commodity':   h['commodity'],
       'variety':     h['variety'],
-      'min_price':   h['min_price'],
-      'max_price':   h['max_price'],
-      'modal_price': h['modal_price'],
-      'modal_price_kg': round(h['modal_price']/100, 2) if h['modal_price'] else None,
+      'min_price':   h['min_price'] * 100 if h['min_price'] else 0,
+      'max_price':   h['max_price'] * 100 if h['max_price'] else 0,
+      'modal_price': h['modal_price'] * 100 if h['modal_price'] else 0,
+      'modal_price_kg': h['modal_price'],
       'arrival_date':h['date'],
       'source':      'AGMARKNET Dataset'
     })

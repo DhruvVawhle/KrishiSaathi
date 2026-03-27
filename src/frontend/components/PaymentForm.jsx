@@ -169,7 +169,7 @@ export default function PaymentForm() {
                 <div key={it._id || idx} className="flex items-center justify-between py-3">
                   <div className="flex items-center gap-3">
                     <img
-                      src={it.image || "https://via.placeholder.com/64?text=Img"}
+                      src={it.image || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect fill='%23E8E8E8' width='64' height='64'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='10' fill='%23999' text-anchor='middle' dy='.3em'%3EImg%3C/text%3E%3C/svg%3E"}
                       alt={it.name}
                       className="w-12 h-12 rounded-md object-cover border"
                     />

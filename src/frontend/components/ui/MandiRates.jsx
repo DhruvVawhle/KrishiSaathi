@@ -951,6 +951,112 @@ const MandiRates = ({
   const [showSearchDropdown, setShowSearchDropdown]
     = useState(false)
 
+  // -- NEW TABLE STATES --
+  const [sortField, setSortField] =
+    useState('modalPrice')
+  const [sortDir, setSortDir] =
+    useState('desc')
+  const [currentPage, setCurrentPage] =
+    useState(1)
+  const [searchQuery, setSearchQuery] =
+    useState('')
+  const ROWS_PER_PAGE = 10
+
+  // Sort records
+  const getSortedRecords = () => {
+    let filtered = [...(rates || [])]
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery
+        .toLowerCase()
+      filtered = filtered.filter(r =>
+        (r.market || '').toLowerCase()
+          .includes(q) ||
+        (r.commodity || '').toLowerCase()
+          .includes(q) ||
+        (r.district || '').toLowerCase()
+          .includes(q) ||
+        (r.state || '').toLowerCase()
+          .includes(q)
+      )
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      const aVal = a[sortField] || 0
+      const bVal = b[sortField] || 0
+      if (typeof aVal === 'number') {
+        return sortDir === 'asc'
+          ? aVal - bVal
+          : bVal - aVal
+      }
+      return sortDir === 'asc'
+        ? String(aVal).localeCompare(
+            String(bVal)
+          )
+        : String(bVal).localeCompare(
+            String(aVal)
+          )
+    })
+
+    return filtered
+  }
+
+  const sortedRecords = getSortedRecords()
+  const totalPages = Math.ceil(
+    sortedRecords.length / ROWS_PER_PAGE
+  )
+  const paginatedRecords =
+    sortedRecords.slice(
+      (currentPage - 1) * ROWS_PER_PAGE,
+      currentPage * ROWS_PER_PAGE
+    )
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(d =>
+        d === 'asc' ? 'desc' : 'asc'
+      )
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+    setCurrentPage(1)
+  }
+
+  // Price category badge
+  const getPriceBadge = (
+    modalPrice, minPrice, maxPrice
+  ) => {
+    if (!modalPrice) return null
+    const kg = modalPrice / 100
+    if (kg < 5) return {
+      label: 'Low',
+      bg: 'rgba(255,82,82,0.10)',
+      color: '#FF5252',
+      dot: '#FF5252'
+    }
+    if (kg < 15) return {
+      label: 'Fair',
+      bg: 'rgba(76,175,80,0.10)',
+      color: '#2E7D32',
+      dot: '#4CAF50'
+    }
+    if (kg < 30) return {
+      label: 'Good',
+      bg: 'rgba(45,79,30,0.10)',
+      color: '#2D4F1E',
+      dot: '#2D4F1E'
+    }
+    return {
+      label: 'Premium',
+      bg: 'rgba(226,125,96,0.10)',
+      color: '#C96848',
+      dot: '#E27D60'
+    }
+  }
+
   // Custom tooltip for charts
   const CustomChartTooltip = ({
     active, payload, label
@@ -972,7 +1078,7 @@ const MandiRates = ({
           {label}
         </p>
         {payload.map((p, i) => {
-          const isLiquid = commodity.toLowerCase().includes('milk') || commodity.toLowerCase().includes('oil')
+          const isLiquid = (commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil')
           const unit = isLiquid ? 'L' : 'kg'
           const valQtl = p.payload?.price_qtl || (p.value * 100)
           return (
@@ -1018,12 +1124,12 @@ const MandiRates = ({
 
   // Handle selecting from search results
   const handleSelectFromSearch = (item) => {
-    setSelectedCommodity(item.value)
+    setCommodity(item.value)
     setCommoditySearch(item.label)
     setShowSearchDropdown(false)
   }
 
-  const isLiquid = commodity.toLowerCase().includes('milk') || commodity.toLowerCase().includes('oil')
+  const isLiquid = (commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil')
   const unit = isLiquid ? 'L' : 'kg'
 
   useEffect(() => {
@@ -1093,7 +1199,7 @@ const MandiRates = ({
 
       const controller = new AbortController()
       const timeout = setTimeout(
-        () => controller.abort(), 10000
+        () => controller.abort(), 30000
       )
 
       const response = await fetch(url, {
@@ -1212,15 +1318,18 @@ const MandiRates = ({
         setError(
           'Request timed out. Check connection.'
         )
+        console.warn(
+          '[MandiRates] Fetch aborted:', err.message
+        )
       } else {
         setError(
           'Failed to fetch rates. ' +
           err.message
         )
+        console.error(
+          '[MandiRates] Error:', err.message
+        )
       }
-      console.error(
-        '[MandiRates] Error:', err.message
-      )
     } finally {
       setLoading(false)
     }
@@ -1290,6 +1399,12 @@ const MandiRates = ({
   }
 
   const handleCompare = async () => {
+    if (!commodity) {
+      setError('Please select a commodity first to compare prices.')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
     if (!farmerPrice) return
     
     const validPrice = validatePrice(
@@ -1321,41 +1436,43 @@ const MandiRates = ({
     }
 
     try {
-      const res = await fetch(
-        `/api/mandi/compare?commodity=${englishCommodity}&farmer_price=${farmerPrice}&state=${state}`
-      )
-      const data = await res.json()
+      if (!modalPrice || modalPrice <= 0) {
+        setError('Mandi rates are currently not available. Please wait or select a different state.')
+        setTimeout(() => setError(null), 3000)
+        return
+      }
+
+      const yourPrice = parseFloat(farmerPrice)
+      const data = {
+        commodity: englishCommodity,
+        farmer_price: yourPrice,
+        mandi_modal: modalPrice
+      }
       
-      if (data && data.mandi_modal) {
-        const yourPrice = parseFloat(farmerPrice)
-        const modalPrice = data.mandi_modal
-        
-        // Fix the difference calc by comparing same units
-        const mandiKgPrice = modalPrice / 100
-        const diff = yourPrice - mandiKgPrice
-        const pct = (
-          (yourPrice - mandiKgPrice) / mandiKgPrice * 100
-        ).toFixed(1)
-        
-        data.diff_percent = parseFloat(pct)
-        data.diff = diff
-        
-        if (diff > 0) {
-          data.message = `Your price is ₹${diff.toFixed(2)} above mandi rate.`
-          data.status = 'above_market'
-          data.color = '#E27D60'
-          data.badge = 'Above Market'
-        } else if (diff < 0) {
-          data.message = `Your price is ₹${Math.abs(diff).toFixed(2)} below mandi rate.`
-          data.status = 'competitive'
-          data.color = '#4CAF50'
-          data.badge = 'Competitive'
-        } else {
-          data.message = 'Your price matches the mandi modal rate.'
-          data.status = 'average'
-          data.color = '#F2B94A'
-          data.badge = 'At Market'
-        }
+      const mandiKgPrice = modalPrice / 100
+      const diff = yourPrice - mandiKgPrice
+      const pct = (
+        (yourPrice - mandiKgPrice) / mandiKgPrice * 100
+      ).toFixed(1)
+      
+      data.diff_percent = parseFloat(pct)
+      data.diff = diff
+      
+      if (diff > 0) {
+        data.message = `Your price is ₹${diff.toFixed(2)} above mandi rate.`
+        data.status = 'above_market'
+        data.color = '#E27D60'
+        data.badge = 'Above Market'
+      } else if (diff < 0) {
+        data.message = `Your price is ₹${Math.abs(diff).toFixed(2)} below mandi rate.`
+        data.status = 'competitive'
+        data.color = '#4CAF50'
+        data.badge = 'Competitive'
+      } else {
+        data.message = 'Your price matches the mandi modal rate.'
+        data.status = 'average'
+        data.color = '#F2B94A'
+        data.badge = 'At Market'
       }
 
       setComparison(data)
@@ -1923,6 +2040,7 @@ const MandiRates = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={fetchAll}
             disabled={loading}
             style={{
@@ -2287,6 +2405,7 @@ const MandiRates = ({
               setCommoditySearch(
                 e.target.value
               )
+              setCurrentPage(1)
             }}
             style={{
               width: '100%',
@@ -2328,9 +2447,10 @@ const MandiRates = ({
           </label>
           <select
             value={state}
-            onChange={e =>
+            onChange={e => {
               setState(e.target.value)
-            }
+              setCurrentPage(1)
+            }}
             style={{
               width: '100%',
               padding: '10px 14px',
@@ -2367,7 +2487,7 @@ const MandiRates = ({
             textTransform: 'uppercase',
             letterSpacing: '0.08em'
           }}>
-            Your Selling Price (₹/{commodity.toLowerCase().includes('milk') || commodity.toLowerCase().includes('oil') ? 'L' : 'kg'})
+            Your Selling Price (₹/{(commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil') ? 'L' : 'kg'})
           </label>
           <div style={{
             display: 'flex', gap: 8
@@ -2393,7 +2513,10 @@ const MandiRates = ({
                     e.key === '+') {
                   e.preventDefault()
                 }
-                if (e.key === 'Enter') handleCompare()
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleCompare()
+                }
               }}
               style={{
                 flex: 1,
@@ -2409,6 +2532,7 @@ const MandiRates = ({
               }}
             />
             <button
+              type="button"
               onClick={handleCompare}
               style={{
                 height: 44,
@@ -2430,6 +2554,27 @@ const MandiRates = ({
               Compare →
             </button>
           </div>
+          {error && (
+            <div style={{
+              marginTop: 4,
+              padding: '6px 10px',
+              background: 'rgba(255,82,82,0.08)',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span style={{ fontSize: 12 }}>⚠️</span>
+              <span style={{
+                fontFamily: 'DM Sans',
+                fontSize: 12,
+                color: '#FF5252',
+                fontWeight: 600
+              }}>
+                {error}
+              </span>
+            </div>
+          )}
           {farmerPrice &&
            parseFloat(farmerPrice) <= 0 && (
             <div style={{
@@ -2468,7 +2613,7 @@ const MandiRates = ({
         }}>
           {[
             {
-              label: 'Minimum Price',
+              label: 'Mandi Minimum Price',
               value: minPrice,
               sub: 'Lowest in market',
               color: '#FF5252',
@@ -2476,7 +2621,7 @@ const MandiRates = ({
               icon: ArrowDown
             },
             {
-              label: 'Modal Price',
+              label: 'Mandi Modal Price',
               value: modalPrice,
               sub: 'Most traded rate',
               color: '#2D4F1E',
@@ -2484,7 +2629,7 @@ const MandiRates = ({
               icon: Minus
             },
             {
-              label: 'Maximum Price',
+              label: 'Mandi Maximum Price',
               value: maxPrice,
               sub: 'Highest in market',
               color: '#4CAF50',
@@ -2493,7 +2638,7 @@ const MandiRates = ({
             }
           ].map(card => {
             const Icon = card.icon
-            const isLiquid = commodity.toLowerCase().includes('milk') || commodity.toLowerCase().includes('oil')
+            const isLiquid = (commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil')
             const unit = isLiquid ? 'L' : 'kg'
             return (
               <div key={card.label} style={{
@@ -2597,8 +2742,15 @@ const MandiRates = ({
                   color: comparison.color,
                   marginBottom: 3
                 }}>
-                  Your ₹{comparison.farmer_price}/{unit} vs Mandi ₹{(comparison.mandi_modal / 100).toFixed(2)}/{unit} (₹{Math.round(comparison.mandi_modal)}/qtl)
-                  {' '}({comparison.diff_percent > 0 ? '+' : ''}{comparison.diff_percent}%)
+                  {comparison.mandi_modal !== null && comparison.mandi_modal !== undefined
+                    ? <>
+                        Your ₹{comparison.farmer_price}/{unit} vs Mandi ₹{(comparison.mandi_modal / 100).toFixed(2)}/{unit} (₹{Math.round(comparison.mandi_modal)}/qtl)
+                        {' '}({comparison.diff_percent > 0 ? '+' : ''}{comparison.diff_percent}%)
+                      </>
+                    : <>
+                        Your Price: ₹{comparison.farmer_price}/{unit}
+                      </>
+                  }
                 </div>
                 <div style={{
                   fontFamily: 'DM Sans',
@@ -2636,6 +2788,7 @@ const MandiRates = ({
       }}>
         {TABS.map(tab => (
           <button
+            type="button"
             key={tab.id}
             onClick={() =>
               setActiveTab(tab.id)
@@ -2674,265 +2827,758 @@ const MandiRates = ({
         {/* RATES TAB */}
         {activeTab === 'rates' && (
           <div>
-            {loading ? (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px 20px',
-                fontFamily: 'DM Sans'
-              }}>
-                <div style={{
-                  fontSize: 32,
-                  marginBottom: 12
-                }}>
-                  🌾
-                </div>
-                <p style={{
-                  color: '#7A7A7A',
-                  fontSize: 14,
-                  fontWeight: 600
-                }}>
-                  Loading live mandi rates...
-                </p>
-              </div>
+  {/* ── MANDI RATES TABLE ─────── */}
+  <div style={{
+    background: '#FDFAF4',
+    borderRadius: 16,
+    border: '1.5px solid #EDD9B0',
+    overflow: 'hidden',
+    boxShadow:
+      '0 1px 4px rgba(45,79,30,0.06)'
+  }}>
 
-            ) : error ? (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px 20px',
-                fontFamily: 'DM Sans'
-              }}>
-                <div style={{ fontSize: 32 }}>
-                  📊
-                </div>
-                <p style={{
-                  color: '#4A4A4A',
-                  fontWeight: 700,
-                  fontSize: 15,
-                  margin: '12px 0 8px'
-                }}>
-                  No rates found
-                </p>
-                <p style={{
-                  color: '#7A7A7A',
-                  fontSize: 13,
-                  margin: '0 0 16px'
-                }}>
-                  {error}
-                </p>
-                <button
-                  onClick={() => {
-                    setCommodity('Tomato')
-                    setState('Maharashtra')
-                    setTimeout(fetchAll, 100)
-                  }}
-                  style={{
-                    padding: '8px 20px',
-                    background: '#2D4F1E',
-                    border: 'none',
-                    borderRadius: 10,
-                    color: 'white',
-                    fontFamily: 'DM Sans',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Try Tomato in Maharashtra
-                </button>
-              </div>
+    {/* Table header card */}
+    <div style={{
+      padding: '16px 20px',
+      borderBottom: '1px solid #EDD9B0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: 12,
+      background: '#FDFAF4'
+    }}>
+      <div>
+        <h3 style={{
+          fontFamily: 'Playfair Display',
+          fontWeight: 700,
+          fontSize: 16,
+          color: '#2D4F1E',
+          margin: 0
+        }}>
+          Live Mandi Rates
+        </h3>
+        <p style={{
+          fontFamily: 'DM Sans',
+          fontSize: 12,
+          color: '#7A7A7A',
+          margin: '2px 0 0'
+        }}>
+          {sortedRecords.length} markets
+          found • Source: data.gov.in
+        </p>
+      </div>
 
-            ) : rates && rates.length > 0 ? (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontFamily: 'DM Sans'
-                }}>
-                  <thead>
-                    <tr style={{
-                      background: '#F5E6CC',
-                      borderBottom: '2px solid #EDD9B0'
-                    }}>
-                      {[
-                        'MARKET',
-                        'DISTRICT',
-                        'STATE',
-                        'VARIETY',
-                        'MIN ₹',
-                        'MODAL ₹',
-                        'MAX ₹',
-                        'DATE'
-                      ].map(h => (
-                        <th key={h} style={{
-                          padding: '10px 14px',
-                          textAlign: 'left',
-                          fontFamily: 'DM Sans',
-                          fontWeight: 700,
-                          fontSize: 11,
-                          color: '#7A7A7A',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rates.map((r, i) => (
-                      <tr key={i} style={{
-                        borderBottom:
-                          '1px solid #EDD9B0',
-                        background: i % 2 === 0
-                          ? '#FDFAF4'
-                          : '#F9F4EC'
-                      }}>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          color: '#2D4F1E'
-                        }}>
-                          {r.market || '-'}
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontSize: 12,
-                          color: '#4A4A4A'
-                        }}>
-                          {r.district || '-'}
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontSize: 12,
-                          color: '#4A4A4A'
-                        }}>
-                          {r.state || '-'}
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontSize: 12,
-                          color: '#7A7A7A'
-                        }}>
-                          {r.variety || 'Other'}
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontWeight: 600,
-                          fontSize: 13,
-                          color: '#FF5252'
-                        }}>
-                          <div>
-                            ₹{(r.minPrice / 100)
-                              .toFixed(2)}/kg
-                          </div>
-                          <div style={{
-                            fontSize: 10,
-                            color: '#B0A898',
-                            fontWeight: 400
-                          }}>
-                            ₹{r.minPrice}/qtl
-                          </div>
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontWeight: 800,
-                          fontSize: 14,
-                          color: '#2D4F1E'
-                        }}>
-                          <div>
-                            ₹{(r.modalPrice / 100)
-                              .toFixed(2)}/kg
-                          </div>
-                          <div style={{
-                            fontSize: 10,
-                            color: '#B0A898',
-                            fontWeight: 400
-                          }}>
-                            ₹{r.modalPrice}/qtl
-                          </div>
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontWeight: 600,
-                          fontSize: 13,
-                          color: '#4CAF50'
-                        }}>
-                          <div>
-                            ₹{(r.maxPrice / 100)
-                              .toFixed(2)}/kg
-                          </div>
-                          <div style={{
-                            fontSize: 10,
-                            color: '#B0A898',
-                            fontWeight: 400
-                          }}>
-                            ₹{r.maxPrice}/qtl
-                          </div>
-                        </td>
-                        <td style={{
-                          padding: '12px 14px',
-                          fontFamily: 'DM Sans',
-                          fontSize: 12,
-                          color: '#7A7A7A',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {r.arrivalDate || '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {/* Search input */}
+      <div style={{
+        position: 'relative',
+        minWidth: 220
+      }}>
+        <span style={{
+          position: 'absolute',
+          left: 10,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          fontSize: 13,
+          pointerEvents: 'none'
+        }}>
+          🔍
+        </span>
+        <input
+          type="text"
+          placeholder="Search market, district..."
+          value={searchQuery}
+          onChange={e => {
+            setSearchQuery(e.target.value)
+            setCurrentPage(1)
+          }}
+          style={{
+            padding: '8px 12px 8px 30px',
+            borderRadius: 8,
+            border: '1.5px solid #EDD9B0',
+            background: '#F5E6CC',
+            fontFamily: 'DM Sans',
+            fontSize: 13,
+            color: '#4A4A4A',
+            outline: 'none',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}
+          onFocus={e => {
+            e.target.style.borderColor
+              = '#2D4F1E'
+          }}
+          onBlur={e => {
+            e.target.style.borderColor
+              = '#EDD9B0'
+          }}
+        />
+      </div>
+    </div>
 
-                {/* Records count footer */}
-                <div style={{
-                  padding: '10px 14px',
+    {/* Table */}
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontFamily: 'DM Sans'
+      }}>
+
+        {/* Column headers */}
+        <thead>
+          <tr style={{
+            background: '#F5E6CC',
+            borderBottom:
+              '1px solid #EDD9B0'
+          }}>
+            {[
+              {
+                key: 'commodity',
+                label: 'COMMODITY',
+                sortable: true,
+                width: '14%'
+              },
+              {
+                key: 'market',
+                label: 'MARKET',
+                sortable: true,
+                width: '18%'
+              },
+              {
+                key: 'district',
+                label: 'DISTRICT',
+                sortable: true,
+                width: '12%'
+              },
+              {
+                key: 'state',
+                label: 'STATE',
+                sortable: true,
+                width: '12%'
+              },
+              {
+                key: 'minPrice',
+                label: 'MIN ₹',
+                sortable: true,
+                width: '10%'
+              },
+              {
+                key: 'modalPrice',
+                label: 'MODAL ₹',
+                sortable: true,
+                width: '12%'
+              },
+              {
+                key: 'maxPrice',
+                label: 'MAX ₹',
+                sortable: true,
+                width: '10%'
+              },
+              {
+                key: 'status',
+                label: 'RANGE',
+                sortable: false,
+                width: '10%'
+              },
+              {
+                key: 'arrivalDate',
+                label: 'DATE',
+                sortable: true,
+                width: '12%'
+              }
+            ].map(col => (
+              <th
+                key={col.key}
+                onClick={() =>
+                  col.sortable &&
+                  handleSort(col.key)
+                }
+                style={{
+                  padding: '11px 16px',
+                  textAlign: 'left',
                   fontFamily: 'DM Sans',
+                  fontWeight: 700,
                   fontSize: 11,
-                  color: '#B0A898',
-                  borderTop: '1px solid #EDD9B0',
-                  textAlign: 'right'
+                  color: sortField === col.key
+                    ? '#2D4F1E'
+                    : '#7A7A7A',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  cursor: col.sortable
+                    ? 'pointer' : 'default',
+                  whiteSpace: 'nowrap',
+                  width: col.width,
+                  userSelect: 'none',
+                  transition: 'color 150ms'
+                }}
+                onMouseEnter={e => {
+                  if (col.sortable) {
+                    e.currentTarget.style
+                      .color = '#2D4F1E'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (sortField !== col.key) {
+                    e.currentTarget.style
+                      .color = '#7A7A7A'
+                  }
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
                 }}>
-                  Showing {rates.length} markets
-                  {commodity
-                    ? ` for ${commodity}`
-                    : ' (All Commodities)'}
-                  {state
-                    ? ` in ${state}`
-                    : ' across India'}
-                  {' '}• Source: data.gov.in
-                  (AGMARKNET)
+                  {col.label}
+                  {col.sortable && (
+                    <span style={{
+                      fontSize: 10,
+                      opacity: sortField ===
+                        col.key ? 1 : 0.4
+                    }}>
+                      {sortField === col.key
+                        ? sortDir === 'asc'
+                          ? '↑' : '↓'
+                        : '↕'
+                      }
+                    </span>
+                  )}
                 </div>
-              </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
 
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px 20px',
-                fontFamily: 'DM Sans'
+        {/* Table body */}
+        <tbody>
+          {loading ? (
+            // Loading skeleton rows
+            Array.from({ length: 5 })
+              .map((_, i) => (
+              <tr key={i} style={{
+                borderBottom:
+                  '1px solid #EDD9B0',
+                background: i % 2 === 0
+                  ? '#FDFAF4' : '#FAF6EE'
               }}>
-                <div style={{ fontSize: 32 }}>
-                  🌾
-                </div>
-                <p style={{
-                  color: '#7A7A7A',
-                  fontSize: 13,
-                  marginTop: 12
+                {Array.from({ length: 9 })
+                  .map((_, j) => (
+                  <td key={j} style={{
+                    padding: '14px 16px'
+                  }}>
+                    <div style={{
+                      height: 12,
+                      borderRadius: 6,
+                      background:
+                        'linear-gradient(' +
+                        '90deg,' +
+                        '#EDD9B0 25%,' +
+                        '#F5E6CC 50%,' +
+                        '#EDD9B0 75%)',
+                      backgroundSize:
+                        '200% 100%',
+                      animation:
+                        'shimmer 1.5s infinite',
+                      width: j === 0
+                        ? '80%' : '60%'
+                    }} />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : paginatedRecords.length === 0 ? (
+            // Empty state
+            <tr>
+              <td
+                colSpan={9}
+                style={{ padding: '48px 20px' }}
+              >
+                <div style={{
+                  textAlign: 'center'
                 }}>
-                  Select commodity and state,
-                  then click Compare
-                </p>
-              </div>
+                  <div style={{
+                    fontSize: 36,
+                    marginBottom: 12
+                  }}>
+                    {error ? '📊' : '📊'}
+                  </div>
+                  <p style={{
+                    fontFamily:
+                      'Playfair Display',
+                    fontWeight: 700,
+                    fontSize: 16,
+                    color: error ? '#FF5252' : '#4A4A4A',
+                    margin: '0 0 6px'
+                  }}>
+                    {error 
+                      ? 'Error loading rates' 
+                      : (searchQuery
+                          ? `No results for "${searchQuery}"`
+                          : 'No mandi rates found')
+                    }
+                  </p>
+                  <p style={{
+                    fontFamily: 'DM Sans',
+                    fontSize: 13,
+                    color: '#7A7A7A',
+                    margin: '0 0 16px'
+                  }}>
+                    {error 
+                      ? error
+                      : (searchQuery
+                          ? 'Try a different search term'
+                          : 'Select commodity and state, then click Compare')
+                    }
+                  </p>
+                  {(error || searchQuery) && (
+                    <button
+                      onClick={() => {
+                        if (error) {
+                          setCommodity('Tomato')
+                          setState('Maharashtra')
+                          setTimeout(fetchAll, 100)
+                        } else {
+                          setSearchQuery('')
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#2D4F1E',
+                        border: 'none',
+                        borderRadius: 8,
+                        color: 'white',
+                        fontFamily: 'DM Sans',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {error ? 'Try Tomato in Maharashtra' : 'Clear search'}
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ) : (
+            paginatedRecords.map(
+              (record, i) => {
+                const badge = getPriceBadge(
+                  record.modalPrice,
+                  record.minPrice,
+                  record.maxPrice
+                )
+
+                return (
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom:
+                        '1px solid #EDD9B0',
+                      background:
+                        i % 2 === 0
+                          ? '#FDFAF4'
+                          : '#FAF6EE',
+                      transition:
+                        'background 150ms'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style
+                        .background =
+                        'rgba(45,79,30,0.04)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style
+                        .background =
+                        i % 2 === 0
+                          ? '#FDFAF4'
+                          : '#FAF6EE'
+                    }}
+                  >
+                    {/* Commodity */}
+                    <td style={{
+                      padding: '14px 16px'
+                    }}>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: '#2D4F1E'
+                      }}>
+                        {record.commodity
+                          || commodity
+                          || '—'}
+                      </div>
+                    </td>
+
+                    {/* Market */}
+                    <td style={{
+                      padding: '14px 16px'
+                    }}>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: '#2D4F1E'
+                      }}>
+                        {record.market || '—'}
+                      </div>
+                    </td>
+
+                    {/* District */}
+                    <td style={{
+                      padding: '14px 16px',
+                      fontFamily: 'DM Sans',
+                      fontSize: 13,
+                      color: '#4A4A4A'
+                    }}>
+                      {record.district || '—'}
+                    </td>
+
+                    {/* State */}
+                    <td style={{
+                      padding: '14px 16px',
+                      fontFamily: 'DM Sans',
+                      fontSize: 12,
+                      color: '#7A7A7A'
+                    }}>
+                      {record.state || '—'}
+                    </td>
+
+                    {/* Min Price */}
+                    <td style={{
+                      padding: '14px 16px'
+                    }}>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: '#FF5252'
+                      }}>
+                        ₹{(
+                          (record.minPrice || 0)
+                          / 100
+                        ).toFixed(2)}/kg
+                      </div>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontSize: 10,
+                        color: '#B0A898'
+                      }}>
+                        ₹{record.minPrice
+                          || 0}/qtl
+                      </div>
+                    </td>
+
+                    {/* Modal Price */}
+                    <td style={{
+                      padding: '14px 16px'
+                    }}>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontWeight: 800,
+                        fontSize: 14,
+                        color: '#2D4F1E'
+                      }}>
+                        ₹{(
+                          (record.modalPrice || 0)
+                          / 100
+                        ).toFixed(2)}/kg
+                      </div>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontSize: 10,
+                        color: '#B0A898'
+                      }}>
+                        ₹{record.modalPrice
+                          || 0}/qtl
+                      </div>
+                    </td>
+
+                    {/* Max Price */}
+                    <td style={{
+                      padding: '14px 16px'
+                    }}>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: '#4CAF50'
+                      }}>
+                        ₹{(
+                          (record.maxPrice || 0)
+                          / 100
+                        ).toFixed(2)}/kg
+                      </div>
+                      <div style={{
+                        fontFamily: 'DM Sans',
+                        fontSize: 10,
+                        color: '#B0A898'
+                      }}>
+                        ₹{record.maxPrice
+                          || 0}/qtl
+                      </div>
+                    </td>
+
+                    {/* Status badge */}
+                    <td style={{
+                      padding: '14px 16px'
+                    }}>
+                      {badge && (
+                        <span style={{
+                          display:
+                            'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '3px 10px',
+                          borderRadius: 999,
+                          background:
+                            badge.bg,
+                          fontFamily:
+                            'DM Sans',
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color: badge.color,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <span style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background:
+                              badge.dot,
+                            display:
+                              'inline-block',
+                            flexShrink: 0
+                          }} />
+                          {badge.label}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Date */}
+                    <td style={{
+                      padding: '14px 16px',
+                      fontFamily: 'DM Sans',
+                      fontSize: 12,
+                      color: '#7A7A7A',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {record.arrivalDate
+                        || '—'}
+                    </td>
+                  </tr>
+                )
+              }
+            )
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Pagination footer */}
+    {!loading &&
+     sortedRecords.length > 0 && (
+      <div style={{
+        padding: '12px 20px',
+        borderTop: '1px solid #EDD9B0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: '#FDFAF4',
+        flexWrap: 'wrap',
+        gap: 10
+      }}>
+        {/* Record count */}
+        <span style={{
+          fontFamily: 'DM Sans',
+          fontSize: 12,
+          color: '#7A7A7A'
+        }}>
+          Showing{' '}
+          <strong style={{
+            color: '#4A4A4A'
+          }}>
+            {(currentPage - 1)
+              * ROWS_PER_PAGE + 1}
+          </strong>
+          {' '}–{' '}
+          <strong style={{
+            color: '#4A4A4A'
+          }}>
+            {Math.min(
+              currentPage * ROWS_PER_PAGE,
+              sortedRecords.length
             )}
-          </div>
+          </strong>
+          {' '}of{' '}
+          <strong style={{
+            color: '#4A4A4A'
+          }}>
+            {sortedRecords.length}
+          </strong>
+          {' '}markets
+        </span>
+
+        {/* Page buttons */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6
+        }}>
+          {/* Previous */}
+          <button
+            onClick={() =>
+              setCurrentPage(p =>
+                Math.max(1, p - 1)
+              )
+            }
+            disabled={currentPage === 1}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 8,
+              border: '1.5px solid #EDD9B0',
+              background: currentPage === 1
+                ? '#F5E6CC' : 'white',
+              fontFamily: 'DM Sans',
+              fontWeight: 600,
+              fontSize: 13,
+              color: currentPage === 1
+                ? '#B0A898' : '#4A4A4A',
+              cursor: currentPage === 1
+                ? 'not-allowed' : 'pointer',
+              transition: 'all 150ms'
+            }}
+            onMouseEnter={e => {
+              if (currentPage !== 1) {
+                e.currentTarget.style
+                  .borderColor = '#2D4F1E'
+                e.currentTarget.style
+                  .color = '#2D4F1E'
+              }
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style
+                .borderColor = '#EDD9B0'
+              e.currentTarget.style
+                .color = currentPage === 1
+                  ? '#B0A898' : '#4A4A4A'
+            }}
+          >
+            ← Previous
+          </button>
+
+          {/* Page numbers */}
+          {Array.from({
+            length: Math.min(5, totalPages)
+          }).map((_, i) => {
+            let pageNum
+            if (totalPages <= 5) {
+              pageNum = i + 1
+            } else if (currentPage <= 3) {
+              pageNum = i + 1
+            } else if (
+              currentPage >= totalPages - 2
+            ) {
+              pageNum = totalPages - 4 + i
+            } else {
+              pageNum = currentPage - 2 + i
+            }
+
+            return (
+              <button
+                key={pageNum}
+                onClick={() =>
+                  setCurrentPage(pageNum)
+                }
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  border:
+                    currentPage === pageNum
+                      ? '1.5px solid #2D4F1E'
+                      : '1.5px solid #EDD9B0',
+                  background:
+                    currentPage === pageNum
+                      ? '#2D4F1E' : 'white',
+                  fontFamily: 'DM Sans',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color:
+                    currentPage === pageNum
+                      ? 'white' : '#4A4A4A',
+                  cursor: 'pointer',
+                  transition: 'all 150ms'
+                }}
+              >
+                {pageNum}
+              </button>
+            )
+          })}
+
+          {/* Next */}
+          <button
+            onClick={() =>
+              setCurrentPage(p =>
+                Math.min(totalPages, p + 1)
+              )
+            }
+            disabled={
+              currentPage === totalPages
+            }
+            style={{
+              padding: '6px 14px',
+              borderRadius: 8,
+              border: '1.5px solid #EDD9B0',
+              background:
+                currentPage === totalPages
+                  ? '#F5E6CC' : 'white',
+              fontFamily: 'DM Sans',
+              fontWeight: 600,
+              fontSize: 13,
+              color:
+                currentPage === totalPages
+                  ? '#B0A898' : '#4A4A4A',
+              cursor:
+                currentPage === totalPages
+                  ? 'not-allowed' : 'pointer',
+              transition: 'all 150ms'
+            }}
+            onMouseEnter={e => {
+              if (currentPage !==
+                  totalPages) {
+                e.currentTarget.style
+                  .borderColor = '#2D4F1E'
+                e.currentTarget.style
+                  .color = '#2D4F1E'
+              }
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style
+                .borderColor = '#EDD9B0'
+              e.currentTarget.style
+                .color =
+                  currentPage === totalPages
+                    ? '#B0A898' : '#4A4A4A'
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Shimmer animation */}
+    <style>{`
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+    `}</style>
+
+  </div>
+  {/* ── END MANDI RATES TABLE ─── */}
+</div>
         )}
 
         {/* PREDICTION TAB */}

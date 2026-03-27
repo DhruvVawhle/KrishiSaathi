@@ -96,10 +96,15 @@
     line-height: 1.5;
 }
 
-/* Left Middle - Dynamic Content */
-.register-dynamic-content {
+.register-dynamic-wrapper {
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
     margin-top: auto;
     margin-bottom: auto;
+}
+
+.register-dynamic-content {
     display: flex;
     flex-direction: column;
 }

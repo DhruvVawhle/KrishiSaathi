@@ -24,31 +24,102 @@ import StatusBadge from '@/frontend/components/ui/StatusBadge';
 
 const BuyerDashboard = () => {
   const navigate = useNavigate();
+  const { user: ctxUser } = useUser();
   const { cart = [], removeFromCart, clearCart, updateQuantity } = useCart();
   const reduceMotion = useReducedMotion();
 
-  // Avatar dropdown state
+  // 1. All State Hooks
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [recommendations, setRecommendations] = useState([
+    { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
+    { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
+    { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" }
+  ]);
+  const [recLabel, setRecLabel] = useState("Fresh Picks");
+  const [counts, setCounts] = useState({ orders: 0, spent: 0, points: 0 });
+  const [copied, setCopied] = useState(false);
+
+  // 2. All Ref Hooks
   const dropdownRef = useRef(null);
 
-  // Search
-  const [query, setQuery] = useState("");
-
-  const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cart]
-  );
+  // 3. All Memo Hooks
+  const total = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0), [cart]);
 
   const userEmail = localStorage.getItem("userEmail") || "";
   const userRole = localStorage.getItem("userRole");
   const userNameStored = localStorage.getItem("userName") || null;
-  const { user: ctxUser } = useUser();
   const displayName =
     (ctxUser && (ctxUser.name || ctxUser.displayName || ctxUser.email?.split("@")[0])) ||
     userNameStored ||
     (userEmail ? userEmail.split("@")[0] : "Guest");
 
-  // 🚫 Redirect unauthorized users
+  const visibleCart = useMemo(() => {
+    const q = (query || "").trim().toLowerCase();
+    if (!q) return cart;
+    return cart.filter((it) => (it.name || "").toLowerCase().includes(q));
+  }, [cart, query]);
+
+  const loyaltyPoints = useMemo(() => {
+    const spent = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    return Math.floor(spent / 10);
+  }, [orders]);
+
+  const tierInfo = useMemo(() => {
+    const pts = loyaltyPoints;
+    if (pts >= 3000) return { tier: "Platinum", next: 0, progress: 100, color: "#E5E4E2" };
+    if (pts >= 1500) return { tier: "Gold", next: 3000 - pts, progress: ((pts - 1500) / 1500) * 100, color: "#D4AF37" };
+    if (pts >= 500) return { tier: "Silver", next: 1500 - pts, progress: ((pts - 500) / 1000) * 100, color: "#C0C0C0" };
+    return { tier: "Bronze", next: 500 - pts, progress: (pts / 500) * 100, color: "#CD7F32" };
+  }, [loyaltyPoints]);
+
+  const monthStats = useMemo(() => {
+    const now = new Date();
+    const thisMonth = orders.filter(o => {
+      const d = new Date(o.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    return {
+      count: thisMonth.length,
+      spent: Math.floor(thisMonth.reduce((sum, o) => sum + (o.total || 0), 0)),
+      items: thisMonth.reduce((sum, o) => sum + (o.items?.length || 0), 0)
+    };
+  }, [orders]);
+
+  const activityFeed = useMemo(() => {
+    if (orders.length === 0) {
+      return [
+        { type: "Welcome", title: `Welcome, ${displayName}!`, time: "Just now", sub: "Glad to have you here.", icon: UserCheck, color: "#4CAF50" },
+        { type: "Profile", title: "Profile setup", time: "Today", sub: "Account created successfully", icon: CheckCircle2, color: "#2D4F1E" }
+      ];
+    }
+    return orders.slice(0, 5).map(o => {
+      const date = new Date(o.createdAt);
+      const diffDays = Math.floor((new Date() - date) / (1000 * 60 * 60 * 24));
+      const timeStr = diffDays === 0 ? "Today" : diffDays === 1 ? "Yesterday" : `${diffDays} days ago`;
+      return {
+        type: "Order",
+        title: `Order #${o.orderId || (o._id || '').slice(-6).toUpperCase()} ${o.status || 'placed'}`,
+        time: timeStr,
+        sub: `${(o.items || []).length} items \u2022 ₹${o.total || 0}`,
+        icon: Package,
+        color: o.status === 'delivered' ? "#4CAF50" : "#E27D60"
+      };
+    });
+  }, [orders, displayName]);
+
+  const recentOrders = useMemo(() => orders.slice(0, 3).map(ord => ({
+    id: ord.orderId || `#${(ord._id || '').slice(-6).toUpperCase()}`,
+    date: new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    itemsSummary: `${(ord.items || []).length} items`,
+    total: `₹${ord.total || 0}`,
+    status: (ord.status || 'confirmed').toLowerCase(),
+    icon: Package
+  })), [orders]);
+
+  // 4. All Effect Hooks
   useEffect(() => {
     if (userRole && userRole !== "buyer") {
       toast.warn("Access denied — Redirecting...");
@@ -56,22 +127,96 @@ const BuyerDashboard = () => {
     }
   }, [userRole, navigate]);
 
-  useEffect(() => {
-    updateSEO('/buyer-dashboard');
-  }, []);
+  useEffect(() => { updateSEO('/buyer-dashboard'); }, []);
 
-  // Click outside to close dropdown
   useEffect(() => {
-    function handleClickOutside(event) {
+    const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
       }
-    }
+    };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [dropdownRef]);
+  }, []);
 
-  // ✅ Logout
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const uid = ctxUser?.uid || ctxUser?.id || auth.currentUser?.uid;
+      if (!uid) return;
+      setLoadingOrders(true);
+      try {
+        const token = localStorage.getItem('idToken') || localStorage.getItem('ks_token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`/api/orders/user/${uid}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const fetched = Array.isArray(data.orders) ? data.orders : (Array.isArray(data) ? data : []);
+          setOrders(fetched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+        }
+      } catch (err) { console.error("Dashboard orders fetch failed:", err); }
+      finally { setLoadingOrders(false); }
+    };
+    fetchOrders();
+  }, [ctxUser]);
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/users/${encodeURIComponent(user.uid)}/recommendations`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.type === 'popular' || !data.categories?.length) {
+          setRecLabel("Popular Picks");
+        } else {
+          setRecLabel("Personalized for You");
+          const catSet = new Set((data.categories || []).map(c => c?.toLowerCase()));
+          const allItems = [
+            { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
+            { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
+            { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" },
+            { name: "Wheat", cat: "Grains", price: "₹45/kg", img: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=100&auto=format&fit=crop" },
+            { name: "Mango", cat: "Fruits", price: "₹80/kg", img: "https://images.unsplash.com/photo-1553279768-865429fa0078?w=100&auto=format&fit=crop" },
+            { name: "Onion", cat: "Vegetables", price: "₹30/kg", img: "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=100&auto=format&fit=crop" },
+          ];
+          const matched = allItems.filter(it => catSet.has(it.cat.toLowerCase()));
+          if (matched.length > 0) setRecommendations(matched.slice(0, 3));
+        }
+      } catch (err) { console.warn("Recommendations fetch failed:", err.message); }
+    };
+    fetchRecommendations();
+  }, []);
+
+  useEffect(() => {
+    const duration = 1500;
+    const steps = 30;
+    const stepTime = duration / steps;
+    let currentStep = 0;
+    const targetOrders = orders.length || 0;
+    const targetSpent = Math.floor(orders.reduce((sum, o) => sum + (o.total || 0), 0));
+    const targetPoints = loyaltyPoints;
+    const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+    const timer = setInterval(() => {
+      currentStep++;
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        setCounts({ orders: targetOrders, spent: targetSpent, points: targetPoints });
+        return;
+      }
+      const progress = easeOutCubic(currentStep / steps);
+      setCounts({
+        orders: Math.floor(targetOrders * progress),
+        spent: Math.floor(targetSpent * progress),
+        points: Math.floor(targetPoints * progress)
+      });
+    }, stepTime);
+    return () => clearInterval(timer);
+  }, [orders, loyaltyPoints]);
+
+  /* --- Handlers --- */
   const handleLogout = () => {
     localStorage.clear();
     clearCart();
@@ -100,178 +245,32 @@ const BuyerDashboard = () => {
     setTimeout(() => navigate("/login"), 1200);
   };
 
-  // ✅ Search marketplace
   const handleSearch = (e) => {
     if (e.key === "Enter") {
       const q = query.trim();
-      if (q) {
-        navigate(`/marketplace?q=${encodeURIComponent(q)}`);
-      } else {
-        navigate("/marketplace");
-      }
+      navigate(q ? `/marketplace?q=${encodeURIComponent(q)}` : "/marketplace");
     }
   };
 
-  // ✅ Checkout flow
   const handleCheckout = () => {
-    if (cart.length === 0) {
-      toast.warn("🛒 Your cart is empty!");
-      return;
-    }
+    if (cart.length === 0) { toast.warn("🛒 Your cart is empty!"); return; }
     localStorage.setItem("checkoutCart", JSON.stringify(cart));
     localStorage.setItem("checkoutTotal", total.toFixed(2));
     toast.success("✅ Redirecting to checkout...");
     setTimeout(() => navigate("/checkout"), 800);
   };
 
-  const visibleCart = useMemo(() => {
-    const q = (query || "").trim().toLowerCase();
-    if (!q) return cart;
-    return cart.filter((it) => (it.name || "").toLowerCase().includes(q));
-  }, [cart, query]);
+  const handleCopyPromo = () => {
+    navigator.clipboard.writeText("FRESH15");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-  // MOCK DATA
   const getGreeting = () => {
     const h = new Date().getHours();
     if (h < 12) return "Good morning 🌅";
     if (h < 17) return "Good afternoon ☀️";
     return "Good evening 🌙";
-  };
-
-  const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
-
-  // Fetch real orders from API
-  useEffect(() => {
-    const fetchOrders = async () => {
-      const uid = ctxUser?.uid || ctxUser?.id || auth.currentUser?.uid;
-      if (!uid) return;
-      
-      setLoadingOrders(true);
-      try {
-        const token = localStorage.getItem('idToken') || localStorage.getItem('ks_token');
-        const headers = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`/api/orders/user/${uid}`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const fetched = Array.isArray(data.orders) ? data.orders : (Array.isArray(data) ? data : []);
-          // Sort newest first
-          const sorted = fetched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          setOrders(sorted);
-        }
-      } catch (err) {
-        console.error("Dashboard orders fetch failed:", err);
-      } finally {
-        setLoadingOrders(false);
-      }
-    };
-
-    fetchOrders();
-  }, [ctxUser]);
-
-  const recentOrders = orders.slice(0, 3).map(ord => ({
-    id: ord.orderId || `#${(ord._id || '').slice(-6).toUpperCase()}`,
-    date: new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-    itemsSummary: `${(ord.items || []).length} items`,
-    total: `₹${ord.total || 0}`,
-    status: (ord.status || 'confirmed').toLowerCase(),
-    icon: Package
-  }));
-
-  const [recommendations, setRecommendations] = useState([
-    { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
-    { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
-    { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" }
-  ]);
-  const [recLabel, setRecLabel] = useState("Fresh Picks");
-
-  // Fetch personalized recommendations from backend
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return; // guest users see defaults
-        const token = await user.getIdToken();
-        const res = await fetch(
-          `/api/users/${encodeURIComponent(user.uid)}/recommendations`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-
-        if (data.type === 'popular' || !data.categories?.length) {
-          setRecLabel("Popular Picks");
-          // Keep defaults — these are generic popular items
-        } else {
-          setRecLabel("Personalized for You");
-          // Filter mock data by categories user has bought — create category-matched cards
-          const catSet = new Set((data.categories || []).map(c => c?.toLowerCase()));
-          const allItems = [
-            { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
-            { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
-            { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" },
-            { name: "Wheat", cat: "Grains", price: "₹45/kg", img: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=100&auto=format&fit=crop" },
-            { name: "Mango", cat: "Fruits", price: "₹80/kg", img: "https://images.unsplash.com/photo-1553279768-865429fa0078?w=100&auto=format&fit=crop" },
-            { name: "Onion", cat: "Vegetables", price: "₹30/kg", img: "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=100&auto=format&fit=crop" },
-          ];
-          const matched = allItems.filter(it => catSet.has(it.cat.toLowerCase()));
-          if (matched.length > 0) setRecommendations(matched.slice(0, 3));
-        }
-      } catch (err) {
-        console.warn("Recommendations fetch failed (non-critical):", err.message);
-      }
-    };
-    fetchRecommendations();
-  }, []);
-
-  const activityFeed = [
-    { type: "Delivered", title: "Order #KS-20240312 delivered", time: "2 days ago", sub: "3 items \u2022 ₹245", icon: Package, color: "#4CAF50" },
-    { type: "Cart", title: "Added Tomatoes to cart", time: "3 days ago", sub: "2kg \u2022 ₹120", icon: ShoppingCart, color: "#E27D60" },
-    { type: "Points", title: "Earned 24 loyalty points", time: "5 days ago", sub: "From order #KS-20240308", icon: Star, color: "#F0A080" },
-    { type: "Profile", title: "Profile updated", time: "1 week ago", sub: "Email verified", icon: UserCheck, color: "#2D4F1E" },
-    { type: "Delivered", title: "Order #KS-20240228 delivered", time: "8 days ago", sub: "2 items \u2022 ₹90", icon: ShoppingBag, color: "#4A7A35" }
-  ];
-
-  // Animated Countup State
-  const [counts, setCounts] = useState({ orders: 0, spent: 0, points: 0 });
-  useEffect(() => {
-    const duration = 1500;
-    const steps = 30;
-    const stepTime = duration / steps;
-
-    let currentStep = 0;
-    const targetOrders = orders.length || 0;
-    const targetSpent = Math.floor(orders.reduce((sum, o) => sum + (o.total || 0), 0));
-    const targetPoints = Math.floor(targetSpent * 0.5);
-
-    const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
-
-    const timer = setInterval(() => {
-      currentStep++;
-      if (currentStep >= steps) {
-        clearInterval(timer);
-        setCounts({ orders: targetOrders, spent: targetSpent, points: targetPoints });
-        return;
-      }
-
-      const progress = easeOutCubic(currentStep / steps);
-      setCounts({
-        orders: Math.floor(targetOrders * progress),
-        spent: Math.floor(targetSpent * progress),
-        points: Math.floor(targetPoints * progress)
-      });
-    }, stepTime);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const [copied, setCopied] = useState(false);
-  const handleCopyPromo = () => {
-    navigator.clipboard.writeText("FRESH15");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const anim = reduceMotion ? {} : {
@@ -445,7 +444,7 @@ const BuyerDashboard = () => {
           <div className="bd-strip-lbl">LOYALTY POINTS</div>
         </div>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5, duration: 0.5 }} className="bd-strip-item">
-          <div className="bd-strip-val accent">Gold</div>
+          <div className="bd-strip-val accent">{tierInfo.tier}</div>
           <div className="bd-strip-lbl">MEMBER TIER</div>
         </motion.div>
       </motion.section>
@@ -656,21 +655,21 @@ const BuyerDashboard = () => {
             </div>
 
             <div className="bd-ly-trw">
-              <span className="bd-ly-tlbl">Gold Member</span>
-              <span className="bd-ly-tsub">260 pts to Platinum</span>
+              <span className="bd-ly-tlbl">{tierInfo.tier} Member</span>
+              {tierInfo.next > 0 && <span className="bd-ly-tsub">{tierInfo.next} pts to next tier</span>}
             </div>
 
             <div className="bd-ly-track">
-              <div className="bd-ly-fill" style={{ width: '48%' }}>
+              <div className="bd-ly-fill" style={{ width: `${tierInfo.progress}%` }}>
                 <div className="bd-ly-thumb"></div>
               </div>
             </div>
 
             <div className="bd-ly-badges">
-              <span className="bd-ly-badge bd-ly-b-inactive">Bronze</span>
-              <span className="bd-ly-badge bd-ly-b-inactive">Silver</span>
-              <span className="bd-ly-badge bd-ly-b-active">Gold ✓</span>
-              <span className="bd-ly-badge bd-ly-b-inactive">Platinum</span>
+              <span className={`bd-ly-badge ${tierInfo.tier === 'Bronze' ? 'bd-ly-b-active' : 'bd-ly-b-inactive'}`}>Bronze {tierInfo.tier === 'Bronze' ? '✓' : ''}</span>
+              <span className={`bd-ly-badge ${tierInfo.tier === 'Silver' ? 'bd-ly-b-active' : 'bd-ly-b-inactive'}`}>Silver {tierInfo.tier === 'Silver' ? '✓' : ''}</span>
+              <span className={`bd-ly-badge ${tierInfo.tier === 'Gold' ? 'bd-ly-b-active' : 'bd-ly-b-inactive'}`}>Gold {tierInfo.tier === 'Gold' ? '✓' : ''}</span>
+              <span className={`bd-ly-badge ${tierInfo.tier === 'Platinum' ? 'bd-ly-b-active' : 'bd-ly-b-inactive'}`}>Platinum {tierInfo.tier === 'Platinum' ? '✓' : ''}</span>
             </div>
 
             <div className="bd-ly-actions">
@@ -684,15 +683,15 @@ const BuyerDashboard = () => {
             <div className="bd-mc-title">THIS MONTH</div>
             <div className="bd-mc-row">
               <div className="bd-mc-left"><div className="bd-mc-icon-bg" style={{ background: 'rgba(45,79,30,0.1)' }}><ShoppingBag size={14} color="#2D4F1E" /></div><span className="bd-mc-lbl">Orders</span></div>
-              <div className="bd-mc-val">2</div>
+              <div className="bd-mc-val">{monthStats.count}</div>
             </div>
             <div className="bd-mc-row">
               <div className="bd-mc-left"><div className="bd-mc-icon-bg" style={{ background: 'rgba(226,125,96,0.1)' }}><IndianRupee size={14} color="#E27D60" /></div><span className="bd-mc-lbl">Spent</span></div>
-              <div className="bd-mc-val">₹395</div>
+              <div className="bd-mc-val">₹{monthStats.spent}</div>
             </div>
             <div className="bd-mc-row">
               <div className="bd-mc-left"><div className="bd-mc-icon-bg" style={{ background: 'rgba(74,122,53,0.1)' }}><Package size={14} color="#4A7A35" /></div><span className="bd-mc-lbl">Items bought</span></div>
-              <div className="bd-mc-val">7</div>
+              <div className="bd-mc-val">{monthStats.items}</div>
             </div>
           </motion.div>
 

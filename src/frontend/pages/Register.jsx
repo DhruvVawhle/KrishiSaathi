@@ -24,6 +24,112 @@ import Button from "@/frontend/components/ui/Button";
 
 const PHONE_MIN_DIGITS = 10;
 
+/* --- Static Benefit Components (Moved outside to prevent flickering) --- */
+
+const FarmerBenefitsContent = () => (
+  <motion.div
+    key="farmer-content"
+    initial={{ opacity: 0, x: -10 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -10 }}
+    transition={{ duration: 0.2 }}
+    className="register-dynamic-content"
+  >
+    <div className="register-role-tag">For Farmers 👨‍🌾</div>
+    <h2 className="register-role-heading">Sell directly. Earn more.</h2>
+    <p className="register-role-body">Join 500+ farmers already selling fresh produce directly to buyers across India with zero middlemen.</p>
+
+    <div className="register-benefits">
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><IndianRupee size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Fair Earnings</h4>
+          <p className="register-benefit-sub">Earn 40% more by selling direct</p>
+        </div>
+      </div>
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><ShieldCheck size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Secure Payments</h4>
+          <p className="register-benefit-sub">Fast settlements directly to your account</p>
+        </div>
+      </div>
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><Package size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Easy Listing</h4>
+          <p className="register-benefit-sub">Simple tools to manage inventory & pricing</p>
+        </div>
+      </div>
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><Users size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Large Buyer Network</h4>
+          <p className="register-benefit-sub">Access thousands of buyers across India</p>
+        </div>
+      </div>
+    </div>
+
+    <div className="register-stats-strip">
+      <span className="register-stat-pill">500+ Farmers</span>
+      <span className="register-stat-pill">₹0 Joining Fee</span>
+      <span className="register-stat-pill">48hr Onboarding</span>
+    </div>
+  </motion.div>
+);
+
+const BuyerBenefitsContent = () => (
+  <motion.div
+    key="buyer-content"
+    initial={{ opacity: 0, x: -10 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -10 }}
+    transition={{ duration: 0.2 }}
+    className="register-dynamic-content"
+  >
+    <div className="register-role-tag">For Buyers 🛒</div>
+    <h2 className="register-role-heading">Fresh produce. Fair prices.</h2>
+    <p className="register-role-body">Shop seasonal produce directly from local farmers. No preservatives, no markup — just fresh food delivered to your door.</p>
+
+    <div className="register-benefits">
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><Leaf size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Farm Fresh Always</h4>
+          <p className="register-benefit-sub">Harvested within 24 hours of delivery</p>
+        </div>
+      </div>
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><Tag size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Best Prices</h4>
+          <p className="register-benefit-sub">No middlemen means lower prices for you</p>
+        </div>
+      </div>
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><Truck size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Free Delivery</h4>
+          <p className="register-benefit-sub">Free delivery on orders above ₹299</p>
+        </div>
+      </div>
+      <div className="register-benefit-item">
+        <div className="register-benefit-icon"><Heart size={16} /></div>
+        <div>
+          <h4 className="register-benefit-title">Support Farmers</h4>
+          <p className="register-benefit-sub">Every purchase directly supports a family</p>
+        </div>
+      </div>
+    </div>
+
+    <div className="register-stats-strip">
+      <span className="register-stat-pill">50k+ Happy Buyers</span>
+      <span className="register-stat-pill">Free above ₹299</span>
+      <span className="register-stat-pill">2-4 Day Delivery</span>
+    </div>
+  </motion.div>
+);
+
 export default function Register() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -310,111 +416,7 @@ export default function Register() {
     setConfirmationResult(null);
   };
 
-  /* --- Sub-Components --- */
 
-  const FarmerBenefits = () => (
-    <motion.div
-      key="farmer-content"
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10 }}
-      transition={{ duration: 0.2 }}
-      className="register-dynamic-content"
-    >
-      <div className="register-role-tag">For Farmers 👨‍🌾</div>
-      <h2 className="register-role-heading">Sell directly. Earn more.</h2>
-      <p className="register-role-body">Join 500+ farmers already selling fresh produce directly to buyers across India with zero middlemen.</p>
-
-      <div className="register-benefits">
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><IndianRupee size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Fair Earnings</h4>
-            <p className="register-benefit-sub">Earn 40% more by selling direct</p>
-          </div>
-        </div>
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><ShieldCheck size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Secure Payments</h4>
-            <p className="register-benefit-sub">Fast settlements directly to your account</p>
-          </div>
-        </div>
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><Package size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Easy Listing</h4>
-            <p className="register-benefit-sub">Simple tools to manage inventory & pricing</p>
-          </div>
-        </div>
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><Users size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Large Buyer Network</h4>
-            <p className="register-benefit-sub">Access thousands of buyers across India</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="register-stats-strip">
-        <span className="register-stat-pill">500+ Farmers</span>
-        <span className="register-stat-pill">₹0 Joining Fee</span>
-        <span className="register-stat-pill">48hr Onboarding</span>
-      </div>
-    </motion.div>
-  );
-
-  const BuyerBenefits = () => (
-    <motion.div
-      key="buyer-content"
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10 }}
-      transition={{ duration: 0.2 }}
-      className="register-dynamic-content"
-    >
-      <div className="register-role-tag">For Buyers 🛒</div>
-      <h2 className="register-role-heading">Fresh produce. Fair prices.</h2>
-      <p className="register-role-body">Shop seasonal produce directly from local farmers. No preservatives, no markup — just fresh food delivered to your door.</p>
-
-      <div className="register-benefits">
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><Leaf size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Farm Fresh Always</h4>
-            <p className="register-benefit-sub">Harvested within 24 hours of delivery</p>
-          </div>
-        </div>
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><Tag size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Best Prices</h4>
-            <p className="register-benefit-sub">No middlemen means lower prices for you</p>
-          </div>
-        </div>
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><Truck size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Free Delivery</h4>
-            <p className="register-benefit-sub">Free delivery on orders above ₹299</p>
-          </div>
-        </div>
-        <div className="register-benefit-item">
-          <div className="register-benefit-icon"><Heart size={16} /></div>
-          <div>
-            <h4 className="register-benefit-title">Support Farmers</h4>
-            <p className="register-benefit-sub">Every purchase directly supports a family</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="register-stats-strip">
-        <span className="register-stat-pill">50k+ Happy Buyers</span>
-        <span className="register-stat-pill">Free above ₹299</span>
-        <span className="register-stat-pill">2-4 Day Delivery</span>
-      </div>
-    </motion.div>
-  );
 
   /* --- Render --- */
   return (
@@ -437,9 +439,11 @@ export default function Register() {
           <h1>Create your account</h1>
           <p className="register-tagline">Join our community to buy fresh produce or sell directly as a farmer.</p>
 
-          <AnimatePresence mode="wait">
-            {role === 'farmer' ? <FarmerBenefits /> : <BuyerBenefits />}
-          </AnimatePresence>
+          <div className="register-dynamic-wrapper">
+            <AnimatePresence mode="wait">
+              {role === 'farmer' ? <FarmerBenefitsContent key="farmer" /> : <BuyerBenefitsContent key="buyer" />}
+            </AnimatePresence>
+          </div>
 
           <div className="register-left-bottom">
             <span className="register-signin-text">Already have an account?</span>

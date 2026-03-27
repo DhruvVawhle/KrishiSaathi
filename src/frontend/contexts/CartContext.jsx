@@ -18,8 +18,8 @@ export const CartProvider = ({ children }) => {
   const [items, setItems] = useState([]);
   const unsubscribeCartRef = useRef(null);
 
-  const showToast = (product, qty) => {
-    toast.success(`${qty} x ${product.name} added to cart!`);
+  const showToast = (product, quantity) => {
+    toast.success(`${quantity} x ${product.name} added to cart!`);
   }
 
   // Realtime cart sync with User Isolation
@@ -52,7 +52,7 @@ export const CartProvider = ({ children }) => {
     return () => unsubscribe && unsubscribe();
   }, [user?.uid]);
 
-  const addToCart = async (product, qty = 1) => {
+  const addToCart = async (product, quantity = 1) => {
     if (!user?.uid) {
       toast.error("Please login to add items to cart");
       return;
@@ -68,7 +68,7 @@ export const CartProvider = ({ children }) => {
       newItems = items.map(i =>
         (i.id || i._id) ===
         (product.id || product._id)
-          ? { ...i, qty: i.qty + qty }
+          ? { ...i, quantity: (i.quantity || 0) + quantity }
           : i
       )
     } else {
@@ -79,14 +79,14 @@ export const CartProvider = ({ children }) => {
         unit: product.unit || 'kg',
         image: product.image || '',
         category: product.category || '',
-        qty,
+        quantity,
         farmerId: product.farmerId || 'demo'
       }]
     }
 
     setItems(newItems)
     await hybridService.syncCart(user.uid, newItems)
-    showToast(product, qty);
+    showToast(product, quantity);
     
     // Auto-open sidebar
     window.dispatchEvent(new CustomEvent("open-cart"));
@@ -101,14 +101,14 @@ export const CartProvider = ({ children }) => {
     await hybridService.syncCart(user.uid, newItems)
   }
 
-  const updateQuantity = async (id, qty) => {
+  const updateQuantity = async (id, quantity) => {
     if (!user?.uid) return;
-    if (qty <= 0) {
+    if (quantity <= 0) {
       return removeFromCart(id)
     }
     const newItems = items.map(i =>
       (i.id || i._id) === id
-        ? { ...i, qty }
+        ? { ...i, quantity }
         : i
     )
     setItems(newItems)
@@ -123,7 +123,7 @@ export const CartProvider = ({ children }) => {
   }
 
   const total = useMemo(() => 
-    items.reduce((sum, item) => sum + (item.price * item.qty), 0),
+    items.reduce((sum, item) => sum + (item.price * (item.quantity || 0)), 0),
   [items]);
 
   const value = {

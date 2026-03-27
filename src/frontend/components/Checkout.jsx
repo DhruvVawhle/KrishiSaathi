@@ -244,61 +244,71 @@ export default function Checkout() {
   }
 
   const saveOrder = async (orderPayload) => {
-    let orderSaved = false
-
-    // SAVE TO FIRESTORE
+    // PRIMARY — Save to Firestore
+    // Works on Vercel without backend
+    let firestoreSaved = false;
     try {
       const {
         collection,
         addDoc,
         serverTimestamp
-      } = await import('firebase/firestore')
-      const { db } = await import('../config/firebaseConfig')
-      await addDoc(
+      } = await import('firebase/firestore');
+      const { db } = await import('../config/firebaseConfig');
+
+      const docRef = await addDoc(
         collection(db, 'orders'),
         {
           ...orderPayload,
-          createdAt: serverTimestamp()
+          createdAt: serverTimestamp(),
+          source: 'web'
         }
-      )
-      console.log('✅ Order → Firestore:', orderPayload.orderId)
-      orderSaved = true
-    } catch (err) {
-      console.warn('Firestore order save:', err.message)
+      );
+
+      firestoreSaved = true;
+      console.log('✅ Order → Firestore:', docRef.id);
+    } catch (fsErr) {
+      console.warn('⚠️ Firestore order:', fsErr.message);
     }
 
-    // SAVE TO MONGODB
+    // SECONDARY — Save to MongoDB
+    // Works only on localhost
+    let mongoSaved = false;
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(orderPayload)
-      })
-      const data = await res.json()
-      if (res.ok) {
-        console.log('✅ Order → MongoDB:', orderPayload.orderId)
-        orderSaved = true
-      } else {
-        console.warn('MongoDB order save:', data.message)
+        body: JSON.stringify(orderPayload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      const contentType = res.headers.get('content-type');
+
+      if (res.ok && contentType?.includes('application/json')) {
+        mongoSaved = true;
+        console.log('✅ Order → MongoDB');
       }
-    } catch (err) {
-      console.warn('MongoDB order save:', err.message)
+    } catch (mongoErr) {
+      // MongoDB not available on Vercel — This is expected
+      console.warn('⚠️ MongoDB not available:', mongoErr.message);
     }
 
-    if (!orderSaved) {
-      throw new Error('Failed to save order to any database')
+    // If saved to at least one DB, consider it success
+    if (firestoreSaved || mongoSaved) {
+      await clearAllCart();
+      navigate('/thank-you', {
+        replace: true,
+        state: { orderId: orderPayload.orderId }
+      });
+    } else {
+      throw new Error('Failed to save order to any database. Please try again.');
     }
-
-    // Clear cart
-    await clearAllCart()
-
-    // Navigate to thank you
-    navigate('/thank-you', {
-      replace: true,
-      state: { orderId: orderPayload.orderId }
-    })
   }
 
   const processRazorpayPayment = async (orderPayload) => {

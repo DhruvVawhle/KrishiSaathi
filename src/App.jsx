@@ -23,6 +23,7 @@ const OrderHistory = lazy(() => import("./frontend/pages/OrderHistory"));
 const Checkout = lazy(() => import("./frontend/components/Checkout"));
 const PaymentForm = lazy(() => import("./frontend/components/PaymentForm"));
 const ServerStatus = lazy(() => import("./frontend/pages/ServerStatus"));
+const NotFound = lazy(() => import("./frontend/pages/NotFound"));
 
 // Regular imports for components used in layout or context
 import CartSidebar from "./frontend/components/CartSidebar";
@@ -34,7 +35,6 @@ import FarmerDashboardLayout from "./frontend/layouts/FarmerDashboardLayout";
 import FarmerProfile from "./frontend/layouts/FarmerProfile";
 import DashboardStats from "./frontend/components/DashboardStats";
 import AccountSettings from "./frontend/layouts/AccountSettings";
-import ErrorBoundary from "./frontend/components/ErrorBoundary";
 import { NotificationProvider } from "./frontend/contexts/NotificationContext";
 
 const LoadingFallback = () => (
@@ -102,7 +102,6 @@ function App() {
     <ToastProvider>
       <Router>
         <ProductProvider>
-          <ErrorBoundary>
             <NotificationProvider>
               <CartProvider>
                 <ToastContainer position="top-right" />
@@ -126,14 +125,16 @@ function App() {
               <Route path="/thank-you/:id" element={<ThankYou />} />
 
               {/* 👨‍🌾 Farmer Dashboard (Custom Layout within component) */}
-              <Route
-                path="/farmer-dashboard"
-                element={
-                  <ProtectedRoute role="farmer">
-                    <FarmerDashboard />
-                  </ProtectedRoute>
-                }
-              />
+                <Route
+                  path="/farmer-dashboard/*"
+                  element={
+                    <ProtectedRoute role="farmer">
+                      <Routes>
+                        <Route index element={<FarmerDashboard />} />
+                      </Routes>
+                    </ProtectedRoute>
+                  }
+                />
 
               {/* 👨‍🌾 Farmer Other Protected Routes (layout + nested children) */}
               <Route element={<FarmerDashboardLayout />}>
@@ -173,14 +174,16 @@ function App() {
               </Route>
 
               {/* Dashboard Protected Route (Custom Layout within component) */}
-              <Route
-                path="/buyer-dashboard"
-                element={
-                  <ProtectedRoute role="buyer">
-                    <BuyerDashboard />
-                  </ProtectedRoute>
-                }
-              />
+                <Route
+                  path="/buyer-dashboard/*"
+                  element={
+                    <ProtectedRoute role="buyer">
+                      <Routes>
+                        <Route index element={<BuyerDashboard />} />
+                      </Routes>
+                    </ProtectedRoute>
+                  }
+                />
 
               {/* 🛍️ Buyer Protected Routes (use main Layout) */}
               <Route element={<Layout />}>
@@ -235,8 +238,7 @@ function App() {
               </Route>
 
               {/* 🧾 Common Protected Routes */}
-              <Route
-                path="/checkout"
+              <Route path="/checkout"
                 element={
                   <ProtectedRoute>
                     <Checkout />
@@ -244,12 +246,12 @@ function App() {
                 }
               />
               <Route path="/status" element={<ServerStatus />} />
+              <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
           <CartSidebar open={cartOpen} onClose={() => setCartOpen(false)} />
               </CartProvider>
             </NotificationProvider>
-          </ErrorBoundary>
         </ProductProvider>
       </Router>
     </ToastProvider>

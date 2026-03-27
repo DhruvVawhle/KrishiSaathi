@@ -1,4 +1,5 @@
 // src/backend/routes/users.js
+import "../utils/env.js";
 import express from "express";
 import User from "../models/User.js";
 import { initFirebaseFromEnv, verifyToken } from "../utils/verifyFirebaseToken.js";

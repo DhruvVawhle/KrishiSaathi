@@ -431,21 +431,19 @@ const FarmerDashboard = () => {
     const price = parseFloat(sellingPrice || 0)
     const qty = parseFloat(quantity || 0)
 
-    // Total cost per kg
+    // Total cost entered (raw sum)
     const seedCost = parseFloat(costs.seedCost || 0)
     const laborCost = parseFloat(costs.laborCost || 0)
     const transportCost = parseFloat(costs.transportCost || 0)
     const otherCost = parseFloat(costs.otherCost || 0)
+    const rawCostTotal = seedCost + laborCost + transportCost + otherCost
 
     // Platform fee 2%
     const platformFee = price * 0.02
 
-    const totalCostPerKg =
-      seedCost +
-      laborCost +
-      transportCost +
-      otherCost +
-      platformFee
+    // Divide by quantity to get per-kg cost
+    const costPerKg = qty > 0 ? rawCostTotal / qty : rawCostTotal
+    const totalCostPerKg = costPerKg + platformFee
 
     // Per kg calculations
     const profitPerKg = price - totalCostPerKg
@@ -2012,7 +2010,7 @@ const FarmerDashboard = () => {
                           gridTemplateColumns: '1fr 1fr',
                           gap: 8
                         }}>
-                          {[
+                        {[
                             {
                               key: 'seedCost',
                               label: 'Seeds/Plants',
@@ -2070,6 +2068,155 @@ const FarmerDashboard = () => {
                             </div>
                           ))}
                         </div>
+
+                        {/* ── Live Cost Total ── */}
+                        {(() => {
+                          const rawTotal = (
+                            parseFloat(costInputs.seedCost || 0) +
+                            parseFloat(costInputs.laborCost || 0) +
+                            parseFloat(costInputs.transportCost || 0) +
+                            parseFloat(costInputs.otherCost || 0)
+                          );
+                          const hasCosts = rawTotal > 0;
+                          const qty = parseFloat(newProduct.quantity || 0);
+                          // If quantity is entered, divide total costs by qty to get per-kg cost
+                          const costPerKg = qty > 0 ? rawTotal / qty : rawTotal;
+                          const costPerKgRounded = Math.round(costPerKg * 100) / 100;
+                          const price = parseFloat(newProduct.price || 0);
+                          const suggestedPrice = Math.ceil(costPerKgRounded * 1.20); // 20% margin
+                          return hasCosts ? (
+                            <div style={{
+                              marginTop: 12,
+                              padding: '10px 12px',
+                              background: '#FDFAF4',
+                              borderRadius: 10,
+                              border: '1.5px solid #EDD9B040'
+                            }}>
+                              {/* Raw total entered */}
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: qty > 0 ? 4 : 6
+                              }}>
+                                <span style={{
+                                  fontFamily: 'DM Sans',
+                                  fontWeight: 600,
+                                  fontSize: 10,
+                                  color: '#B0A898',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em'
+                                }}>
+                                  Total Costs Entered
+                                </span>
+                                <span style={{
+                                  fontFamily: 'DM Sans',
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  color: '#7A7A7A'
+                                }}>
+                                  ₹{rawTotal.toFixed(2)}
+                                </span>
+                              </div>
+
+                              {/* Per-kg cost (main highlight) */}
+                              {qty > 0 && (
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: 6,
+                                  paddingTop: 4,
+                                  borderTop: '1px dashed #EDD9B0'
+                                }}>
+                                  <span style={{
+                                    fontFamily: 'DM Sans',
+                                    fontWeight: 700,
+                                    fontSize: 11,
+                                    color: '#7A7A7A',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                  }}>
+                                    Cost per kg (÷ {qty})
+                                  </span>
+                                  <span style={{
+                                    fontFamily: 'DM Sans',
+                                    fontWeight: 800,
+                                    fontSize: 18,
+                                    color: '#FF5252'
+                                  }}>
+                                    ₹{costPerKgRounded}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Per-kg if no quantity */}
+                              {qty <= 0 && (
+                                <div style={{
+                                  fontFamily: 'DM Sans',
+                                  fontSize: 10,
+                                  color: '#B0A898',
+                                  marginBottom: 6
+                                }}>
+                                  Enter quantity to see per-kg breakdown
+                                </div>
+                              )}
+
+                              {/* Profit/loss per kg */}
+                              {price > 0 && (
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: 6,
+                                  paddingTop: 6,
+                                  borderTop: '1px dashed #EDD9B0'
+                                }}>
+                                  <span style={{
+                                    fontFamily: 'DM Sans',
+                                    fontSize: 11,
+                                    color: '#7A7A7A'
+                                  }}>
+                                    Profit per kg
+                                  </span>
+                                  <span style={{
+                                    fontFamily: 'DM Sans',
+                                    fontWeight: 800,
+                                    fontSize: 14,
+                                    color: price >= costPerKgRounded ? '#4CAF50' : '#FF5252'
+                                  }}>
+                                    {price >= costPerKgRounded ? '✅' : '❌'}{' '}
+                                    ₹{Math.round((price - costPerKgRounded) * 100) / 100}/kg
+                                  </span>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setNewProduct(prev => ({
+                                  ...prev,
+                                  price: String(suggestedPrice)
+                                }))}
+                                style={{
+                                  width: '100%',
+                                  marginTop: 6,
+                                  padding: '7px 12px',
+                                  background: 'linear-gradient(135deg, #2D4F1E, #3D6B2A)',
+                                  border: 'none',
+                                  borderRadius: 8,
+                                  color: 'white',
+                                  fontFamily: 'DM Sans',
+                                  fontWeight: 700,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                  boxShadow: '0 2px 6px rgba(45,79,30,0.2)'
+                                }}
+                              >
+                                Use ₹{suggestedPrice}/kg as Price (cost + 20% profit)
+                              </button>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
 
                       {/* Profit Analysis Result */}

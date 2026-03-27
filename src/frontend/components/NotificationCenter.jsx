@@ -26,9 +26,6 @@ const NotificationCenter = () => {
   const panelRef = useRef(null);
   const navigate = useNavigate();
 
-  // 🔥 CRITICAL: Hide if no user
-  if (!user?.uid) return null;
-
   // ✅ Click outside to close
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -44,6 +41,9 @@ const NotificationCenter = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
+
+  // 🔥 CRITICAL: Hide if no user
+  if (!user?.uid) return null;
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

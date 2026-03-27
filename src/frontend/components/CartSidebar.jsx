@@ -12,7 +12,8 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
 import "./CartSidebar.css";
 
-const IMAGE_FALLBACK = "https://via.placeholder.com/320x240?text=No+image";
+// SVG fallback - no external dependency
+const IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='240'%3E%3Crect fill='%23E8E8E8' width='320' height='240'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23999' text-anchor='middle' dy='.3em'%3ENo Image%3C/text%3E%3C/svg%3E";
 const FREE_DELIVERY_THRESHOLD = 499;
 const DELIVERY_FEE = 40;
 

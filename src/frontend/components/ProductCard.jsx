@@ -132,11 +132,11 @@ export default function ProductCard({ product, refreshProducts = () => {} }) {
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100" />
         )}
         <img
-          src={product.image || "https://via.placeholder.com/240"}
+          src={product.image || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Crect fill='%23E8E8E8' width='240' height='240'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23999' text-anchor='middle' dy='.3em'%3ENo Image%3C/text%3E%3C/svg%3E"}
           alt={product.name}
           onLoad={() => setImgLoaded(true)}
           onError={(e) => {
-            e.target.src = "https://via.placeholder.com/240?text=No+Image";
+            e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Crect fill='%23E8E8E8' width='240' height='240'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23999' text-anchor='middle' dy='.3em'%3ENo Image%3C/text%3E%3C/svg%3E";
             setImgLoaded(true);
           }}
           loading="lazy"

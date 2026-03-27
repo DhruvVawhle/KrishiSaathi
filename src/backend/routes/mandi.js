@@ -25,6 +25,8 @@ const runPython = (args, timeout = 15000) => {
         ? 'python'
         : 'python3'
 
+    console.log('[runPython] Spawning:', pythonCmd, scriptPath, args)
+
     const proc = spawn(pythonCmd, [
       scriptPath, ...args
     ])
@@ -34,6 +36,7 @@ const runPython = (args, timeout = 15000) => {
 
     const timer = setTimeout(() => {
       proc.kill()
+      console.error('[runPython] TIMEOUT after', timeout, 'ms')
       reject(new Error('Python timeout'))
     }, timeout)
 
@@ -45,6 +48,10 @@ const runPython = (args, timeout = 15000) => {
     })
     proc.on('close', code => {
       clearTimeout(timer)
+      console.log('[runPython] Process ended with code', code)
+      if (error) console.error('[runPython] stderr:', error)
+      if (output) console.log('[runPython] stdout:', output.substring(0, 200))
+      
       if (code !== 0 && !output) {
         reject(new Error(
           error || 'Python script failed'
@@ -53,9 +60,10 @@ const runPython = (args, timeout = 15000) => {
       }
       try {
         resolve(JSON.parse(output.trim()))
-      } catch {
+      } catch (parseErr) {
+        console.error('[runPython] JSON parse error:', parseErr.message)
         reject(new Error(
-          'Invalid Python output: ' + output
+          'Invalid Python output: ' + output.substring(0, 200)
         ))
       }
     })
@@ -428,16 +436,31 @@ router.get('/compare', async (req, res) => {
   try {
     // Get mandi rates
     let rates = []
+    
+    // First try API
     try {
       const live = await fetchLiveMandiData(commodity, 10)
       rates = live.filter(r => 
         r.state.toLowerCase() === state.toLowerCase()
       )
-    } catch {
-      const csv = await runPython([
-        'csv', commodity, state
-      ])
-      rates = Array.isArray(csv) ? csv : []
+    } catch (apiErr) {
+      console.log('[Compare] API fetch failed:', apiErr.message)
+    }
+    
+    // If API failed or no results, try Python CSV fallback
+    if (!rates.length) {
+      try {
+        console.log('[Compare] Trying Python CSV fallback for', commodity, state)
+        const csv = await runPython([
+          'csv', commodity, state
+        ])
+        rates = Array.isArray(csv) ? csv : []
+        if (rates.length) {
+          console.log('[Compare] ✅ CSV fallback returned', rates.length, 'records')
+        }
+      } catch (pyErr) {
+        console.error('[Compare] Python fallback failed:', pyErr.message)
+      }
     }
 
     if (!rates.length) {

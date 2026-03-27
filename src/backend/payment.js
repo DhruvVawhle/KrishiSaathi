@@ -1,7 +1,7 @@
 // src/backend/paymentServer.js
+import "./utils/env.js";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import paymentRoutes from "./routes/payment.js";
 
 import path from "path";
@@ -9,8 +9,6 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 

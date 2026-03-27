@@ -20,51 +20,16 @@ import "./BuyerProfile.css";
 const API_BASE = "/api/payment";
 
 // --- MOCK ORDERS ---
-const mockOrders = [
-  {
-    id: "#KS-20240312",
-    date: "12 Mar 2024",
-    status: "Delivered",
-    items: 3,
-    total: "₹245",
-    products: [
-      { name: "Tomato", qty: 2, img: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=100&q=80" },
-      { name: "Spinach", qty: 1, img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&q=80" },
-      { name: "Potato", qty: 3, img: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=100&q=80" }
-    ]
-  },
-  {
-    id: "#KS-20240308",
-    date: "8 Mar 2024",
-    status: "Processing",
-    items: 2,
-    total: "₹150",
-    products: [
-      { name: "Apple", qty: 2, img: "https://images.unsplash.com/photo-1560806887-1e4cd0b6fac6?w=100&q=80" },
-      { name: "Banana", qty: 1, img: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=100&q=80" }
-    ]
-  },
-  {
-    id: "#KS-20240228",
-    date: "28 Feb 2024",
-    status: "Delivered",
-    items: 2,
-    total: "₹90",
-    products: [
-      { name: "Rice", qty: 1, img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=100&q=80" },
-      { name: "Wheat Flour", qty: 1, img: "https://images.unsplash.com/photo-1598282367507-eedf61a15a81?w=100&q=80" }
-    ]
-  }
-];
+// Real orders will be fetched from API and stored in state
 
 
 export default function BuyerProfile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const toast = useToast();
 
-  // Profile Data State
+  // 1. All State Hooks
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState({
     fullName: "",
     phone: "",
@@ -72,82 +37,95 @@ export default function BuyerProfile() {
     city: "",
     pincode: "",
   });
-
-  // UI States
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('orders');
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Orders Filters
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [orderFilter, setOrderFilter] = useState('All');
   const [orderSearch, setOrderSearch] = useState('');
-
-  // Notifications State
   const [notifSettings, setNotifSettings] = useState({
     orderUpdates: true,
     promotions: false,
     newArrivals: true
   });
 
-  // Load User Data
+  // 2. Memo Hooks
+  const totalSpent = React.useMemo(() => orders.reduce((sum, o) => sum + (o.total || 0), 0), [orders]);
+  const loyaltyPoints = Math.floor(totalSpent / 10);
+  const tierInfo = React.useMemo(() => {
+    const pts = loyaltyPoints;
+    if (pts >= 3000) return { tier: "Platinum", next: 0, progress: 100 };
+    if (pts >= 1500) return { tier: "Gold", next: 3000 - pts, progress: ((pts - 1500) / 1500) * 100 };
+    if (pts >= 500) return { tier: "Silver", next: 1500 - pts, progress: ((pts - 500) / 1000) * 100 };
+    return { tier: "Bronze", next: 500 - pts, progress: (pts / 500) * 100 };
+  }, [loyaltyPoints]);
+
+  const joinDate = React.useMemo(() => user?.metadata?.creationTime 
+    ? new Date(user.metadata.creationTime).toLocaleDateString('en-IN', { year: 'numeric', month: 'long' }) 
+    : "March 2024", [user]);
+
+  const filteredOrders = React.useMemo(() => orders.filter(o => {
+    const statusMatch = orderFilter === 'All' || (o.status || 'confirmed').toLowerCase() === orderFilter.toLowerCase();
+    const searchMatch = !orderSearch || (o.orderId || '').toLowerCase().includes(orderSearch.toLowerCase());
+    return statusMatch && searchMatch;
+  }), [orders, orderFilter, orderSearch]);
+
+  // 3. Effect Hooks
   useEffect(() => {
-    // 1. Instantly load cached profile to eliminate perceived UI waiting time
     const cached = localStorage.getItem("buyerProfile");
-    if (cached) {
-      try { setProfileData(JSON.parse(cached)); } catch (e) { }
-    }
+    if (cached) { try { setProfileData(JSON.parse(cached)); } catch (e) { } }
+
+    const fetchOrders = async (uid) => {
+      setLoadingOrders(true);
+      try {
+        const token = localStorage.getItem('idToken') || localStorage.getItem('ks_token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`/api/orders/user/${uid}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const fetched = Array.isArray(data.orders) ? data.orders : (Array.isArray(data) ? data : []);
+          setOrders(fetched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+        }
+      } catch (err) { console.error("Profile orders fetch failed:", err); }
+      finally { setLoadingOrders(false); }
+    };
 
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
+      if (!u) { setUser(null); setLoading(false); return; }
       setUser(u);
-
+      fetchOrders(u.uid);
       try {
         const userRef = doc(db, "buyers", u.uid);
         const snap = await getDoc(userRef);
         if (snap.exists()) {
           const fetchedData = snap.data();
           setProfileData(prev => ({ ...prev, ...fetchedData }));
-          // Cache the latest verified profile data
           localStorage.setItem("buyerProfile", JSON.stringify({ ...(cached ? JSON.parse(cached) : {}), ...fetchedData }));
-        } else {
-          setProfileData(prev => ({ ...prev, fullName: u.displayName || "" }));
-        }
-      } catch (err) {
-        console.error("Failed to load profile from Firestore:", err);
-      } finally {
-        setLoading(false);
-      }
+        } else { setProfileData(prev => ({ ...prev, fullName: u.displayName || "" })); }
+      } catch (err) { console.error("Failed to load profile:", err); }
+      finally { setLoading(false); }
     });
     return () => unsub();
   }, []);
 
-  // Save Settings logic
+  /* --- Handlers --- */
   const handleSaveSettings = async () => {
     if (!user) return;
     setIsSaving(true);
-
     try {
       const userRef = doc(db, "buyers", user.uid);
       await setDoc(userRef, { ...profileData, updatedAt: serverTimestamp() }, { merge: true });
-      if (user.displayName !== profileData.fullName) {
-        await updateAuthProfile(user, { displayName: profileData.fullName });
-      }
+      if (user.displayName !== profileData.fullName) { await updateAuthProfile(user, { displayName: profileData.fullName }); }
       toast.success("Profile saved successfully");
       localStorage.setItem("buyerProfile", JSON.stringify({ ...profileData }));
       setIsEditMode(false);
-    } catch (err) {
-      toast.error("Failed to save profile");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (err) { toast.error("Failed to save profile"); }
+    finally { setIsSaving(false); }
   };
 
-  // Utils
   const handleCopyEmail = () => {
     if (user?.email) {
       navigator.clipboard.writeText(user.email);
@@ -161,13 +139,6 @@ export default function BuyerProfile() {
     if (user?.email) return user.email[0].toUpperCase();
     return "U";
   };
-
-  // Filtered orders
-  const filteredOrders = mockOrders.filter(o => {
-    const matchesMatch = orderFilter === 'All' || o.status === orderFilter;
-    const searchMatch = !orderSearch || o.id.toLowerCase().includes(orderSearch.toLowerCase());
-    return matchesMatch && searchMatch;
-  });
 
   if (loading) {
     return (
@@ -223,7 +194,7 @@ export default function BuyerProfile() {
         <div className="bp-hero-bg-dots" />
 
         <Link to="/" className="bp-breadcrumb">← Back to Home</Link>
-        <div className="bp-join-date">Member since March 2024</div>
+        <div className="bp-join-date">Member since {joinDate}</div>
 
         <div className="bp-hero-content">
           <div className="bp-avatar-wrapper">
@@ -252,19 +223,19 @@ export default function BuyerProfile() {
         className="bp-stats-strip"
       >
         <div className="bp-stat-item">
-          <h3 className="bp-stat-value">3</h3>
+          <h3 className="bp-stat-value">{orders.length}</h3>
           <p className="bp-stat-label">TOTAL ORDERS</p>
         </div>
         <div className="bp-stat-item">
-          <h3 className="bp-stat-value">₹485</h3>
+          <h3 className="bp-stat-value">₹{Math.floor(totalSpent)}</h3>
           <p className="bp-stat-label">TOTAL SPENT</p>
         </div>
         <div className="bp-stat-item">
-          <h3 className="bp-stat-value">240</h3>
+          <h3 className="bp-stat-value">{loyaltyPoints}</h3>
           <p className="bp-stat-label">LOYALTY POINTS</p>
         </div>
         <div className="bp-stat-item">
-          <h3 className="bp-stat-value gold">Gold</h3>
+          <h3 className={`bp-stat-value ${tierInfo.tier.toLowerCase()}`}>{tierInfo.tier}</h3>
           <p className="bp-stat-label">MEMBER TIER</p>
         </div>
       </motion.div>
@@ -356,14 +327,14 @@ export default function BuyerProfile() {
             <div className="bp-loyalty-tag">Rewards</div>
             <div className="bp-loyalty-title">🌾 Loyalty Points</div>
             <div className="bp-loyalty-pts">
-              240 <span className="bp-loyalty-pts-txt">points available</span>
+              {loyaltyPoints} <span className="bp-loyalty-pts-txt">points available</span>
             </div>
             <div className="bp-progress-labels">
-              <span className="bp-prog-tier">Gold Member</span>
-              <span className="bp-prog-next">260 pts to Platinum</span>
+              <span className="bp-prog-tier">{tierInfo.tier} Member</span>
+              {tierInfo.next > 0 && <span className="bp-prog-next">{tierInfo.next} pts to next tier</span>}
             </div>
             <div className="bp-progress-bg">
-              <div className="bp-progress-fill" style={{ width: '48%' }} />
+              <div className="bp-progress-fill" style={{ width: `${tierInfo.progress}%` }} />
             </div>
             <button className="bp-loyalty-btn">Redeem Points</button>
           </div>
@@ -401,7 +372,7 @@ export default function BuyerProfile() {
         >
           <div className="bp-tabs-header">
             <button onClick={() => setActiveTab('orders')} className={`bp-tab ${activeTab === 'orders' ? 'active' : ''}`}>
-              📦 Orders <span className="bp-tab-badge">3</span>
+              📦 Orders <span className="bp-tab-badge">{orders.length}</span>
             </button>
             <button onClick={() => setActiveTab('wishlist')} className={`bp-tab ${activeTab === 'wishlist' ? 'active' : ''}`}>
               ❤ Wishlist <span className="bp-tab-badge">0</span>
@@ -459,21 +430,21 @@ export default function BuyerProfile() {
                           </div>
 
                           <div className="bp-oc-products">
-                            {order.products.map((p, i) => (
+                            {(order.items || []).map((p, i) => (
                               <div key={i} className="bp-chip">
-                                <img src={p.img} alt={p.name} className="bp-chip-img" />
+                                <img src={p.image || "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=100&q=80"} alt={p.name} className="bp-chip-img" />
                                 <span className="bp-chip-name">{p.name}</span>
-                                <span className="bp-chip-qty">×{p.qty}</span>
+                                <span className="bp-chip-qty">×{p.quantity || p.qty}</span>
                               </div>
                             ))}
                           </div>
 
                           <div className="bp-oc-footer">
-                            <span className="bp-oc-items">{order.items} items</span>
-                            <span className="bp-oc-total">{order.total}</span>
+                            <span className="bp-oc-items">{(order.items || []).length} items</span>
+                            <span className="bp-oc-total">₹{order.total || order.totalAmount || 0}</span>
                             <div className="bp-oc-actions">
                               <button className="bp-btn-view">View Details</button>
-                              {order.status === 'Delivered' && (
+                              {(order.status === 'Delivered' || (order.status || '').toLowerCase() === 'delivered') && (
                                 <button className="bp-btn-action">Reorder</button>
                               )}
                             </div>
