@@ -13,8 +13,7 @@ import {
 } from "firebase/firestore";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { useToast } from "@/frontend/contexts/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, FileText, ChevronLeft, ChevronRight, Search as SearchIcon } from "lucide-react";
 
@@ -51,6 +50,7 @@ const statusClasses = {
 const PAGE_SIZE = 8;
 
 const BuyerOrders = () => {
+  const toast = useToast();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [queryText, setQueryText] = useState("");
@@ -65,7 +65,7 @@ const BuyerOrders = () => {
   useEffect(() => {
     const role = localStorage.getItem("userRole");
     if (role && role !== "buyer") {
-      toast.warn("Access denied — buyers only");
+      toast.warning("Access denied — buyers only");
       setTimeout(() => (window.location.href = "/"), 1200);
     }
   }, []);

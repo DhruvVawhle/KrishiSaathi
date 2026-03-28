@@ -18,6 +18,7 @@ const Input = ({
   inputStyle = {},
   rightIcon,
   id,
+  noMargin,
   ...props
 }) => {
   const generatedId = useId()

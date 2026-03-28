@@ -105,7 +105,7 @@ const Layout = ({ children }) => {
   const handleCloseCart = () => { /* No longer used locally */ };
 
   // Hide floating cart on specific routes
-  const hideFloatingCart = ["/checkout", "/login", "/payment", "/thank-you"].some(
+  const hideFloatingCart = ["/checkout", "/login", "/payment", "/thank-you", "/payment-failure"].some(
     (r) => location.pathname.startsWith(r)
   );
 

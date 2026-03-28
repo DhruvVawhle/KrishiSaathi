@@ -16,7 +16,7 @@ import { motion } from "framer-motion";
 import { useCart } from "@/frontend/contexts/CartContext";
 import { useUser } from "@/frontend/contexts/UserContext";
 import { getAuth, signOut } from "firebase/auth";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 
 /* 🌿 ModernLayout — Polished Production Version
    - Responsive Sidebar (with backdrop & scroll-lock)
@@ -57,6 +57,7 @@ function useTheme() {
 }
 
 export default function ModernLayout({ children }) {
+  const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useTheme();
   const navigate = useNavigate();
@@ -102,28 +103,7 @@ export default function ModernLayout({ children }) {
       // fallback: clear local user state if firebase signOut fails
       try { clearUser(); } catch (err) {}
     }
-    toast.success("You've been logged out. See you soon! 👋", {
-      toastId: 'logout',
-      icon: '👋',
-      style: {
-        background: '#1a3a1a',
-        color: '#ffffff',
-        borderRadius: '12px',
-        border: '1px solid rgba(255,255,255,0.15)',
-        fontFamily: 'inherit',
-        fontSize: '14px',
-        fontWeight: '500',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-        backdropFilter: 'blur(8px)',
-        minWidth: '280px',
-      },
-      progressStyle: { background: '#c17a4a' },
-      position: 'top-right',
-      autoClose: 3000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-    });
+    toast.success("You've been logged out. See you soon! 👋");
     navigate("/login", { replace: true });
   };
 

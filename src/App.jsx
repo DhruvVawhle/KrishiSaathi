@@ -19,16 +19,22 @@ const Register = lazy(() => import("./frontend/pages/Register"));
 const ForgotPassword = lazy(() => import("./frontend/pages/ForgotPassword"));
 const BuyerProfile = lazy(() => import("./frontend/pages/BuyerProfile"));
 const ThankYou = lazy(() => import("./frontend/pages/ThankYou"));
+const PaymentFailure = lazy(() => import("./frontend/pages/PaymentFailure"));
 const OrderHistory = lazy(() => import("./frontend/pages/OrderHistory"));
 const Checkout = lazy(() => import("./frontend/components/Checkout"));
 const PaymentForm = lazy(() => import("./frontend/components/PaymentForm"));
 const ServerStatus = lazy(() => import("./frontend/pages/ServerStatus"));
+const EInvoiceForm = lazy(() => import("./frontend/pages/EInvoiceForm"));
+const AvatarDemo = lazy(() => import("./frontend/pages/AvatarDemo"));
 const NotFound = lazy(() => import("./frontend/pages/NotFound"));
 
 // Regular imports for components used in layout or context
 import CartSidebar from "./frontend/components/CartSidebar";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+// Mantine imports
+import { MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 import Layout from "./frontend/components/Layout";
 import ProtectedRoute from "./frontend/components/ProtectedRoute";
 import FarmerDashboardLayout from "./frontend/layouts/FarmerDashboardLayout";
@@ -72,39 +78,16 @@ function App() {
     return () => window.removeEventListener("open-cart", openCartHandler);
   }, []);
 
-  // Global toast deduper
-  useEffect(() => {
-    const lastShown = new Map();
-    const wrap = (name) => {
-      const orig = toast[name];
-      if (typeof orig !== "function") return;
-      toast[name] = (message, opts) => {
-        try {
-          const key = `${name}::${String(message)}`;
-          const now = Date.now();
-          const prev = lastShown.get(key) || 0;
-          if (now - prev < 800) return;
-          lastShown.set(key, now);
-        } catch (e) {
-          // ignore
-        }
-        return orig(message, opts);
-      };
-    };
-
-    ["success", "info", "warn", "error"].forEach(wrap);
-    return () => {
-      // no-op
-    };
-  }, []);
+  // No-op deduper (Logic now handled by Mantine Notifications)
 
   return (
-    <ToastProvider>
+    <MantineProvider>
+      <Notifications position="top-right" zIndex={9999} />
+      <ToastProvider>
       <Router>
         <ProductProvider>
             <NotificationProvider>
               <CartProvider>
-                <ToastContainer position="top-right" />
 
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
@@ -116,6 +99,7 @@ function App() {
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/support" element={<Support />} />
+                <Route path="/avatar-demo" element={<AvatarDemo />} />
               </Route>
               {/* Standalone routes (own layout) */}
               <Route path="/login" element={<Login />} />
@@ -123,6 +107,8 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/thank-you" element={<ThankYou />} />
               <Route path="/thank-you/:id" element={<ThankYou />} />
+              <Route path="/payment-failure" element={<PaymentFailure />} />
+              <Route path="/einvoice" element={<EInvoiceForm />} />
 
               {/* 👨‍🌾 Farmer Dashboard (Custom Layout within component) */}
                 <Route
@@ -254,7 +240,8 @@ function App() {
             </NotificationProvider>
         </ProductProvider>
       </Router>
-    </ToastProvider>
+      </ToastProvider>
+    </MantineProvider>
   );
 }
 

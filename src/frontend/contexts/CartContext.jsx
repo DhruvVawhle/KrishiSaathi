@@ -6,7 +6,7 @@ import React, {
   useState,
   useRef
 } from "react";
-import { toast } from "react-toastify";
+import { useToast } from "./ToastContext";
 import * as hybridService from '../services/hybridService';
 import { useUser } from './UserContext';
 
@@ -15,6 +15,7 @@ export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }) => {
   const { user } = useUser();
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const unsubscribeCartRef = useRef(null);
 

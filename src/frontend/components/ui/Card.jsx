@@ -1,17 +1,19 @@
-import React from 'react'
-import { motion } from 'framer-motion'
+import * as React from "react"
+import { motion } from "framer-motion"
+import { cn } from "@/frontend/lib/utils"
 
-const Card = ({
-  children,
+function Card({
+  className,
   hoverable = false,
-  padding = 24,
-  radius = 20,
+  padding,
+  radius,
   onClick,
   style = {},
-  animate = true,
+  animate = false,
+  children,
   ...props
-}) => {
-  const Component = animate ? motion.div : 'div'
+}) {
+  const Component = animate ? motion.div : "div"
   const motionProps = animate ? {
     initial: { opacity: 0, y: 16 },
     animate: { opacity: 1, y: 0 },
@@ -20,41 +22,107 @@ const Card = ({
 
   return (
     <Component
+      data-slot="card"
       onClick={onClick}
       {...motionProps}
+      className={cn(
+        "flex flex-col gap-6 rounded-xl border bg-card text-card-foreground shadow-sm",
+        hoverable && "transition-all hover:-translate-y-1 hover:shadow-lg hover:border-[var(--color-primary)]",
+        className
+      )}
       style={{
-        background: '#FDFAF4',
-        borderRadius: radius,
-        border: '1.5px solid #EDD9B0',
-        boxShadow:
-          '0 2px 10px rgba(45,79,30,0.07)',
-        padding,
-        cursor: onClick ? 'pointer' : 'default',
-        transition:
-          'transform 220ms, box-shadow 220ms',
+        padding: padding !== undefined ? padding : undefined,
+        borderRadius: radius !== undefined ? radius : undefined,
         ...style
       }}
-      onMouseEnter={hoverable ? e => {
-        e.currentTarget.style.transform =
-          'translateY(-4px)'
-        e.currentTarget.style.boxShadow =
-          '0 8px 32px rgba(45,79,30,0.14)'
-        e.currentTarget.style.borderColor =
-          '#2D4F1E'
-      } : undefined}
-      onMouseLeave={hoverable ? e => {
-        e.currentTarget.style.transform =
-          'translateY(0)'
-        e.currentTarget.style.boxShadow =
-          '0 2px 10px rgba(45,79,30,0.07)'
-        e.currentTarget.style.borderColor =
-          '#EDD9B0'
-      } : undefined}
       {...props}
     >
       {children}
     </Component>
-  )
+  );
+}
+
+function CardHeader({
+  className,
+  ...props
+}) {
+  return (
+    <div
+      data-slot="card-header"
+      className={cn(
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        className
+      )}
+      {...props} />
+  );
+}
+
+function CardTitle({
+  className,
+  ...props
+}) {
+  return (
+    <div
+      data-slot="card-title"
+      className={cn("leading-none font-semibold", className)}
+      {...props} />
+  );
+}
+
+function CardDescription({
+  className,
+  ...props
+}) {
+  return (
+    <div
+      data-slot="card-description"
+      className={cn("text-sm text-muted-foreground", className)}
+      {...props} />
+  );
+}
+
+function CardAction({
+  className,
+  ...props
+}) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn(
+        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+        className
+      )}
+      {...props} />
+  );
+}
+
+function CardContent({
+  className,
+  ...props
+}) {
+  return (<div data-slot="card-content" className={cn("px-6", className)} {...props} />);
+}
+
+function CardFooter({
+  className,
+  ...props
+}) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      {...props} />
+  );
+}
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardAction,
+  CardDescription,
+  CardContent,
 }
 
 export default Card

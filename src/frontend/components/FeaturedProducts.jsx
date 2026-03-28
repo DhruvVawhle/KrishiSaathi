@@ -13,11 +13,12 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "@/frontend/contexts/CartContext";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 
 const fallbackImage = "https://cdn-icons-png.flaticon.com/512/415/415733.png";
 
 const FeaturedProducts = () => {
+  const toast = useToast();
   const navigate = useNavigate();
   const { addToCart } = useCart?.() || {};
   const [quickProduct, setQuickProduct] = useState(null);

@@ -1,7 +1,7 @@
 // ✅ src/components/ProductCard.jsx (Enhanced v2)
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 import { ShoppingCart, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Button from "./ui/Button";
@@ -9,6 +9,7 @@ import Button from "./ui/Button";
 const API_BASE = "/api/payment";
 
 export default function ProductCard({ product, refreshProducts = () => {} }) {
+  const toast = useToast();
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [selectedQty, setSelectedQty] = useState(1);
@@ -58,7 +59,7 @@ export default function ProductCard({ product, refreshProducts = () => {} }) {
     // ✅ Login check
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
     if (!isLoggedIn) {
-      toast.warn("Please login first to add items to cart.");
+      toast.warning("Please login first to add items to cart.");
       setTimeout(() => navigate("/login"), 1200);
       return;
     }
@@ -101,7 +102,7 @@ export default function ProductCard({ product, refreshProducts = () => {} }) {
   const handleBuyNow = () => {
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
     if (!isLoggedIn) {
-      toast.warn("Please login before purchasing.");
+      toast.warning("Please login before purchasing.");
       setTimeout(() => navigate("/login"), 1200);
       return;
     }

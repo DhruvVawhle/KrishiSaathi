@@ -23,12 +23,13 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 
 const COLORS = ["#16A34A", "#4CAF50", "#A3E635", "#F59E0B", "#EF4444"];
 const tinyAnimate = { whileHover: { y: -3 }, transition: { type: "spring", stiffness: 260 } };
 
 const DashboardStats = () => {
+  const toast = useToast();
   const { products } = useProducts();
   const [orders, setOrders] = useState([]);
   const [demoMode, setDemoMode] = useState(false);
@@ -181,7 +182,7 @@ const DashboardStats = () => {
               onClick={() => {
                 const summary = { products: totalProducts, revenue: ordersStats.revenue };
                 navigator.clipboard.writeText(JSON.stringify(summary, null, 2));
-                toast.success("📋 Summary copied!", { autoClose: 1600 });
+                toast.success("📋 Summary copied!", 1600);
               }}
             >
               <Copy className="w-4 h-4" /> Copy Summary
@@ -335,7 +336,7 @@ const DashboardStats = () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => toast.info("📤 Export not implemented (demo)", { autoClose: 1200 })}
+                onClick={() => toast.info("📤 Export not implemented (demo)", 1200)}
                 className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
               >
                 Export CSV

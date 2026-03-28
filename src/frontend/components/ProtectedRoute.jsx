@@ -1,7 +1,7 @@
 // ✅ src/components/ProtectedRoute.jsx (Enhanced v2)
 import React, { useEffect, useState, useRef } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 
 /**
  * 🔒 ProtectedRoute (v2)
@@ -18,6 +18,7 @@ const isLocalPath = (path) =>
 const safeRedirectTo = (to, fallback = "/") => (isLocalPath(to) ? to : fallback);
 
 export default function ProtectedRoute({ children, allowedRoles = null, role = null }) {
+  const toast = useToast();
   const location = useLocation();
   const [sessionValid, setSessionValid] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
@@ -78,7 +79,7 @@ export default function ProtectedRoute({ children, allowedRoles = null, role = n
   // 🚷 Not logged in
   if (!isLoggedIn) {
     if (!hasNotified.current) {
-      toast.warn("Please log in to access this page.", { autoClose: 1500 });
+      toast.warning("Please log in to access this page.", 1500);
       hasNotified.current = true;
     }
 

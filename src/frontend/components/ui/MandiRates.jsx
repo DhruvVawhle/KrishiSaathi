@@ -9,12 +9,20 @@ import {
   ReferenceLine, Legend,
   BarChart, Bar
 } from 'recharts'
+import { 
+  Table, 
+  Tag, 
+  ConfigProvider, 
+  Input as AntInput,
+  Typography,
+  Space
+} from 'antd'
 import {
   TrendingUp, TrendingDown,
   Minus, RefreshCw,
   AlertTriangle, CheckCircle,
   BarChart3, Leaf, IndianRupee,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, Search
 } from 'lucide-react'
 
 const INDIAN_STATES = [
@@ -951,79 +959,79 @@ const MandiRates = ({
   const [showSearchDropdown, setShowSearchDropdown]
     = useState(false)
 
-  // -- NEW TABLE STATES --
-  const [sortField, setSortField] =
-    useState('modalPrice')
-  const [sortDir, setSortDir] =
-    useState('desc')
-  const [currentPage, setCurrentPage] =
-    useState(1)
-  const [searchQuery, setSearchQuery] =
-    useState('')
-  const ROWS_PER_PAGE = 10
-
-  // Sort records
-  const getSortedRecords = () => {
+  // -- TABLE DATA PROCESSING --
+  const filteredRecords = React.useMemo(() => {
     let filtered = [...(rates || [])]
-
-    // Search filter
     if (searchQuery.trim()) {
-      const q = searchQuery
-        .toLowerCase()
+      const q = searchQuery.toLowerCase()
       filtered = filtered.filter(r =>
-        (r.market || '').toLowerCase()
-          .includes(q) ||
-        (r.commodity || '').toLowerCase()
-          .includes(q) ||
-        (r.district || '').toLowerCase()
-          .includes(q) ||
-        (r.state || '').toLowerCase()
-          .includes(q)
+        (r.market || '').toLowerCase().includes(q) ||
+        (r.commodity || '').toLowerCase().includes(q) ||
+        (r.district || '').toLowerCase().includes(q) ||
+        (r.state || '').toLowerCase().includes(q)
       )
     }
-
-    // Sort
-    filtered.sort((a, b) => {
-      const aVal = a[sortField] || 0
-      const bVal = b[sortField] || 0
-      if (typeof aVal === 'number') {
-        return sortDir === 'asc'
-          ? aVal - bVal
-          : bVal - aVal
-      }
-      return sortDir === 'asc'
-        ? String(aVal).localeCompare(
-            String(bVal)
-          )
-        : String(bVal).localeCompare(
-            String(aVal)
-          )
-    })
-
     return filtered
-  }
+  }, [rates, searchQuery])
 
-  const sortedRecords = getSortedRecords()
-  const totalPages = Math.ceil(
-    sortedRecords.length / ROWS_PER_PAGE
-  )
-  const paginatedRecords =
-    sortedRecords.slice(
-      (currentPage - 1) * ROWS_PER_PAGE,
-      currentPage * ROWS_PER_PAGE
-    )
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDir(d =>
-        d === 'asc' ? 'desc' : 'asc'
+  const columns = [
+    {
+      title: 'COMMODITY',
+      dataIndex: 'commodity',
+      key: 'commodity',
+      sorter: (a, b) => (a.commodity || '').localeCompare(b.commodity || ''),
+      render: (text) => <span style={{ fontWeight: 600, color: '#2D4F1E' }}>{text}</span>
+    },
+    {
+      title: 'MARKET',
+      dataIndex: 'market',
+      key: 'market',
+      sorter: (a, b) => (a.market || '').localeCompare(b.market || '')
+    },
+    {
+      title: 'DISTRICT',
+      dataIndex: 'district',
+      key: 'district',
+      responsive: ['md']
+    },
+    {
+      title: 'STATE',
+      dataIndex: 'state',
+      key: 'state',
+      responsive: ['lg']
+    },
+    {
+      title: 'MODAL ₹',
+      dataIndex: 'modalPrice',
+      key: 'modalPrice',
+      sorter: (a, b) => a.modalPrice - b.modalPrice,
+      render: (val) => (
+        <div>
+          <div style={{ fontWeight: 700, color: '#2D4F1E' }}>₹{(val / 100).toFixed(2)}/{unit}</div>
+          <div style={{ fontSize: 10, color: '#B0A898' }}>₹{Math.round(val)}/qtl</div>
+        </div>
       )
-    } else {
-      setSortField(field)
-      setSortDir('desc')
+    },
+    {
+      title: 'RANGE',
+      key: 'range',
+      render: (_, record) => {
+        const badge = getPriceBadge(record.modalPrice)
+        if (!badge) return null
+        return (
+          <Tag color={badge.color === '#2D4F1E' ? 'green' : badge.color === '#FF5252' ? 'red' : 'orange'} style={{ borderRadius: 6, fontWeight: 600 }}>
+            {badge.label}
+          </Tag>
+        )
+      }
+    },
+    {
+      title: 'DATE',
+      dataIndex: 'arrivalDate',
+      key: 'arrivalDate',
+      sorter: (a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate)
     }
-    setCurrentPage(1)
-  }
+  ]
 
   // Price category badge
   const getPriceBadge = (
@@ -2864,7 +2872,7 @@ const MandiRates = ({
           color: '#7A7A7A',
           margin: '2px 0 0'
         }}>
-          {sortedRecords.length} markets
+          {filteredRecords.length} markets
           found • Source: data.gov.in
         </p>
       </div>
@@ -2917,669 +2925,42 @@ const MandiRates = ({
     </div>
 
     {/* Table */}
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontFamily: 'DM Sans'
-      }}>
-
-        {/* Column headers */}
-        <thead>
-          <tr style={{
-            background: '#F5E6CC',
-            borderBottom:
-              '1px solid #EDD9B0'
-          }}>
-            {[
-              {
-                key: 'commodity',
-                label: 'COMMODITY',
-                sortable: true,
-                width: '14%'
-              },
-              {
-                key: 'market',
-                label: 'MARKET',
-                sortable: true,
-                width: '18%'
-              },
-              {
-                key: 'district',
-                label: 'DISTRICT',
-                sortable: true,
-                width: '12%'
-              },
-              {
-                key: 'state',
-                label: 'STATE',
-                sortable: true,
-                width: '12%'
-              },
-              {
-                key: 'minPrice',
-                label: 'MIN ₹',
-                sortable: true,
-                width: '10%'
-              },
-              {
-                key: 'modalPrice',
-                label: 'MODAL ₹',
-                sortable: true,
-                width: '12%'
-              },
-              {
-                key: 'maxPrice',
-                label: 'MAX ₹',
-                sortable: true,
-                width: '10%'
-              },
-              {
-                key: 'status',
-                label: 'RANGE',
-                sortable: false,
-                width: '10%'
-              },
-              {
-                key: 'arrivalDate',
-                label: 'DATE',
-                sortable: true,
-                width: '12%'
-              }
-            ].map(col => (
-              <th
-                key={col.key}
-                onClick={() =>
-                  col.sortable &&
-                  handleSort(col.key)
-                }
-                style={{
-                  padding: '11px 16px',
-                  textAlign: 'left',
-                  fontFamily: 'DM Sans',
-                  fontWeight: 700,
-                  fontSize: 11,
-                  color: sortField === col.key
-                    ? '#2D4F1E'
-                    : '#7A7A7A',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  cursor: col.sortable
-                    ? 'pointer' : 'default',
-                  whiteSpace: 'nowrap',
-                  width: col.width,
-                  userSelect: 'none',
-                  transition: 'color 150ms'
-                }}
-                onMouseEnter={e => {
-                  if (col.sortable) {
-                    e.currentTarget.style
-                      .color = '#2D4F1E'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (sortField !== col.key) {
-                    e.currentTarget.style
-                      .color = '#7A7A7A'
-                  }
-                }}
-              >
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}>
-                  {col.label}
-                  {col.sortable && (
-                    <span style={{
-                      fontSize: 10,
-                      opacity: sortField ===
-                        col.key ? 1 : 0.4
-                    }}>
-                      {sortField === col.key
-                        ? sortDir === 'asc'
-                          ? '↑' : '↓'
-                        : '↕'
-                      }
-                    </span>
-                  )}
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-
-        {/* Table body */}
-        <tbody>
-          {loading ? (
-            // Loading skeleton rows
-            Array.from({ length: 5 })
-              .map((_, i) => (
-              <tr key={i} style={{
-                borderBottom:
-                  '1px solid #EDD9B0',
-                background: i % 2 === 0
-                  ? '#FDFAF4' : '#FAF6EE'
-              }}>
-                {Array.from({ length: 9 })
-                  .map((_, j) => (
-                  <td key={j} style={{
-                    padding: '14px 16px'
-                  }}>
-                    <div style={{
-                      height: 12,
-                      borderRadius: 6,
-                      background:
-                        'linear-gradient(' +
-                        '90deg,' +
-                        '#EDD9B0 25%,' +
-                        '#F5E6CC 50%,' +
-                        '#EDD9B0 75%)',
-                      backgroundSize:
-                        '200% 100%',
-                      animation:
-                        'shimmer 1.5s infinite',
-                      width: j === 0
-                        ? '80%' : '60%'
-                    }} />
-                  </td>
-                ))}
-              </tr>
-            ))
-          ) : paginatedRecords.length === 0 ? (
-            // Empty state
-            <tr>
-              <td
-                colSpan={9}
-                style={{ padding: '48px 20px' }}
-              >
-                <div style={{
-                  textAlign: 'center'
-                }}>
-                  <div style={{
-                    fontSize: 36,
-                    marginBottom: 12
-                  }}>
-                    {error ? '📊' : '📊'}
-                  </div>
-                  <p style={{
-                    fontFamily:
-                      'Playfair Display',
-                    fontWeight: 700,
-                    fontSize: 16,
-                    color: error ? '#FF5252' : '#4A4A4A',
-                    margin: '0 0 6px'
-                  }}>
-                    {error 
-                      ? 'Error loading rates' 
-                      : (searchQuery
-                          ? `No results for "${searchQuery}"`
-                          : 'No mandi rates found')
-                    }
-                  </p>
-                  <p style={{
-                    fontFamily: 'DM Sans',
-                    fontSize: 13,
-                    color: '#7A7A7A',
-                    margin: '0 0 16px'
-                  }}>
-                    {error 
-                      ? error
-                      : (searchQuery
-                          ? 'Try a different search term'
-                          : 'Select commodity and state, then click Compare')
-                    }
-                  </p>
-                  {(error || searchQuery) && (
-                    <button
-                      onClick={() => {
-                        if (error) {
-                          setCommodity('Tomato')
-                          setState('Maharashtra')
-                          setTimeout(fetchAll, 100)
-                        } else {
-                          setSearchQuery('')
-                        }
-                      }}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#2D4F1E',
-                        border: 'none',
-                        borderRadius: 8,
-                        color: 'white',
-                        fontFamily: 'DM Sans',
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {error ? 'Try Tomato in Maharashtra' : 'Clear search'}
-                    </button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ) : (
-            paginatedRecords.map(
-              (record, i) => {
-                const badge = getPriceBadge(
-                  record.modalPrice,
-                  record.minPrice,
-                  record.maxPrice
-                )
-
-                return (
-                  <tr
-                    key={i}
-                    style={{
-                      borderBottom:
-                        '1px solid #EDD9B0',
-                      background:
-                        i % 2 === 0
-                          ? '#FDFAF4'
-                          : '#FAF6EE',
-                      transition:
-                        'background 150ms'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style
-                        .background =
-                        'rgba(45,79,30,0.04)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style
-                        .background =
-                        i % 2 === 0
-                          ? '#FDFAF4'
-                          : '#FAF6EE'
-                    }}
-                  >
-                    {/* Commodity */}
-                    <td style={{
-                      padding: '14px 16px'
-                    }}>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        color: '#2D4F1E'
-                      }}>
-                        {record.commodity
-                          || commodity
-                          || '—'}
-                      </div>
-                    </td>
-
-                    {/* Market */}
-                    <td style={{
-                      padding: '14px 16px'
-                    }}>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        color: '#2D4F1E'
-                      }}>
-                        {record.market || '—'}
-                      </div>
-                    </td>
-
-                    {/* District */}
-                    <td style={{
-                      padding: '14px 16px',
-                      fontFamily: 'DM Sans',
-                      fontSize: 13,
-                      color: '#4A4A4A'
-                    }}>
-                      {record.district || '—'}
-                    </td>
-
-                    {/* State */}
-                    <td style={{
-                      padding: '14px 16px',
-                      fontFamily: 'DM Sans',
-                      fontSize: 12,
-                      color: '#7A7A7A'
-                    }}>
-                      {record.state || '—'}
-                    </td>
-
-                    {/* Min Price */}
-                    <td style={{
-                      padding: '14px 16px'
-                    }}>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        color: '#FF5252'
-                      }}>
-                        ₹{(
-                          (record.minPrice || 0)
-                          / 100
-                        ).toFixed(2)}/kg
-                      </div>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 10,
-                        color: '#B0A898'
-                      }}>
-                        ₹{record.minPrice
-                          || 0}/qtl
-                      </div>
-                    </td>
-
-                    {/* Modal Price */}
-                    <td style={{
-                      padding: '14px 16px'
-                    }}>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontWeight: 800,
-                        fontSize: 14,
-                        color: '#2D4F1E'
-                      }}>
-                        ₹{(
-                          (record.modalPrice || 0)
-                          / 100
-                        ).toFixed(2)}/kg
-                      </div>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 10,
-                        color: '#B0A898'
-                      }}>
-                        ₹{record.modalPrice
-                          || 0}/qtl
-                      </div>
-                    </td>
-
-                    {/* Max Price */}
-                    <td style={{
-                      padding: '14px 16px'
-                    }}>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        color: '#4CAF50'
-                      }}>
-                        ₹{(
-                          (record.maxPrice || 0)
-                          / 100
-                        ).toFixed(2)}/kg
-                      </div>
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 10,
-                        color: '#B0A898'
-                      }}>
-                        ₹{record.maxPrice
-                          || 0}/qtl
-                      </div>
-                    </td>
-
-                    {/* Status badge */}
-                    <td style={{
-                      padding: '14px 16px'
-                    }}>
-                      {badge && (
-                        <span style={{
-                          display:
-                            'inline-flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          padding: '3px 10px',
-                          borderRadius: 999,
-                          background:
-                            badge.bg,
-                          fontFamily:
-                            'DM Sans',
-                          fontWeight: 600,
-                          fontSize: 11,
-                          color: badge.color,
-                          whiteSpace: 'nowrap'
-                        }}>
-                          <span style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            background:
-                              badge.dot,
-                            display:
-                              'inline-block',
-                            flexShrink: 0
-                          }} />
-                          {badge.label}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Date */}
-                    <td style={{
-                      padding: '14px 16px',
-                      fontFamily: 'DM Sans',
-                      fontSize: 12,
-                      color: '#7A7A7A',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {record.arrivalDate
-                        || '—'}
-                    </td>
-                  </tr>
-                )
-              }
-            )
-          )}
-        </tbody>
-      </table>
-    </div>
-
-    {/* Pagination footer */}
-    {!loading &&
-     sortedRecords.length > 0 && (
-      <div style={{
-        padding: '12px 20px',
-        borderTop: '1px solid #EDD9B0',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        background: '#FDFAF4',
-        flexWrap: 'wrap',
-        gap: 10
-      }}>
-        {/* Record count */}
-        <span style={{
-          fontFamily: 'DM Sans',
-          fontSize: 12,
-          color: '#7A7A7A'
-        }}>
-          Showing{' '}
-          <strong style={{
-            color: '#4A4A4A'
-          }}>
-            {(currentPage - 1)
-              * ROWS_PER_PAGE + 1}
-          </strong>
-          {' '}–{' '}
-          <strong style={{
-            color: '#4A4A4A'
-          }}>
-            {Math.min(
-              currentPage * ROWS_PER_PAGE,
-              sortedRecords.length
-            )}
-          </strong>
-          {' '}of{' '}
-          <strong style={{
-            color: '#4A4A4A'
-          }}>
-            {sortedRecords.length}
-          </strong>
-          {' '}markets
-        </span>
-
-        {/* Page buttons */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6
-        }}>
-          {/* Previous */}
-          <button
-            onClick={() =>
-              setCurrentPage(p =>
-                Math.max(1, p - 1)
-              )
-            }
-            disabled={currentPage === 1}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              border: '1.5px solid #EDD9B0',
-              background: currentPage === 1
-                ? '#F5E6CC' : 'white',
-              fontFamily: 'DM Sans',
-              fontWeight: 600,
-              fontSize: 13,
-              color: currentPage === 1
-                ? '#B0A898' : '#4A4A4A',
-              cursor: currentPage === 1
-                ? 'not-allowed' : 'pointer',
-              transition: 'all 150ms'
-            }}
-            onMouseEnter={e => {
-              if (currentPage !== 1) {
-                e.currentTarget.style
-                  .borderColor = '#2D4F1E'
-                e.currentTarget.style
-                  .color = '#2D4F1E'
-              }
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style
-                .borderColor = '#EDD9B0'
-              e.currentTarget.style
-                .color = currentPage === 1
-                  ? '#B0A898' : '#4A4A4A'
-            }}
-          >
-            ← Previous
-          </button>
-
-          {/* Page numbers */}
-          {Array.from({
-            length: Math.min(5, totalPages)
-          }).map((_, i) => {
-            let pageNum
-            if (totalPages <= 5) {
-              pageNum = i + 1
-            } else if (currentPage <= 3) {
-              pageNum = i + 1
-            } else if (
-              currentPage >= totalPages - 2
-            ) {
-              pageNum = totalPages - 4 + i
-            } else {
-              pageNum = currentPage - 2 + i
-            }
-
-            return (
-              <button
-                key={pageNum}
-                onClick={() =>
-                  setCurrentPage(pageNum)
-                }
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  border:
-                    currentPage === pageNum
-                      ? '1.5px solid #2D4F1E'
-                      : '1.5px solid #EDD9B0',
-                  background:
-                    currentPage === pageNum
-                      ? '#2D4F1E' : 'white',
-                  fontFamily: 'DM Sans',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  color:
-                    currentPage === pageNum
-                      ? 'white' : '#4A4A4A',
-                  cursor: 'pointer',
-                  transition: 'all 150ms'
-                }}
-              >
-                {pageNum}
-              </button>
-            )
-          })}
-
-          {/* Next */}
-          <button
-            onClick={() =>
-              setCurrentPage(p =>
-                Math.min(totalPages, p + 1)
-              )
-            }
-            disabled={
-              currentPage === totalPages
-            }
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              border: '1.5px solid #EDD9B0',
-              background:
-                currentPage === totalPages
-                  ? '#F5E6CC' : 'white',
-              fontFamily: 'DM Sans',
-              fontWeight: 600,
-              fontSize: 13,
-              color:
-                currentPage === totalPages
-                  ? '#B0A898' : '#4A4A4A',
-              cursor:
-                currentPage === totalPages
-                  ? 'not-allowed' : 'pointer',
-              transition: 'all 150ms'
-            }}
-            onMouseEnter={e => {
-              if (currentPage !==
-                  totalPages) {
-                e.currentTarget.style
-                  .borderColor = '#2D4F1E'
-                e.currentTarget.style
-                  .color = '#2D4F1E'
-              }
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style
-                .borderColor = '#EDD9B0'
-              e.currentTarget.style
-                .color =
-                  currentPage === totalPages
-                    ? '#B0A898' : '#4A4A4A'
-            }}
-          >
-            Next →
-          </button>
-        </div>
-      </div>
-    )}
-
-    {/* Shimmer animation */}
-    <style>{`
-      @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-      }
-    `}</style>
-
+    {/* Ant Design Table */}
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#2D4F1E',
+          borderRadius: 12,
+          fontFamily: 'DM Sans'
+        },
+        components: {
+          Table: {
+            headerBg: '#F5E6CC',
+            headerColor: '#2D4F1E',
+            rowHoverBg: '#F5E6CC50'
+          }
+        }
+      }}
+    >
+      <Table
+        dataSource={filteredRecords}
+        columns={columns}
+        rowKey={(record) => `${record.market}-${record.commodity}-${record.arrivalDate}`}
+        loading={loading}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: false,
+          position: ['bottomCenter'],
+          style: { marginTop: 24 }
+        }}
+        rowClassName={(record, index) => index % 2 === 0 ? 'table-row-light' : 'table-row-dark'}
+        style={{ fontFamily: 'DM Sans' }}
+        scroll={{ x: 'max-content' }}
+      />
+    </ConfigProvider>
   </div>
-  {/* ── END MANDI RATES TABLE ─── */}
 </div>
-        )}
+)}
 
         {/* PREDICTION TAB */}
         {activeTab === 'prediction' && (

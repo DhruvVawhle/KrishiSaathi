@@ -104,7 +104,7 @@ export default function FloatingCartButton({ onOpen }) {
             <motion.div
                 className="fcb-icon-wrap"
                 animate={{ scale: isPulsing ? [1, 1.3, 1] : 1 }}
-                transition={{ duration: 0.3, type: "spring", stiffness: 500 }}
+                transition={{ duration: 0.3, type: "tween", ease: "easeInOut" }}
             >
                 <ShoppingCart size={isEmpty ? 22 : 18} />
             </motion.div>

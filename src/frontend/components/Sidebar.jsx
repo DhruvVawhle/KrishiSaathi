@@ -12,12 +12,13 @@ import {
   LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 import { flushSync } from "react-dom";
 
 const MODE = import.meta.env.MODE || "development";
 
 export default function Sidebar({ productCount = 0, orderCount = 0 }) {
+  const toast = useToast();
   const navigate = useNavigate();
   const toggleBtnRef = useRef(null);
 
@@ -81,28 +82,7 @@ export default function Sidebar({ productCount = 0, orderCount = 0 }) {
 
   /** 🚪 Secure logout */
   const handleLogout = () => {
-    toast.success("You've been logged out. See you soon! 👋", {
-      toastId: 'logout',
-      icon: '👋',
-      style: {
-        background: '#1a3a1a',
-        color: '#ffffff',
-        borderRadius: '12px',
-        border: '1px solid rgba(255,255,255,0.15)',
-        fontFamily: 'inherit',
-        fontSize: '14px',
-        fontWeight: '500',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-        backdropFilter: 'blur(8px)',
-        minWidth: '280px',
-      },
-      progressStyle: { background: '#c17a4a' },
-      position: 'top-right',
-      autoClose: 3000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-    });
+    toast.success("You've been logged out. See you soon! 👋");
     setTimeout(() => {
       flushSync(() => {
         [

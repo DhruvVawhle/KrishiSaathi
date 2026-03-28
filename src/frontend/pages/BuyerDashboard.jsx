@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useUser } from "@/frontend/contexts/UserContext";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
-import { toast } from "react-toastify";
+import { useToast } from "@/frontend/contexts/ToastContext";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { auth } from "@/frontend/config/firebaseConfig";
 import {
@@ -25,6 +25,7 @@ import StatusBadge from '@/frontend/components/ui/StatusBadge';
 const BuyerDashboard = () => {
   const navigate = useNavigate();
   const { user: ctxUser } = useUser();
+  const toast = useToast();
   const { cart = [], removeFromCart, clearCart, updateQuantity } = useCart();
   const reduceMotion = useReducedMotion();
 
@@ -220,28 +221,7 @@ const BuyerDashboard = () => {
   const handleLogout = () => {
     localStorage.clear();
     clearCart();
-    toast.success("You've been logged out. See you soon! 👋", {
-      toastId: 'logout',
-      icon: '👋',
-      style: {
-        background: '#1a3a1a',
-        color: '#ffffff',
-        borderRadius: '12px',
-        border: '1px solid rgba(255,255,255,0.15)',
-        fontFamily: 'inherit',
-        fontSize: '14px',
-        fontWeight: '500',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-        backdropFilter: 'blur(8px)',
-        minWidth: '280px',
-      },
-      progressStyle: { background: '#c17a4a' },
-      position: 'top-right',
-      autoClose: 3000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-    });
+    toast.success("You've been logged out. See you soon! 👋");
     setTimeout(() => navigate("/login"), 1200);
   };
 
@@ -253,7 +233,7 @@ const BuyerDashboard = () => {
   };
 
   const handleCheckout = () => {
-    if (cart.length === 0) { toast.warn("🛒 Your cart is empty!"); return; }
+    if (cart.length === 0) { toast.warning("🛒 Your cart is empty!"); return; }
     localStorage.setItem("checkoutCart", JSON.stringify(cart));
     localStorage.setItem("checkoutTotal", total.toFixed(2));
     toast.success("✅ Redirecting to checkout...");

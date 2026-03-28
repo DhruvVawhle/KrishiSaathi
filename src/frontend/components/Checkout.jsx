@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
-import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Mail, Phone, MapPin, Tag,
@@ -10,6 +9,8 @@ import {
   ShoppingBag, Loader2, ShieldCheck, ChevronRight
 } from "lucide-react";
 import { useToast } from "@/frontend/contexts/ToastContext";
+import { Steps, ConfigProvider } from "antd";
+import { useForm, Controller } from "react-hook-form";
 import Input from "@/frontend/components/ui/Input";
 import Button from "@/frontend/components/ui/Button";
 import Card from "@/frontend/components/ui/Card";
@@ -34,16 +35,21 @@ export default function Checkout() {
   /* ------------------------
      State Management
      ------------------------ */
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0); // 0-indexed for Ant Design Steps
   const [paymentMethod, setPaymentMethod] = useState("cod");
-  const [customer, setCustomer] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    pincode: "",
+  
+  const { control, handleSubmit, setValue, watch, formState: { errors: formErrors } } = useForm({
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      city: "",
+      pincode: "",
+    }
   });
+
+  const customer = watch();
 
   const [promo, setPromo] = useState("");
   const [appliedPromo, setAppliedPromo] = useState(null);
@@ -69,13 +75,12 @@ export default function Checkout() {
         }
       : savedData || {};
 
-    setCustomer((c) => ({
-      ...c,
-      ...(storedEmail ? { email: storedEmail } : {}),
-      ...(storedName ? { name: storedName } : {}),
-      ...profileSource,
-    }));
-  }, []);
+    Object.entries(profileSource).forEach(([key, value]) => {
+      if (value) setValue(key, value);
+    });
+    if (storedEmail) setValue("email", storedEmail);
+    if (storedName) setValue("name", storedName);
+  }, [setValue]);
 
   /* ------------------------
      Billing Logic
@@ -95,25 +100,12 @@ export default function Checkout() {
   /* ------------------------
      Action Handlers
      ------------------------ */
-  const validateCustomer = useCallback(() => {
-    const errors = {};
-    if (!customer.name?.trim()) errors.name = "Name is required";
-    if (!customer.email || !/^\S+@\S+\.\S+$/.test(customer.email)) errors.email = "Valid email is required";
-    if (!customer.phone || !/^\d{10}$/.test(customer.phone)) errors.phone = "Phone must be 10 digits";
-    if (!customer.address?.trim()) errors.address = "Delivery address is required";
-    if (!customer.pincode || !/^\d{6}$/.test(customer.pincode)) errors.pincode = "6-digit pincode required";
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  }, [customer]);
-
-  const handleNextStep = () => {
-    if (!validateCustomer()) {
-      toast.error("Please fix form errors");
-      return;
-    }
-    setCurrentStep(2);
+  const onSubmitDetails = (data) => {
+    setCurrentStep(1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const handleNextStep = handleSubmit(onSubmitDetails);
 
   const handleApplyPromo = () => {
     const code = (promo || "").trim().toUpperCase();
@@ -304,7 +296,7 @@ export default function Checkout() {
       await clearAllCart();
       navigate('/thank-you', {
         replace: true,
-        state: { orderId: orderPayload.orderId }
+        state: { orderId: orderPayload.orderId, orderData: orderPayload }
       });
     } else {
       throw new Error('Failed to save order to any database. Please try again.');
@@ -335,8 +327,15 @@ export default function Checkout() {
       });
 
       if (!orderRes.ok) {
-        const errorData = await orderRes.json();
-        throw new Error(errorData.error || 'Failed to create payment order');
+        let errorMsg = 'Failed to create payment order';
+        try {
+          const errorData = await orderRes.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {
+          // Response body is empty or not JSON
+          errorMsg = `Payment server error (${orderRes.status}). Please try again or use Cash on Delivery.`;
+        }
+        throw new Error(errorMsg);
       }
 
       const orderData = await orderRes.json();
@@ -362,7 +361,7 @@ export default function Checkout() {
         currency: 'INR',
         name: 'KrishiSaathi',
         description: `Order #${orderPayload.orderId}`,
-        image: '/krishisaathi-logo.png',
+        image: 'https://krishisaathi.vercel.app/krishisaathi-logo.png',
         handler: async (response) => {
           try {
             setLoading(false);
@@ -399,12 +398,18 @@ export default function Checkout() {
               await saveOrder(updatedPayload);
               toast.success('Payment successful! Order placed.');
             } else {
-              throw new Error('Payment verification failed');
+              navigate('/payment-failure', {
+                replace: true,
+                state: { error: 'Payment verification failed. Please try again.', orderId: orderPayload.orderId, method: paymentMethod }
+              });
+              return;
             }
           } catch (err) {
             console.error('❌ Payment verification error:', err.message);
-            toast.error('Payment verification failed. Contact support.');
-            setLoading(false);
+            navigate('/payment-failure', {
+              replace: true,
+              state: { error: err.message || 'Payment verification failed. Contact support.', orderId: orderPayload.orderId, method: paymentMethod }
+            });
           }
         },
         prefill: {
@@ -430,8 +435,11 @@ export default function Checkout() {
         modal: {
           ondismiss: () => {
             console.log('⚠️ User dismissed payment modal');
-            toast.info('Payment cancelled. Please try again.');
             setLoading(false);
+            navigate('/payment-failure', {
+              replace: true,
+              state: { error: 'Payment was cancelled. You can retry anytime.', orderId: orderPayload.orderId, method: paymentMethod }
+            });
           }
         },
         readonly: {
@@ -447,36 +455,39 @@ export default function Checkout() {
       
     } catch (err) {
       console.error('❌ Razorpay payment error:', err.message);
-      toast.error(err.message || 'Payment processing failed');
       setLoading(false);
+      navigate('/payment-failure', {
+        replace: true,
+        state: { error: err.message || 'Payment processing failed. Please try again.', orderId: orderPayload.orderId, method: paymentMethod }
+      });
     }
   }
 
   const onFieldChange = (key, value) => {
-    setCustomer((s) => ({ ...s, [key]: value }));
-    if (fieldErrors[key]) setFieldErrors((fe) => { const copy = { ...fe }; delete copy[key]; return copy; });
+    setValue(key, value);
   };
 
   return (
     <div className="checkout-page-wrapper">
       {/* Progress Bar */}
-      <div className="checkout-progress">
-        {['Details', 'Payment', 'Done'].map((label, i) => {
-          const stepNum = i + 1;
-          const isActive = currentStep === stepNum;
-          const isDone = currentStep > stepNum;
-          return (
-            <React.Fragment key={label}>
-              <div className="checkout-progress-item">
-                <div className={`checkout-progress-circle ${isDone ? 'done' : isActive ? 'active' : 'pending'}`}>
-                  {isDone ? <Check size={16} /> : stepNum}
-                </div>
-                <span className={`checkout-progress-label ${isActive ? 'active' : 'pending'}`}>{label}</span>
-              </div>
-              {i < 2 && <div className={`checkout-progress-line ${isDone ? 'done' : ''}`} />}
-            </React.Fragment>
-          );
-        })}
+      <div className="checkout-progress" style={{ maxWidth: 800, margin: '0 auto 40px' }}>
+        <ConfigProvider
+          theme={{
+            token: {
+              colorPrimary: '#2D4F1E',
+              fontFamily: 'DM Sans',
+            }
+          }}
+        >
+          <Steps
+            current={currentStep}
+            items={[
+              { title: 'Details', icon: <User size={18} /> },
+              { title: 'Payment', icon: <ShoppingBag size={18} /> },
+              { title: 'Confirmation', icon: <CheckCircle size={18} /> },
+            ]}
+          />
+        </ConfigProvider>
       </div>
 
       <div className="checkout-container">
@@ -497,41 +508,76 @@ export default function Checkout() {
                 </div>
 
                 <div className="checkout-form-grid">
-                  <Input
-                    label="Full Name"
-                    required
-                    value={customer.name}
-                    onChange={(e) => onFieldChange("name", e.target.value)}
-                    placeholder="e.g. Ravi Kumar"
-                    icon={User}
-                    error={fieldErrors.name}
+                  <Controller
+                    name="name"
+                    control={control}
+                    rules={{ required: "Name is required" }}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        label="Full Name"
+                        required
+                        placeholder="e.g. Ravi Kumar"
+                        icon={User}
+                        error={formErrors.name?.message}
+                      />
+                    )}
                   />
-                  <Input
-                    label="Email Address"
-                    required
-                    value={customer.email}
-                    onChange={(e) => onFieldChange("email", e.target.value)}
-                    placeholder="demo@gmail.com"
-                    icon={Mail}
-                    error={fieldErrors.email}
+                  <Controller
+                    name="email"
+                    control={control}
+                    rules={{ 
+                      required: "Email is required",
+                      pattern: { value: /^\S+@\S+\.\S+$/, message: "Invalid email address" }
+                    }}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        label="Email Address"
+                        required
+                        placeholder="demo@gmail.com"
+                        icon={Mail}
+                        error={formErrors.email?.message}
+                      />
+                    )}
                   />
-                  <Input
-                    label="Phone Number"
-                    required
-                    value={customer.phone}
-                    onChange={(e) => onFieldChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    placeholder="10-digit phone"
-                    icon={Phone}
-                    error={fieldErrors.phone}
+                  <Controller
+                    name="phone"
+                    control={control}
+                    rules={{ 
+                      required: "Phone is required",
+                      pattern: { value: /^\d{10}$/, message: "Must be 10 digits" }
+                    }}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        label="Phone Number"
+                        required
+                        placeholder="10-digit phone"
+                        icon={Phone}
+                        error={formErrors.phone?.message}
+                        onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      />
+                    )}
                   />
-                  <Input
-                    label="Pincode"
-                    required
-                    value={customer.pincode}
-                    onChange={(e) => onFieldChange("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="e.g. 560001"
-                    icon={MapPin}
-                    error={fieldErrors.pincode}
+                  <Controller
+                    name="pincode"
+                    control={control}
+                    rules={{ 
+                      required: "Pincode is required",
+                      pattern: { value: /^\d{6}$/, message: "Must be 6 digits" }
+                    }}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        label="Pincode"
+                        required
+                        placeholder="e.g. 560001"
+                        icon={MapPin}
+                        error={formErrors.pincode?.message}
+                        onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      />
+                    )}
                   />
                 </div>
 
@@ -539,15 +585,21 @@ export default function Checkout() {
                   <label className="checkout-label">Delivery Address *</label>
                   <div className="relative mt-1">
                     <MapPin size={16} style={{ position: 'absolute', left: 14, top: 14, color: '#b0a898', zIndex: 10 }} />
-                    <textarea
-                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-[#EDD9B0] bg-[#FDFAF4] focus:ring-2 focus:ring-[#2D4F1E] outline-none min-h-[100px]"
-                      value={customer.address}
-                      onChange={(e) => onFieldChange("address", e.target.value)}
-                      placeholder="House number, street, landmark, city"
-                      rows={3}
+                    <Controller
+                      name="address"
+                      control={control}
+                      rules={{ required: "Delivery address is required" }}
+                      render={({ field }) => (
+                        <textarea
+                          {...field}
+                          className={`w-full pl-12 pr-4 py-3 rounded-xl border border-[#EDD9B0] bg-[#FDFAF4] focus:ring-2 focus:ring-[#2D4F1E] outline-none min-h-[100px] ${formErrors.address ? 'border-red-500' : ''}`}
+                          placeholder="House number, street, landmark, city"
+                          rows={3}
+                        />
+                      )}
                     />
                   </div>
-                  {fieldErrors.address && <p className="text-red-500 text-xs mt-1">{fieldErrors.address}</p>}
+                  {formErrors.address && <p className="text-red-500 text-xs mt-1">{formErrors.address.message}</p>}
                 </div>
 
                 <div className="checkout-promo-box">
@@ -582,7 +634,7 @@ export default function Checkout() {
               </motion.div>
             )}
 
-            {currentStep === 2 && (
+            {currentStep === 1 && (
               <motion.div
                 key="step2"
                 initial={{ opacity: 0, x: 20 }}
@@ -641,7 +693,7 @@ export default function Checkout() {
         </main>
 
         <aside>
-          {currentStep < 3 && (
+          {currentStep < 2 && (
             <div className="summary-card">
               <div className="summary-header">
                 <h3 className="summary-title">Order Summary</h3>
@@ -701,7 +753,7 @@ export default function Checkout() {
               )}
 
               <div className="summary-actions">
-                <Button variant="ghost" size="sm" fullWidth onClick={() => { setCurrentStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✏️ Edit Details</Button>
+                <Button variant="ghost" size="sm" fullWidth onClick={() => { setCurrentStep(0); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✏️ Edit Details</Button>
                 <Button variant="ghost" size="sm" fullWidth onClick={() => navigate('/support')} style={{ marginTop: 8 }}>💬 Need Help?</Button>
               </div>
 

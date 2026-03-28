@@ -29,7 +29,7 @@ import {
   getNotificationsRealtime,
   saveNotificationsToFirestore
 } from '../services/firestoreService';
-import { toast } from 'react-toastify';
+import { useToast } from "@/frontend/contexts/ToastContext";
 
 // ─── Config ───
 // ─── Role-aware nav links ───
@@ -254,6 +254,7 @@ const NOTIF_CONFIG = {
 const Navbar = ({ onOpenCart }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
 
   // Cart
   const cartContext = useCart() || {};
@@ -529,6 +530,7 @@ const Navbar = ({ onOpenCart }) => {
       if (mins < 1) return 'Just now';
       if (mins < 60) return `${mins}m ago`;
       if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
       if (days < 7) return `${days}d ago`;
 
       return date.toLocaleDateString('en-IN', {

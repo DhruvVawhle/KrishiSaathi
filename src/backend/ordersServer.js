@@ -91,6 +91,7 @@ app.use(express.json({ limit: "2mb" }));
 
 import ordersRouter from "./routes/orders.js";
 app.use("/api/orders", ordersRouter);
+app.get("/", (req, res) => res.send("✅ Orders Server is running"));
 
 
 /* --------------------------------------------------------

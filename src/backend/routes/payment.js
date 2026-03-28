@@ -1,4 +1,4 @@
-import "../../utils/env.js";
+import "../utils/env.js";
 import express from "express";
 import Razorpay from "razorpay";
 import crypto from "crypto";

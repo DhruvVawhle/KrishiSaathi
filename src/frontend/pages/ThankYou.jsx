@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle, Home, Package, Truck, Clock } from 'lucide-react'
+import { CheckCircle, Home, Package, Truck, Clock, FileText } from 'lucide-react'
+import { generateInvoice } from '../utils/invoiceGenerator'
 
 const OrderTimeline = ({ status = 'confirmed' }) => {
   const steps = [
@@ -190,6 +191,32 @@ const ThankYou = () => {
           <div style={{ fontFamily: 'DM Sans', fontSize: 12, color: '#7A7A7A', marginTop: 6, fontWeight: 500 }}>
             Estimated delivery within 2–4 business days
           </div>
+
+          {location.state?.orderData && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => generateInvoice(location.state.orderData)}
+              style={{
+                marginTop: 18,
+                background: '#2D4F1E',
+                color: 'white',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 18px',
+                fontFamily: 'DM Sans',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 4px 12px rgba(45,79,30,0.15)'
+              }}
+            >
+              <FileText size={16} /> Download Real Invoice
+            </motion.button>
+          )}
         </motion.div>
 
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 20 }}>

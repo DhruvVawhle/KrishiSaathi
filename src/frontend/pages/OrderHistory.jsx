@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, ShoppingBag, Clock,
   CheckCircle, XCircle, ChevronRight,
-  ArrowLeft, RefreshCw, AlertCircle, Truck
+  ArrowLeft, RefreshCw, AlertCircle, Truck, FileText
 } from 'lucide-react'
+import { generateInvoice } from '../utils/invoiceGenerator'
 import EmptyState from '@/frontend/components/ui/EmptyState'
 import StatusBadge from '@/frontend/components/ui/StatusBadge'
 import Skeleton from '@/frontend/components/ui/Skeleton'
@@ -324,12 +325,36 @@ const OrderHistory = () => {
                     <div style={{ fontSize: 13, color: '#7A7A7A', display: 'flex', alignItems: 'center', gap: 6 }}>
                       { (order.paymentMethod || order.payment_method || '').toLowerCase() === 'cod' ? '💵 Cash on Delivery' : '💳 Online Payment' }
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 11, color: '#7A7A7A', marginBottom: 2 }}>Total Amount</div>
-                        <div style={{ fontWeight: 800, fontSize: 18, color: '#2D4F1E' }}>₹{order.total || order.totalAmount || 0}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <motion.button
+                        whileHover={{ scale: 1.1, color: '#E27D60' }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateInvoice(order);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#2D4F1E',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '4px 8px',
+                          borderRadius: 6
+                        }}
+                        title="Download Invoice"
+                      >
+                        <FileText size={16} /> <span className="hidden sm:inline">Invoice</span>
+                      </motion.button>
+                      <div style={{ textAlign: 'right', minWidth: 80 }}>
+                        <div style={{ fontSize: 10, color: '#7A7A7A', marginBottom: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</div>
+                        <div style={{ fontWeight: 800, fontSize: 17, color: '#2D4F1E' }}>₹{order.total || order.totalAmount || 0}</div>
                       </div>
-                      <ChevronRight size={20} color="#EDD9B0" />
+                      <ChevronRight size={18} color="#EDD9B0" />
                     </div>
                   </div>
 

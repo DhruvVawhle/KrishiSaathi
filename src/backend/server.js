@@ -10,6 +10,7 @@ import { dirname, join } from 'path';
 import recommendationRoutes from './routes/recommendations.js';
 import mandiRoutes from './routes/mandi.js';
 import productRoutes from './routes/products.js';
+import einvoiceRoutes from './routes/einvoice.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -100,6 +101,9 @@ app.use('/api/mandi', mandiRoutes);
 
 // Product management endpoint
 app.use('/api/products', productRoutes);
+
+// GST e-Invoice endpoint
+app.use('/api/einvoice', einvoiceRoutes);
 
 const PRIMARY_PORT = process.env.PORT_MAIN || process.env.PORT || 3000;
 const FALLBACK_PORT = 3010;
