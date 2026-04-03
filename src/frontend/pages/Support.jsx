@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { toast } from "react-toastify";
 import { updateSEO } from '@/frontend/utils/seo';
 import Breadcrumb from '@/frontend/components/ui/Breadcrumb';
 import {
@@ -118,7 +118,6 @@ const faqs = [
 const CATEGORIES = ["All", "Orders 📦", "Payments 💳", "Farmers 👨‍🌾", "Delivery 🚚", "Account 👤"];
 
 export default function Support() {
-  const toast = useToast();
   // Page State
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState("All");

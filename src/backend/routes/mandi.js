@@ -11,60 +11,98 @@ const __dirname = path.dirname(
   fileURLToPath(import.meta.url)
 )
 
+// Simple In-Memory Cache
+const CACHE = new Map();
+const TTL_HOUR = 60 * 60 * 1000;
+
+const getCache = (key) => {
+  const cached = CACHE.get(key);
+  if (!cached) return null;
+  if (Date.now() > cached.expiry) {
+    CACHE.delete(key);
+    return null;
+  }
+  return cached.data;
+};
+
+const setCache = (key, data, ttl = TTL_HOUR) => {
+  CACHE.set(key, {
+    data,
+    expiry: Date.now() + ttl
+  });
+};
+
 // Run Python script helper
-const runPython = (args, timeout = 15000) => {
+const runPython = (args, timeout = 20000) => {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(
       __dirname,
       '../../Python/mandi_predictor.py'
     )
 
-    // Try python3 first then python
     const pythonCmd =
       process.platform === 'win32'
         ? 'python'
         : 'python3'
 
-    console.log('[runPython] Spawning:', pythonCmd, scriptPath, args)
+    console.log(`[runPython] Command: ${pythonCmd} Args: ${args.join(', ')}`);
 
     const proc = spawn(pythonCmd, [
       scriptPath, ...args
     ])
 
     let output = ''
-    let error = ''
+    let errorOutput = ''
 
     const timer = setTimeout(() => {
       proc.kill()
-      console.error('[runPython] TIMEOUT after', timeout, 'ms')
-      reject(new Error('Python timeout'))
+      console.error('[runPython] ⏱️ TIMEOUT after', timeout, 'ms')
+      reject(new Error(`Python script timed out after ${timeout}ms`))
     }, timeout)
 
     proc.stdout.on('data', d => {
       output += d.toString()
     })
+
     proc.stderr.on('data', d => {
-      error += d.toString()
+      errorOutput += d.toString()
     })
+
+    proc.on('error', err => {
+      clearTimeout(timer)
+      console.error('[runPython] ❌ Spawn Error:', err.message)
+      reject(new Error(`Failed to start Python process: ${err.message}`))
+    })
+
     proc.on('close', code => {
       clearTimeout(timer)
-      console.log('[runPython] Process ended with code', code)
-      if (error) console.error('[runPython] stderr:', error)
-      if (output) console.log('[runPython] stdout:', output.substring(0, 200))
       
-      if (code !== 0 && !output) {
-        reject(new Error(
-          error || 'Python script failed'
-        ))
+      if (errorOutput) {
+        console.warn('[runPython] 🐍 Python Stderr:', errorOutput.substring(0, 500))
+      }
+
+      if (code !== 0) {
+        console.error(`[runPython] ❌ Process exited with code ${code}`)
+        // If we have some output, try to parse it anyway (it might contain an error JSON)
+        if (output.trim()) {
+          try {
+            resolve(JSON.parse(output.trim()))
+            return
+          } catch (e) { /* ignore and reject below */ }
+        }
+        reject(new Error(errorOutput || `Python process failed with code ${code}`))
         return
       }
+
       try {
+        if (!output.trim()) {
+          throw new Error('No output from Python script')
+        }
         resolve(JSON.parse(output.trim()))
       } catch (parseErr) {
-        console.error('[runPython] JSON parse error:', parseErr.message)
-        reject(new Error(
-          'Invalid Python output: ' + output.substring(0, 200)
-        ))
+        console.error('[runPython] ❌ JSON Parse Error:', parseErr.message)
+        console.log('[runPython] Raw Output:', output.substring(0, 500))
+        reject(new Error(`Invalid JSON output from Python script: ${parseErr.message}`))
       }
     })
   })
@@ -111,11 +149,12 @@ const formatCommodityForApi = (name) => {
 // Fetch from data.gov.in API
 const fetchLiveMandiData = async (
   commodity = null,
-  limit = 100
+  limit = 100,
+  state = null
 ) => {
   const API_KEY =
     '579b464db66ec23bdd000001' +
-    'b7d45cb5d72243dd58f4c958c5478779'
+    '8b0c1dfe712d4a6946c232e17f9666dc'
 
   const RESOURCE_ID =
     '5921640d-851d-4de9-9c31-c4d7195a7953'
@@ -135,10 +174,14 @@ const fetchLiveMandiData = async (
       `&limit=${limit}` +
       `&offset=0`
 
-    // Add commodity filter
+    // Add filters
     if (apiCommodity) {
       url += `&filters[commodity]=` +
         encodeURIComponent(apiCommodity)
+    }
+    if (state && state !== 'all') {
+      url += `&filters[state]=` +
+        encodeURIComponent(state)
     }
 
     console.log(
@@ -271,13 +314,7 @@ router.get('/rates', async (req, res) => {
 
   // Try live API first
   try {
-    rates = await fetchLiveMandiData(commodity, limit)
-    // Filter by state locally
-    if (state) {
-      rates = rates.filter(r => 
-        r.state.toLowerCase() === state.toLowerCase()
-      )
-    }
+    rates = await fetchLiveMandiData(commodity, limit, state)
     source = 'live'
     console.log(
       `✅ Live: ${rates.length} records`
@@ -342,23 +379,26 @@ router.get('/rates', async (req, res) => {
 
 // GET /api/mandi/predict
 router.get('/predict', async (req, res) => {
-  const {
-    commodity = 'Tomato',
-    current_price = '45',
-    state = 'Maharashtra'
-  } = req.query
-
   try {
+    const {
+      commodity = 'Tomato',
+      current_price = '45',
+      state = ''
+    } = req.query
+
+    const cacheKey = `predict:${commodity}:${current_price}:${state}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      console.log(`[api/predict] ⚡ Cache Hit: ${cacheKey}`);
+      return res.json(cached);
+    }
+
     // Try to get live data to pass to predictor
     let liveDataArg = ""
     try {
-      const live = await fetchLiveMandiData(commodity, 10)
-      // Filter by state locally
-      const filteredLive = live.filter(r => 
-        r.state.toLowerCase() === state.toLowerCase()
-      )
-      if (filteredLive.length > 0) {
-        liveDataArg = JSON.stringify(filteredLive)
+      const live = await fetchLiveMandiData(commodity, 10, state)
+      if (live.length > 0) {
+        liveDataArg = JSON.stringify(live)
       }
     } catch (e) {
       console.log("No live data for prediction augmentation")
@@ -374,47 +414,15 @@ router.get('/predict', async (req, res) => {
       )
     }
 
+    setCache(cacheKey, prediction);
+
     res.json(prediction)
-
-  } catch (error) {
-    console.error('Prediction error:', error)
-
-    // Fallback prediction
-    const price = parseFloat(current_price)
-    const predictions = Array.from(
-      { length: 7 }, (_, i) => ({
-        date: new Date(
-          Date.now() + (i + 1) * 86400000
-        ).toLocaleDateString('en-IN', {
-          day: 'numeric', month: 'short'
-        }),
-        price: parseFloat(
-          (price * (1 + 0.008 * (i + 1)))
-            .toFixed(2)
-        ),
-        day: i + 1
-      })
-    )
-
-    res.json({
-      success: true,
-      commodity,
-      current_price: price,
-      predictions,
-      historical_chart: predictions.map(
-        p => ({ ...p, type: 'predicted' })
-      ),
-      trend: 'stable',
-      trend_percent: 2.5,
-      price_change_7d: price * 0.025,
-      recommendation: {
-        action: 'SELL',
-        message: 'Market conditions are stable.',
-        color: '#E27D60',
-        icon: 'stable'
-      },
-      model: 'Fallback',
-      data_points: 0
+  } catch (err) {
+    console.error('[/api/mandi/predict] Error:', err.message)
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      route: '/api/mandi/predict'
     })
   }
 })
@@ -535,28 +543,40 @@ router.get('/compare', async (req, res) => {
 // GET /api/mandi/history
 // Returns historical price trend for charts
 router.get('/history', async (req, res) => {
-  const { 
-    commodity = 'Tomato',
-    state = 'Maharashtra'
-  } = req.query
-
   try {
+    const { 
+      commodity = 'Tomato',
+      state = ''
+    } = req.query
+
+    const cacheKey = `history:${commodity}:${state}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      console.log(`[api/history] ⚡ Cache Hit: ${cacheKey}`);
+      return res.json(cached);
+    }
+
     const history = await runPython([
       'history', commodity, state
     ])
 
-    res.json({
+    const result = {
       success: true,
       commodity,
       history: Array.isArray(history)
         ? history : [],
       count: Array.isArray(history)
         ? history.length : 0
-    })
-  } catch (error) {
+    };
+
+    setCache(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error('[/api/mandi/history] Error:', err.message)
     res.status(500).json({
-      message: 'History failed',
-      error: error.message
+      success: false,
+      error: err.message,
+      route: '/api/mandi/history'
     })
   }
 })
@@ -566,8 +586,15 @@ router.get('/history', async (req, res) => {
 router.get('/all-commodities',
   async (req, res) => {
   const {
-    state = 'Maharashtra'
+    state = ''
   } = req.query
+
+  const cacheKey = `all-commodities:${state}`;
+  const cached = getCache(cacheKey);
+  if (cached) {
+    console.log(`[api/all-commodities] ⚡ Cache Hit: ${cacheKey}`);
+    return res.json(cached);
+  }
 
   const commodities = [
     'Tomato', 'Onion', 'Potato',
@@ -583,10 +610,7 @@ router.get('/all-commodities',
       try {
         let rates = []
         try {
-          const live = await fetchLiveMandiData(commodity, 3)
-          rates = live.filter(r => 
-            r.state.toLowerCase() === state.toLowerCase()
-          )
+          rates = await fetchLiveMandiData(commodity, 3, state)
         } catch {
           const csv = await runPython([
             'csv', commodity, state
@@ -617,13 +641,15 @@ router.get('/all-commodities',
       } catch {}
     }
 
-    res.json({
+    const result = {
       success: true,
       state,
       commodities: results,
       count: results.length,
       fetched_at: new Date().toISOString()
-    })
+    };
+    setCache(cacheKey, result);
+    res.json(result);
 
   } catch (error) {
     res.status(500).json({
@@ -636,65 +662,111 @@ router.get('/all-commodities',
 // GET /api/mandi/today
 // Returns today's market prices for multiple commodities
 router.get('/today', async (req, res) => {
+  const requestId = Math.random().toString(36).substring(7);
+  console.log(`[${requestId}] 🚀 GET /api/mandi/today - State: ${req.query.state || 'ALL'}`);
+
   try {
-    const state = req.query.state || 'Maharashtra'
+    const state = req.query.state || ''
+    const commodity = req.query.commodity || ''
+    
+    const cacheKey = `today:${state}:${commodity}:${req.query.date || 'now'}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      console.log(`[api/today] ⚡ Cache Hit: ${cacheKey}`);
+      return res.json(cached);
+    }
     
     // Try to get live state-wide averages first
     let livePrices = []
     try {
-      const live = await fetchLiveMandiData(null, 50)
+      console.log(`[${requestId}] 📡 Fetching live data for state: ${state}, commodity: ${commodity}`);
+      const live = await fetchLiveMandiData(commodity, 200, state)
       
-      // Filter by state locally
-      const stateRecords = live.filter(r => 
-        r.state.toLowerCase() === state.toLowerCase()
-      )
-      
-      // Aggregate averages per commodity
-      const totals = {}
-      stateRecords.forEach(r => {
-        const comm = r.commodity
-        const modal = r.modal_price
-        if (comm && !isNaN(modal)) {
-          if (!totals[comm]) totals[comm] = { sum: 0, count: 0 }
-          totals[comm].sum += modal
-          totals[comm].count++
-        }
-      })
-      
-      livePrices = Object.keys(totals).map(comm => ({
-        commodity: comm,
-        price_qtl: Math.round(totals[comm].sum / totals[comm].count),
-        price_kg: Math.round(totals[comm].sum / totals[comm].count / 100), // convert qtl to kg
-        trend: 'stable' // Default for live snap
-      }))
+      if (Array.isArray(live) && live.length > 0) {
+        console.log(`[${requestId}] ✅ Found ${live.length} live records for ${state}`);
+        
+        // Map individual records for display
+        livePrices = live.map(r => ({
+          commodity: r.commodity,
+          market: r.market,
+          district: r.district,
+          state: r.state,
+          price_qtl: r.modal_price,
+          modal_price: r.modal_price,
+          min_price: r.min_price,
+          max_price: r.max_price,
+          price_kg: Math.round(r.modal_price / 100),
+          arrival_date: r.arrival_date,
+          source: 'live',
+          trend: 'stable'
+        }))
+      }
     } catch (apiErr) {
-      console.error("[TODAY] API error:", apiErr.message)
+      console.warn(`[${requestId}] ⚠️ [TODAY] Live API error:`, apiErr.message)
     }
 
     // Still run Python for full list + historical context
-    const pythonData = await runPython(['today'])
+    console.log(`[${requestId}] 🐍 Running Python 'today' command...`);
+    let pythonData = [];
+    try {
+      pythonData = await runPython(['today', commodity, state]);
+      if (!Array.isArray(pythonData)) {
+        console.warn(`[${requestId}] ⚠️ Python 'today' did not return an array:`, pythonData);
+        pythonData = [];
+      }
+    } catch (pyErr) {
+      console.error(`[${requestId}] ❌ Python 'today' failed:`, pyErr.message);
+      // If Python fails, we still continue with livePrices if we have them
+    }
     
     // Merge live prices into python data (live overrides)
-    const finalPrices = Array.isArray(pythonData) ? [...pythonData] : []
+    const finalPrices = [...pythonData]
     
-    livePrices.forEach(lp => {
-      const idx = finalPrices.findIndex(fp => fp.commodity === lp.commodity)
-      if (idx > -1) {
-        finalPrices[idx] = { ...finalPrices[idx], price_kg: lp.price_kg, price_qtl: lp.price_qtl, source: 'live' }
-      } else {
-        finalPrices.push({ ...lp, source: 'live' })
-      }
-    })
+    if (Array.isArray(livePrices)) {
+      livePrices.forEach(lp => {
+        const idx = finalPrices.findIndex(fp => 
+          fp && fp.commodity && lp.commodity && 
+          fp.commodity.toLowerCase() === lp.commodity.toLowerCase()
+        )
+        if (idx > -1) {
+          finalPrices[idx] = { 
+            ...finalPrices[idx], 
+            price_kg: lp.price_kg, 
+            price_qtl: lp.price_qtl,
+            modal_price: lp.modal_price || lp.price_qtl,
+            min_price: lp.min_price || lp.price_qtl,
+            max_price: lp.max_price || lp.price_qtl,
+            source: 'live' 
+          }
+        } else {
+          finalPrices.push({ ...lp, source: 'live' })
+        }
+      })
+    }
 
-    res.json({
+    console.log(`[${requestId}] ✨ Sending ${finalPrices.length} prices`);
+
+    const result = {
       success: true,
+      requestId,
       prices: finalPrices,
+      records: finalPrices, // Also return as 'records' to support MandiRates.jsx
       date: new Date().toLocaleDateString('en-GB'),
-      source: livePrices.length > 0 ? 'Agmarknet Live' : 'Historical CSV'
-    })
+      source: livePrices.length > 0 ? 'Agmarknet Live' : 'Market Data'
+    };
+
+    setCache(cacheKey, result);
+    res.json(result);
   } catch (err) {
-    console.error("[TODAY] Route error:", err)
-    res.status(500).json({ success: false, message: err.message })
+    console.error(`[${requestId}] 🚨 CRITICAL ERROR in /api/mandi/today:`, err);
+    res.status(500).json({
+      success: false,
+      requestId,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch today prices',
+      detail: err.message,
+      path: req.path
+    })
   }
 })
 
@@ -702,10 +774,15 @@ router.get('/today', async (req, res) => {
 // Returns 3-year trend and yearly analysis
 router.get('/trend', async (req, res) => {
   const { commodity = 'Tomato' } = req.query
+  const cacheKey = `trend:${commodity}`;
+  const cached = getCache(cacheKey);
+  if (cached) return res.json(cached);
+
   try {
     const data = await runPython(
       ['trend', commodity]
     )
+    setCache(cacheKey, data);
     res.json(data)
   } catch (err) {
     res.status(500).json({
@@ -719,15 +796,21 @@ router.get('/trend', async (req, res) => {
 // Returns suitable crops for a specific zone
 router.get('/recommend', async (req, res) => {
   const { zone = 'Maharashtra' } = req.query
+  const cacheKey = `recommend:${zone}`;
+  const cached = getCache(cacheKey);
+  if (cached) return res.json(cached);
+
   try {
     const data = await runPython(
       ['recommend', zone]
     )
-    res.json({
+    const result = {
       success: true,
       recommendations: Array.isArray(data)
         ? data : []
-    })
+    };
+    setCache(cacheKey, result);
+    res.json(result);
   } catch (err) {
     res.status(500).json({
       message: 'Recommend failed'

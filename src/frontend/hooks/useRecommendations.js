@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import { allProducts } from "@/data/products";
+import { fetchWithCache } from '../utils/fetchUtils';
+import { TTL } from '../utils/apiCache';
 
 const useRecommendations = () => {
   const [recommendations, setRecommendations] = useState([])
-  const [label, setLabel] = useState('Popular This Week 🔥')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [type, setType] = useState('popular')
+  const [label, setLabel] = useState('Popular This Week 🔥')
 
   // Get user
   const user = (() => {
@@ -24,97 +27,105 @@ const useRecommendations = () => {
   })()
 
   useEffect(() => {
+    const controller = new AbortController()
+
+    const fetchRecommendations = async () => {
+      setLoading(true)
+      try {
+        if (!uid || uid === "null") {
+          // Guest user — show popular
+          setRecommendations(getPopularProducts())
+          setLabel('Popular This Week 🔥')
+          setType('popular')
+          setLoading(false)
+          return
+        }
+
+        setError(null)
+        const res = await fetchWithCache(`/api/recommendations/${uid}`, { 
+          signal: controller.signal 
+        }, TTL.RECOMMENDATIONS)
+        
+        const contentType = res.headers.get('content-type')
+
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(`Server error (${res.status}): ${text.substring(0, 50)}`)
+        }
+
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Server returned HTML or invalid content-type')
+        }
+
+        const data = await res.json()
+
+        // Guard the data setter
+        let finalRecs = []
+
+        if (data.type === 'personalized' && data.categories?.length) {
+          // Filter products by user's categories
+          const personalized = allProducts
+            .filter(p =>
+              data.categories.includes(p.category) &&
+              !data.excludeIds?.includes(p.id?.toString())
+            )
+            .slice(0, 8)
+
+          // If not enough personalized, fill with popular
+          if (personalized.length < 4) {
+            const popular = getPopularProducts()
+              .filter(p => !personalized.find(r => r.id === p.id))
+              .slice(0, 8 - personalized.length)
+            finalRecs = [...personalized, ...popular]
+          } else {
+            finalRecs = personalized
+          }
+
+          setLabel(data.label || 'Picked For You 🌾')
+          setType('personalized')
+
+        } else {
+          // New user or fallback - use browsing history if available
+          if (!data.totalOrders && browsedCategories.length) {
+            const browsingBased = allProducts
+              .filter(p => browsedCategories.includes(p.category))
+              .slice(0, 8)
+            
+            if (browsingBased.length > 0) {
+              setRecommendations(browsingBased)
+              setLabel('Based on Your Interest 👀')
+              setType('browsing')
+              setLoading(false)
+              return
+            }
+          }
+          
+          finalRecs = getPopularProducts()
+          setLabel(data.label || 'Popular This Week 🔥')
+          setType('popular')
+        }
+
+        setRecommendations(Array.isArray(finalRecs) ? finalRecs : (finalRecs?.items ?? []))
+
+      } catch (error) {
+        if (error.name === 'AbortError') return
+        console.error('Recommendations fetch error:', error)
+        setError(error.message)
+        // Fallback to local products
+        setRecommendations([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchRecommendations()
+    
+    return () => {
+      controller.abort()
+    }
   }, [uid])
 
-  const fetchRecommendations = async () => {
-    setLoading(true)
-    try {
-      if (!uid || uid === "null") {
-        // Guest user — show popular
-        setRecommendations(getPopularProducts())
-        setLabel('Popular This Week 🔥')
-        setType('popular')
-        setLoading(false)
-        return
-      }
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 5000)
-
-      const res = await fetch(`/api/recommendations/${uid}`, { signal: controller.signal })
-      clearTimeout(timeout)
-      
-      // Handle non-JSON response
-      const contentType = res.headers.get('content-type')
-      if (!contentType?.includes('application/json')) {
-        throw new Error('Server returned HTML')
-      }
-
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`)
-      }
-
-      const data = await res.json()
-
-      if (data.type === 'personalized' && data.categories?.length) {
-        // Filter products by user's categories
-        const personalized = allProducts
-          .filter(p =>
-            data.categories.includes(p.category) &&
-            !data.excludeIds?.includes(p.id?.toString())
-          )
-          .slice(0, 8)
-
-        // If not enough personalized, fill with popular
-        if (personalized.length < 4) {
-          const popular = getPopularProducts()
-            .filter(p => !personalized.find(r => r.id === p.id))
-            .slice(0, 8 - personalized.length)
-          setRecommendations([...personalized, ...popular])
-        } else {
-          setRecommendations(personalized)
-        }
-
-        setLabel(data.label || 'Picked For You 🌾')
-        setType('personalized')
-
-      } else {
-        // New user or fallback - use browsing history if available
-        if (!data.totalOrders && browsedCategories.length) {
-          const browsingBased = allProducts
-            .filter(p => browsedCategories.includes(p.category))
-            .slice(0, 8)
-          
-          if (browsingBased.length > 0) {
-            setRecommendations(browsingBased)
-            setLabel('Based on Your Interest 👀')
-            setType('browsing')
-            setLoading(false)
-            return
-          }
-        }
-        
-        setRecommendations(getPopularProducts())
-        setLabel(data.label || 'Popular This Week 🔥')
-        setType('popular')
-      }
-
-    } catch (error) {
-      console.error('Recommendations fetch error:', error)
-      console.warn('Recommendations unavailable:', error.message)
-      // Server down or any error
-      // Silently fallback to local products
-      setRecommendations(getPopularProducts())
-      setLabel('Popular This Week 🔥')
-      setType('popular')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // Get popular products
-  // Since we don't have soldCount yet, use price as proxy (mix categories)
   const getPopularProducts = () => {
     const categories = ['Vegetables', 'Fruits', 'Dairy', 'Grains']
     const mixed = []
@@ -129,10 +140,10 @@ const useRecommendations = () => {
 
   return {
     recommendations,
-    label,
     loading,
+    error,
     type,
-    refresh: fetchRecommendations
+    label
   }
 }
 

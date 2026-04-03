@@ -853,10 +853,19 @@ def get_rates(
 # TODAY'S OVERVIEW
 # ════════════════════════════════════════
 
-def get_all_today():
+def get_all_today(commodity_filter=None, state_filter=None):
+  # Normalize filters
+  c_filt = str(commodity_filter).strip().lower() if commodity_filter and str(commodity_filter).lower() not in ['all', 'none', 'null', 'undefined'] else None
+  s_filt = str(state_filter).strip().lower() if state_filter and str(state_filter).lower() not in ['all', 'none', 'null', 'undefined'] else None
+
+  # Start with commodity-level summary
   today = read_today()
   result = []
   for name, val in today.items():
+    # Filter by commodity
+    if c_filt and not matches(val['commodity'], c_filt):
+      continue
+    
     p14 = val.get('p14_kg')
     p12 = val.get('p12_kg')
     if not p14:
@@ -865,28 +874,74 @@ def get_all_today():
     change_pct = None
     if p14 and p12 and p12 > 0:
       change = round(p14 - p12, 2)
-      change_pct = round(
-        (change / p12) * 100, 1
-      )
+      change_pct = round((change / p12) * 100, 1)
+    
     result.append({
       'commodity':  val['commodity'],
       'group':      val['group'],
       'price_kg':   p14,
       'price_qtl':  val.get('p14_qtl'),
+      'modal_price': val.get('p14_qtl'),
+      'min_price':   val.get('p14_qtl'),
+      'max_price':   val.get('p14_qtl'),
       'msp_kg':     val.get('msp_kg'),
       'change_2d':  change,
       'change_pct': change_pct,
-      'trend': 'up'
-               if change and change > 0
-               else 'down'
-               if change and change < 0
-               else 'stable',
+      'trend': 'up' if change and change > 0 else 'down' if change and change < 0 else 'stable',
       'arrival_mt': val.get('arrival'),
-      'date':       val.get('date')
+      'date':       val.get('date'),
+      'market':     'National Average',
+      'district':   'All India',
+      'state':      'National'
     })
-  result.sort(key=lambda x: (
-    x['group'], x['commodity']
-  ))
+
+  # Add top 100 detailed markets from Dataset.csv
+  try:
+    historical = read_historical('Tomato', 'Maharashtra') # Quick way to see if Dataset.csv is working
+    # But better to just scan for ALL commodities
+    detailed_results = []
+    fp = BASE / 'Dataset.csv'
+    if fp.exists():
+      with open(fp, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        count = 0
+        for row in reader:
+          if count >= 100: break
+          mod_p = clean_price(row.get('Modal_Price') or row.get('Modal_x0020_Price') or row.get('Modal Price'))
+          if mod_p and mod_p > 0:
+            detailed_record = {
+              'commodity':  row.get('Commodity', 'Unknown'),
+              'group':      'Market Data',
+              'price_kg':   round(mod_p / 100, 2),
+              'price_qtl':  mod_p,
+              'modal_price': mod_p,
+              'min_price':   clean_price(row.get('Min_Price') or 0),
+              'max_price':   clean_price(row.get('Max_Price') or 0),
+              'state':      row.get('State', 'Unknown'),
+              'district':   row.get('District', 'Unknown'),
+              'market':     row.get('Market', 'Unknown'),
+              'date':       row.get('Arrival_Date', 'N/A'),
+              'trend':      'stable',
+              'source':     'AGMARKNET Dataset'
+            }
+            
+            # Filter by commodity
+            if c_filt and not matches(detailed_record['commodity'], c_filt):
+              continue
+            
+            # Filter by state
+            if s_filt:
+              st = detailed_record['state'].lower()
+              if s_filt not in st and st not in s_filt:
+                continue
+
+            detailed_results.append(detailed_record)
+            count += 1
+    result.extend(detailed_results)
+  except:
+    pass
+
+  result.sort(key=lambda x: (x.get('group', ''), x.get('commodity', '')))
   return result
 
 # ════════════════════════════════════════
@@ -1076,7 +1131,9 @@ if __name__ == '__main__':
       print(json.dumps(get_rates(c, s)))
 
     elif cmd == 'today':
-      print(json.dumps(get_all_today()))
+      c = sys.argv[2] if len(sys.argv) > 2 else None
+      s = sys.argv[3] if len(sys.argv) > 3 else None
+      print(json.dumps(get_all_today(c, s)))
 
     elif cmd == 'trend':
       c = sys.argv[2] \

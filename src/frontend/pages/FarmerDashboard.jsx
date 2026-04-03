@@ -68,7 +68,9 @@ import {
 
 import { useUser } from "@/frontend/contexts/UserContext";
 import { useProducts } from "@/frontend/contexts/ProductContext";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { notifications } from '@mantine/notifications';
+import { useForm } from 'react-hook-form';
+import MagneticButton from "@/frontend/components/MagneticButton";
 import Button from "@/frontend/components/ui/Button";
 import Input from "@/frontend/components/ui/Input";
 import Card from "@/frontend/components/ui/Card";
@@ -79,12 +81,10 @@ import { updateSEO } from '@/frontend/utils/seo';
 import Breadcrumb from '@/frontend/components/ui/Breadcrumb';
 import MandiRates from "../components/ui/MandiRates";
 import {
-  addProductToFirestore,
-  getFarmerProductsFromFirestore,
-  updateProductInFirestore,
-  deleteProductFromFirestore,
-  toggleProductPublishFirestore
-} from '../services/firestoreService';
+  getFarmerHybridProducts
+} from '../services/hybridService';
+import { safeDate, formatDate } from '@/frontend/utils/dateUtils';
+import { fetchJSON, handleFetchError } from '@/frontend/utils/fetchUtils';
 import "./FarmerDashboard.css";
 
 const COLORS = ["#2D4F1E", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B"];
@@ -339,7 +339,6 @@ const FarmerDashboard = () => {
   const { products: contextProducts = [], addProduct, updateProduct, removeProduct } = useProducts();
   const navigate = useNavigate();
   const location = useLocation();
-  const toast = useToast();
 
   const ownerEmail =
     localStorage.getItem("userEmail") ||
@@ -368,59 +367,52 @@ const FarmerDashboard = () => {
   const profileRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Add product state
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [newProduct, setNewProduct] = useState({
-    name: "",
-    description: "",
-    category: "",
-    price: "",
-    quantity: "",
-    unit: "kg",
-    image: "",
-    published: true,
-    grade: "local"
+  // Form for Add Product
+  const {
+    register: registerProduct,
+    handleSubmit: handleProductSubmit,
+    reset: resetProduct,
+    formState: { errors: productErrors },
+    watch: watchProduct,
+    setValue: setProductValue
+  } = useForm({
+    defaultValues: {
+      name: "",
+      description: "",
+      category: "",
+      price: "",
+      quantity: "",
+      unit: "kg",
+      image: "",
+      published: true,
+      grade: "local",
+      seedCost: '',
+      laborCost: '',
+      transportCost: '',
+      otherCost: ''
+    }
   });
 
+  const productFormData = watchProduct();
   const [priceAdvice, setPriceAdvice] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
-  const [costInputs, setCostInputs] = useState({
-    seedCost: '',
-    laborCost: '',
-    transportCost: '',
-    otherCost: ''
-  })
-
   const [profitAnalysis, setProfitAnalysis] = useState(null)
+  const [isAdding, setIsAdding] = useState(false)
+  const [formLoading, setFormLoading] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [showAddProduct, setShowAddProduct] = useState(false)
 
-  // Profile state
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    phone: '',
-    farmName: '',
-    farmLocation: '',
-    farmSize: '',
-    farmSizeUnit: 'acres',
-    primaryCrops: '',
-    state: '',
-    district: '',
-    pincode: '',
-    experience: '',
-    bio: '',
-    bankName: '',
-    accountNumber: '',
-    ifscCode: '',
-    upiId: ''
-  })
+  // Profile state using React Hook Form
+  const { register, handleSubmit, watch, reset: resetProfile, formState: { errors: profileErrors, isSubmitting: profileSubmitting } } = useForm({
+    defaultValues: {
+      name: '', phone: '', farmName: '', farmLocation: '', farmSize: '', farmSizeUnit: 'acres',
+      primaryCrops: '', state: '', district: '', pincode: '', experience: '', bio: '', bankName: '', accountNumber: '', ifscCode: '', upiId: ''
+    }
+  });
 
-  const [profileLoading, setProfileLoading] = useState(false)
-  const [profileSuccess, setProfileSuccess] = useState('')
-  const [profileError, setProfileError] = useState('')
+  // const [profileSuccess, setProfileSuccess] = useState('')
+  // const [profileError, setProfileError] = useState('')
 
   const calculateProfit = (
     sellingPrice,
@@ -641,47 +633,63 @@ const FarmerDashboard = () => {
   }, []);
 
   // Fetch Products
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (signal) => {
     if (!farmerId) return;
     setProductsLoading(true);
     setProductsError(null);
     try {
-      let data = [];
-      try {
-        const { getFarmerProductsFromFirestore } = await import('../services/firestoreService');
-        data = await getFarmerProductsFromFirestore(farmerId);
-      } catch (err) {
-        console.warn("Firestore fetch failed, trying API fallback", err);
-        const res = await fetch(`/api/products?farmerId=${farmerId}`);
-        const json = await res.json();
-        data = json.products || [];
-      }
+      const data = await getFarmerHybridProducts(farmerId);
+      if (signal.aborted) return;
       setProducts(data);
       setLocalProducts(data);
       setInventory(data);
     } catch (err) {
-      console.error("Load products failed:", err);
-      setProductsError("Failed to sync inventory.");
+      const handled = handleFetchError(err);
+      if (!handled.aborted) {
+        console.error("Load products failed:", handled.error);
+        setProductsError("Failed to sync inventory.");
+      }
     } finally {
       setProductsLoading(false);
     }
   }, [farmerId]);
 
   useEffect(() => {
-    loadProducts();
+    const controller = new AbortController();
+    loadProducts(controller.signal);
+    return () => controller.abort();
   }, [loadProducts]);
+
+
+  const fetchMandi = useCallback(async (signal) => {
+    const selectedState = watch('state') || 'Maharashtra';
+    setMandiLoading(true);
+    try {
+      const data = await fetchJSON(`/api/mandi/today?state=${selectedState}`, { signal });
+      
+      if (data.aborted) return;
+
+      if (data.success && data.prices) {
+        setTodayPrices(data.prices);
+      }
+    } catch (err) {
+      handleFetchError(err);
+    } finally {
+      setMandiLoading(false);
+    }
+  }, [watch]);
 
   // Fetch Analytics & Mandi
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const controller = new AbortController();
+    const fetchAnalytics = async (signal) => {
       if (!farmerId) return;
       setAnalyticsLoading(true);
       setAnalyticsError(null);
       try {
-        const res = await fetch(`/api/orders/farmer/${farmerId}?period=${chartPeriod}`);
-        const data = await res.json();
+        const data = await fetchJSON(`/api/orders/farmer/${farmerId}?period=${chartPeriod}`, { signal });
         
-        console.log(`[DASHBOARD] Analytics for ${farmerId}:`, data);
+        if (data.aborted) return;
 
         if (data.success) {
           setChartData(data.sales_trend || []);
@@ -695,117 +703,80 @@ const FarmerDashboard = () => {
           throw new Error(data.error || "Failed to fetch analytics");
         }
       } catch (err) {
-        console.error("Analytics fetch failed:", err);
-        setAnalyticsError("Failed to load trends.");
-        // Fallback to zeros if API fails
-        setChartData([]);
-        setHasSalesData(false);
+        const handled = handleFetchError(err);
+        if (!handled.aborted) {
+          setAnalyticsError("Failed to load trends.");
+          setChartData([]);
+          setHasSalesData(false);
+        }
       } finally {
         setAnalyticsLoading(false);
       }
     };
 
-    const fetchMandi = async () => {
-      setMandiLoading(true);
-      try {
-        const res = await fetch('/api/mandi/today?state=Maharashtra');
-        const data = await res.json();
-        if (data.success && data.prices) {
-          // Sort to put Tomato, Onion, Potato, Spinach at the top if possible
-          const priority = ['Tomato', 'Onion', 'Potato', 'Spinach'];
-          const sorted = [...data.prices].sort((a, b) => {
-            const aIdx = priority.indexOf(a.commodity);
-            const bIdx = priority.indexOf(b.commodity);
-            if (aIdx > -1 && bIdx > -1) return aIdx - bIdx;
-            if (aIdx > -1) return -1;
-            if (bIdx > -1) return 1;
-            return 0;
-          });
-          setTodayPrices(sorted);
-        }
-      } catch (err) {
-        console.error("Mandi fetch failed:", err);
-      } finally {
-        setMandiLoading(false);
-      }
-    };
-
-    fetchAnalytics();
-    fetchMandi();
+    fetchAnalytics(controller.signal);
+    return () => controller.abort();
   }, [farmerId, chartPeriod]);
+
+  // Consolidate fetchMandi to fire only once on mount with cleanup
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMandi(controller.signal);
+    return () => controller.abort();
+  }, [fetchMandi]);
 
   // Load existing profile data
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadProfile = async (signal) => {
       try {
-        const uid = user?.uid
-          || JSON.parse(
-            localStorage.getItem('ks_user')
-            || 'null'
-          )?.uid
+        const uid = user?.uid || farmerId;
+        if (!uid) return;
 
-        if (!uid) return
+        const initialData = {
+          name: user?.name || user?.displayName || '',
+          phone: user?.phone || user?.phoneNumber || '',
+          farmName: '', farmLocation: '', farmSize: '', farmSizeUnit: 'acres',
+          primaryCrops: '', state: '', district: '', pincode: '', experience: '', bio: '',
+          upiId: '', bankName: '', accountNumber: '', ifscCode: ''
+        };
 
-        // Pre-fill from user context
-        setProfileForm(prev => ({
-          ...prev,
-          name: user?.name
-            || user?.displayName
-            || '',
-          phone: user?.phone
-            || user?.phoneNumber
-            || ''
-        }))
+        const data = await fetchJSON(`/api/users/${uid}`, { signal });
+        
+        if (data.aborted) return;
 
-        // Try MongoDB
-        const res = await fetch(
-          `/api/users/${uid}`
-        )
-        if (res.ok) {
-          const data = await res.json()
-          const u = data.user || data
-          setProfileForm(prev => ({
-            ...prev,
-            name: u.name || prev.name,
-            phone: u.phone || prev.phone,
-            farmName: u.farmName
-              || u.farm_name || '',
-            farmLocation: u.farmLocation
-              || u.farm_location || '',
-            farmSize: u.farmSize
-              || u.farm_size || '',
-            farmSizeUnit: u.farmSizeUnit
-              || 'acres',
-            primaryCrops: u.primaryCrops
-              || u.primary_crops || '',
-            state: u.state || '',
-            district: u.district || '',
-            pincode: u.pincode || '',
-            experience: u.experience || '',
-            bio: u.bio || '',
-            upiId: u.upiId
-              || u.upi_id || '',
-            bankName: u.bankName || '',
-            accountNumber: u.accountNumber || '',
-            ifscCode: u.ifscCode || ''
-          }))
+        if (data.success || data.user) {
+          const u = data.user || data;
+          resetProfile({
+            ...initialData,
+            name: u.name || initialData.name,
+            phone: u.phone || initialData.phone,
+            farmName: u.farmName || u.farm_name || '',
+            farmLocation: u.farmLocation || u.farm_location || '',
+            farmSize: u.farmSize || u.farm_size || '',
+            farmSizeUnit: u.farmSizeUnit || 'acres',
+            primaryCrops: u.primaryCrops || u.primary_crops || '',
+            state: u.state || '', district: u.district || '',
+            pincode: u.pincode || '', experience: u.experience || '', bio: u.bio || '',
+            upiId: u.upiId || u.upi_id || '', bankName: u.bankName || '',
+            accountNumber: u.accountNumber || '', ifscCode: u.ifscCode || ''
+          });
+        } else {
+          resetProfile(initialData);
         }
       } catch (err) {
-        console.warn(
-          '[Profile] Load error:',
-          err.message
-        )
+        handleFetchError(err);
       }
-    }
+    };
 
     if (activeTab === 'profile') {
-      loadProfile()
+      const controller = new AbortController();
+      loadProfile(controller.signal);
+      return () => controller.abort();
     }
-  }, [activeTab, user?.uid])
+  }, [activeTab, user?.uid, farmerId]);
 
   // Save profile to both databases
-  const saveProfile = async () => {
-    setProfileLoading(true)
+  const onSubmitProfile = async (formData) => {
     setProfileError('')
     setProfileSuccess('')
 
@@ -827,73 +798,35 @@ const FarmerDashboard = () => {
         }
       })()
 
-      console.log(
-        '[SaveProfile] uid:', uid
-      )
-      console.log(
-        '[SaveProfile] form:', profileForm
-      )
-
       if (!uid) {
-        setProfileError(
-          'Not logged in. ' +
-          'Please logout and login again.'
-        )
-        setProfileLoading(false)
-        return
-      }
-
-      if (!profileForm.name?.trim()) {
-        setProfileError(
-          'Name is required'
-        )
-        setProfileLoading(false)
+        notifications.show({
+          title: '❌ Login Required',
+          message: 'Not logged in. Please logout and login again.',
+          color: 'red', autoClose: 5000,
+          styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+        });
         return
       }
 
       // Build clean payload
       const payload = {
         uid,
-        name: profileForm.name?.trim()
-          || '',
-        phone: profileForm.phone?.trim()
-          || '',
-        farmName: profileForm.farmName
-          ?.trim() || '',
-        farmLocation:
-          profileForm.farmLocation
-            ?.trim() || '',
-        farmSize: profileForm.farmSize
-          || '',
-        farmSizeUnit:
-          profileForm.farmSizeUnit
-          || 'acres',
-        primaryCrops:
-          profileForm.primaryCrops
-            ?.trim() || '',
-        state: profileForm.state?.trim()
-          || '',
-        district:
-          profileForm.district?.trim()
-          || '',
-        pincode:
-          profileForm.pincode?.trim()
-          || '',
-        experience:
-          profileForm.experience || '',
-        bio: profileForm.bio?.trim()
-          || '',
-        upiId: profileForm.upiId?.trim()
-          || '',
-        bankName:
-          profileForm.bankName?.trim()
-          || '',
-        accountNumber:
-          profileForm.accountNumber
-            ?.trim() || '',
-        ifscCode:
-          profileForm.ifscCode?.trim()
-          || '',
+        name: formData.name?.trim() || '',
+        phone: formData.phone?.trim() || '',
+        farmName: formData.farmName?.trim() || '',
+        farmLocation: formData.farmLocation?.trim() || '',
+        farmSize: formData.farmSize || '',
+        farmSizeUnit: formData.farmSizeUnit || 'acres',
+        primaryCrops: formData.primaryCrops?.trim() || '',
+        state: formData.state?.trim() || '',
+        district: formData.district?.trim() || '',
+        pincode: formData.pincode?.trim() || '',
+        experience: formData.experience || '',
+        bio: formData.bio?.trim() || '',
+        upiId: formData.upiId?.trim() || '',
+        bankName: formData.bankName?.trim() || '',
+        accountNumber: formData.accountNumber?.trim() || '',
+        ifscCode: formData.ifscCode?.trim() || '',
         role: user?.role || 'farmer',
         updatedAt: new Date().toISOString()
       }
@@ -1025,40 +958,45 @@ const FarmerDashboard = () => {
 
       // ── SHOW RESULT ────────────────
       if (firebaseSaved || mongoSaved) {
-        setProfileSuccess(
-          '✅ Profile saved successfully!'
-        )
-        toast.success('Profile updated!')
-        setTimeout(() =>
-          setProfileSuccess(''), 4000
-        )
+        notifications.show({
+          title: '✅ Profile updated!',
+          message: 'Your info has been saved safely.',
+          color: 'green', autoClose: 3000,
+          styles: {
+            root: {
+              fontFamily: 'DM Sans',
+              borderLeft: '4px solid #2D4F1E'
+            },
+            title: { fontWeight: 700, color: '#2D4F1E' }
+          }
+        });
       } else {
-        // Saved to localStorage at least
-        setProfileSuccess(
-          '✅ Profile saved locally! ' +
-          'Will sync when online.'
-        )
-        toast.info(
-          'Saved locally. Will sync later.',
-          4000
-        )
-        setTimeout(() =>
-          setProfileSuccess(''), 4000
-        )
+        notifications.show({
+          title: '⚠️ Saved locally',
+          message: 'Profile saved locally. Will sync when online.',
+          color: 'yellow', autoClose: 4000,
+          styles: {
+            root: {
+              fontFamily: 'DM Sans',
+              borderLeft: '4px solid #F5A623'
+            }
+          }
+        });
       }
 
     } catch (err) {
-      console.error(
-        '❌ [SaveProfile] Fatal:',
-        err.message,
-        err.stack
-      )
-      setProfileError(
-        `Failed to save: ${err.message}`
-      )
-      toast.error('Save failed')
-    } finally {
-      setProfileLoading(false)
+      console.error('❌ [SaveProfile] Fatal:', err.message)
+      notifications.show({
+        title: '❌ Save failed',
+        message: err.message,
+        color: 'red', autoClose: 5000,
+        styles: {
+          root: {
+            fontFamily: 'DM Sans',
+            borderLeft: '4px solid #FF5252'
+          }
+        }
+      });
     }
   }
   useEffect(() => {
@@ -1101,9 +1039,19 @@ const FarmerDashboard = () => {
       setProducts(prev => (prev || []).map(p => (p._id || p.id) === id ? { ...p, ...changes } : p));
       setLocalProducts(prev => (prev || []).map(p => (p._id || p.id) === id ? { ...p, ...changes } : p));
       cancelEditRow(id);
-      toast.success("Product updated successfully");
+      notifications.show({
+        title: '✅ Product updated',
+        message: 'Changes have been saved successfully.',
+        color: 'green',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #2D4F1E', borderRadius: 12 } }
+      });
     } catch (err) {
-      toast.error("Failed to save changes");
+      notifications.show({
+        title: '❌ Save failed',
+        message: 'Could not update the product.',
+        color: 'red',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #FF5252', borderRadius: 12 } }
+      });
     }
   };
 
@@ -1118,7 +1066,12 @@ const FarmerDashboard = () => {
     if (updateTimersRef.current[id]) clearTimeout(updateTimersRef.current[id]);
     updateTimersRef.current[id] = setTimeout(() => {
       updateProduct(id, changes);
-      toast.success("Changes saved organically");
+      notifications.show({
+        title: '💾 Saved',
+        message: 'Changes saved organically.',
+        color: 'blue',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #2D4F1E', borderRadius: 12 } }
+      });
       delete updateTimersRef.current[id];
     }, delay);
   };
@@ -1135,10 +1088,19 @@ const FarmerDashboard = () => {
 
       setProducts(prev => (prev || []).map(p => (p.id || p._id) === productId ? { ...p, isPublished: newStatus, published: newStatus } : p))
       setLocalProducts(prev => (prev || []).map(p => (p.id || p._id) === productId ? { ...p, isPublished: newStatus, published: newStatus } : p))
-      toast.info(newStatus ? "Published to marketplace" : "Hidden from marketplace")
+      notifications.show({
+        title: newStatus ? '🌐 Published' : '🔒 Hidden',
+        message: newStatus ? 'Product is now visible in the marketplace.' : 'Product is hidden from buyers.',
+        color: newStatus ? 'green' : 'gray',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: `4px solid ${newStatus ? '#2D4F1E' : '#7A7A7A'}`, borderRadius: 12 } }
+      });
     } catch (err) {
       console.error('Toggle failed:', err)
-      toast.error("Failed to update status")
+      notifications.show({
+        title: '❌ Status update failed',
+        message: 'Could not update visibility.',
+        color: 'red'
+      });
     }
   }
 
@@ -1156,66 +1118,83 @@ const FarmerDashboard = () => {
       setProducts(prev => (prev || []).filter(p => (p.id || p._id) !== productId))
       setLocalProducts(prev => (prev || []).filter(p => (p.id || p._id) !== productId))
       setInventory(prev => (prev || []).filter(p => (p.id || p._id) !== productId))
-      toast.info("Product removed successfully")
+      notifications.show({
+        title: '🗑️ Deleted',
+        message: `"${productName}" removed from your inventory.`,
+        color: 'red',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #FF5252', borderRadius: 12 } }
+      });
     } catch (err) {
       console.error('Delete failed:', err)
-      toast.error("Failed to delete product")
+      notifications.show({
+        title: '❌ Delete failed',
+        message: 'Could not remove the product.',
+        color: 'red'
+      });
     }
   }
 
   // Debounced price check
-  const checkPrice = async (price, commodity, grade) => {
+  const checkPrice = useCallback(async (price, commodity, grade, signal) => {
     if (!price || !commodity || price < 1) {
       setPriceAdvice(null);
       return;
     }
     setPriceLoading(true);
     try {
-      const res = await fetch(
-        `/api/products/price-check?commodity=${encodeURIComponent(commodity)}&price=${price}&grade=${grade}`
+      const data = await fetchJSON(
+        `/api/products/price-check?commodity=${encodeURIComponent(commodity)}&price=${price}&grade=${grade}`,
+        { signal }
       );
-      const data = await res.json();
+      if (data.aborted) return;
       if (data.success) {
         setPriceAdvice(data);
       }
     } catch (err) {
-      console.error("Price check failed:", err);
+      handleFetchError(err);
       setPriceAdvice(null);
     } finally {
       setPriceLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = setTimeout(() => {
-      if (newProduct.price && newProduct.name) {
-        checkPrice(newProduct.price, newProduct.name, newProduct.grade || 'local');
+      if (productFormData.price && productFormData.name) {
+        checkPrice(productFormData.price, productFormData.name, productFormData.grade || 'local', controller.signal);
       }
     }, 800);
-    return () => clearTimeout(timer);
-  }, [newProduct.price, newProduct.name, newProduct.grade]);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [productFormData.price, productFormData.name, productFormData.grade, checkPrice]);
 
   // Recalculate when price or costs change
   useEffect(() => {
-    if (newProduct.price && newProduct.quantity) {
+    if (productFormData.price && productFormData.quantity) {
+      const costs = {
+        seedCost: productFormData.seedCost,
+        laborCost: productFormData.laborCost,
+        transportCost: productFormData.transportCost,
+        otherCost: productFormData.otherCost
+      };
       const analysis = calculateProfit(
-        newProduct.price,
-        newProduct.quantity,
-        costInputs,
+        productFormData.price,
+        productFormData.quantity,
+        costs,
         priceAdvice?.mandi_rate || null
       )
       setProfitAnalysis(analysis)
     } else {
       setProfitAnalysis(null)
     }
-  }, [newProduct.price, newProduct.quantity, costInputs, priceAdvice])
+  }, [productFormData.price, productFormData.quantity, productFormData.seedCost, productFormData.laborCost, productFormData.transportCost, productFormData.otherCost, priceAdvice])
 
 
   // --- Add new product handler (Firestore integration) ---
-  const handleAddProduct = async (formData) => {
-    // If called from form event
-    if (formData?.preventDefault) formData.preventDefault()
-    
+  const onAddProductSubmit = async (data) => {
     setIsAdding(true)
     setFormLoading(true)
     setFormError('')
@@ -1235,8 +1214,13 @@ const FarmerDashboard = () => {
         || null
 
       if (!uid) {
-        setFormError('Please login to add products')
-        toast.error('Please login to add products')
+        notifications.show({
+          title: '❌ Login Required',
+          message: 'Please login to add products',
+          color: 'red',
+          autoClose: 5000,
+          styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+        })
         cleanup()
         return
       }
@@ -1244,34 +1228,17 @@ const FarmerDashboard = () => {
       const payload = {
         farmerId: uid,
         farmerName: user?.name || 'Farmer',
-        name: (newProduct.name || '').trim(),
-        description: newProduct.description || '',
-        price: parseFloat(newProduct.price || 0),
-        unit: newProduct.unit || 'kg',
-        priceUnit: newProduct.unit || 'kg',
-        quantity: parseInt(newProduct.quantity || 0),
-        category: newProduct.category || '',
-        image: newProduct.image || '',
-        grade: newProduct.grade || 'local',
+        name: (data.name || '').trim(),
+        description: data.description || '',
+        price: parseFloat(data.price || 0),
+        unit: data.unit || 'kg',
+        priceUnit: data.unit || 'kg',
+        quantity: parseInt(data.quantity || 0),
+        category: data.category || '',
+        image: data.image || '',
+        grade: data.grade || 'local',
         isPublished: true,
         createdAt: new Date().toISOString()
-      }
-
-      // Validate
-      if (!payload.name) {
-        setFormError('Product name required')
-        cleanup()
-        return
-      }
-      if (!payload.price || payload.price <= 0) {
-        setFormError('Valid price required')
-        cleanup()
-        return
-      }
-      if (!payload.category) {
-        setFormError('Category (Vegetables, Fruits, etc.) required')
-        cleanup()
-        return
       }
 
       let savedProduct = null
@@ -1311,14 +1278,14 @@ const FarmerDashboard = () => {
           },
           body: JSON.stringify(payload)
         })
-        const data = await res.json()
-        if (res.ok && data.product) {
-          console.log('✅ Product → MongoDB:', data.product._id)
+        const resData = await res.json()
+        if (res.ok && resData.product) {
+          console.log('✅ Product → MongoDB:', resData.product._id)
           if (!savedProduct) {
-            savedProduct = data.product
+            savedProduct = resData.product
           }
         } else {
-          console.warn('MongoDB product save:', data.message)
+          console.warn('MongoDB product save:', resData.message)
         }
       } catch (err) {
         console.warn('MongoDB product save:', err.message)
@@ -1328,24 +1295,29 @@ const FarmerDashboard = () => {
         throw new Error('Failed to save to any database')
       }
 
-      // Update local state
       setProducts(prev => [savedProduct, ...(prev || [])])
       setLocalProducts(prev => [savedProduct, ...(prev || [])])
       setInventory(prev => [savedProduct, ...(prev || [])])
 
-      toast.success(`✅ ${savedProduct.name} listed!`)
+      notifications.show({
+        title: '🚀 Product listed!',
+        message: `✅ ${savedProduct.name} is now live in the marketplace.`,
+        color: 'green',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #2D4F1E', borderRadius: 12 } }
+      });
+
       setShowAddProduct(false)
-      setNewProduct({
-        name: '', description: '',
-        price: '', unit: 'kg',
-        quantity: '', category: '',
-        image: '', grade: 'local'
-      })
+      resetProduct()
 
     } catch (err) {
       console.error('Add product error:', err.message)
-      setFormError(err.message || 'Failed to add product')
-      toast.error(err.message || 'Failed to add product')
+      notifications.show({
+        title: '❌ Listing failed',
+        message: err.message || 'Failed to add product',
+        color: 'red',
+        autoClose: 5000,
+        styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+      })
     } finally {
       cleanup()
     }
@@ -1957,14 +1929,26 @@ const FarmerDashboard = () => {
                   <h3 className="text-2xl font-bold text-gray-800 font-serif" style={{ fontFamily: "'Playfair Display', serif" }}>Add New Listing</h3>
                   <p className="text-sm text-gray-500 mt-1">Fill out the details below to add a product to your inventory.</p>
                 </div>
-                <form onSubmit={handleAddProduct}>
+                <form onSubmit={handleProductSubmit(onAddProductSubmit)}>
                   <div className="fd-form-grid">
                     <div className="fd-form-group span-2">
-                      <Input label="Product Name" required placeholder="e.g. Organic Bell Peppers" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
+                      <div className={`fd-input-wrapper ${productErrors.name ? 'error' : ''}`}>
+                        <label className="fd-label">Product Name *</label>
+                        <input
+                          type="text"
+                          className="fd-input"
+                          placeholder="e.g. Organic Bell Peppers"
+                          {...registerProduct('name', { required: 'Product name is required' })}
+                        />
+                        {productErrors.name && <span className="fd-error-msg">{productErrors.name.message}</span>}
+                      </div>
                     </div>
                     <div className="fd-form-group">
-                      <label className="fd-label">Category</label>
-                      <select className="fd-select" value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}>
+                      <label className="fd-label">Category *</label>
+                      <select
+                        className="fd-select"
+                        {...registerProduct('category', { required: 'Category is required' })}
+                      >
                         <option value="">Select Category</option>
                         <option value="Vegetables">Vegetables</option>
                         <option value="Fruits">Fruits</option>
@@ -1972,13 +1956,32 @@ const FarmerDashboard = () => {
                         <option value="Grains">Grains & Pulses</option>
                         <option value="Spices">Spices</option>
                       </select>
+                      {productErrors.category && <span className="fd-error-msg">{productErrors.category.message}</span>}
                     </div>
                     <div className="fd-form-group span-2">
                       <label className="fd-label">Short Description</label>
-                      <textarea className="fd-textarea" placeholder="Highlight key freshness or organic details..." value={newProduct.description} onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}></textarea>
+                      <textarea
+                        className="fd-textarea"
+                        placeholder="Highlight key freshness or organic details..."
+                        {...registerProduct('description')}
+                      ></textarea>
                     </div>
                     <div className="fd-form-group">
-                      <Input label="Price" type="number" required placeholder="0.00" icon="₹" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })} />
+                      <div className={`fd-input-wrapper ${productErrors.price ? 'error' : ''}`}>
+                        <label className="fd-label">Price per Unit *</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#7A7A7A' }}>₹</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="fd-input"
+                            style={{ paddingLeft: 28 }}
+                            placeholder="0.00"
+                            {...registerProduct('price', { required: 'Price is required', min: { value: 0.1, message: 'Price must be greater than 0' } })}
+                          />
+                        </div>
+                        {productErrors.price && <span className="fd-error-msg">{productErrors.price.message}</span>}
+                      </div>
                       {priceLoading && (
                         <div style={{ marginTop: 2, fontFamily: 'DM Sans', fontSize: 10, color: '#7A7A7A' }}>
                           Checking mandi rate...
@@ -2045,14 +2048,9 @@ const FarmerDashboard = () => {
                               </label>
                               <input
                                 type="number"
+                                step="0.01"
                                 placeholder={field.placeholder}
-                                value={costInputs[field.key]}
-                                onChange={e =>
-                                  setCostInputs(prev => ({
-                                    ...prev,
-                                    [field.key]: e.target.value
-                                  }))
-                                }
+                                {...registerProduct(field.key)}
                                 style={{
                                   width: '100%',
                                   padding: '6px 10px',
@@ -2072,17 +2070,17 @@ const FarmerDashboard = () => {
                         {/* ── Live Cost Total ── */}
                         {(() => {
                           const rawTotal = (
-                            parseFloat(costInputs.seedCost || 0) +
-                            parseFloat(costInputs.laborCost || 0) +
-                            parseFloat(costInputs.transportCost || 0) +
-                            parseFloat(costInputs.otherCost || 0)
+                            parseFloat(productFormData.seedCost || 0) +
+                            parseFloat(productFormData.laborCost || 0) +
+                            parseFloat(productFormData.transportCost || 0) +
+                            parseFloat(productFormData.otherCost || 0)
                           );
                           const hasCosts = rawTotal > 0;
-                          const qty = parseFloat(newProduct.quantity || 0);
+                          const qty = parseFloat(productFormData.quantity || 0);
                           // If quantity is entered, divide total costs by qty to get per-kg cost
                           const costPerKg = qty > 0 ? rawTotal / qty : rawTotal;
                           const costPerKgRounded = Math.round(costPerKg * 100) / 100;
-                          const price = parseFloat(newProduct.price || 0);
+                          const price = parseFloat(productFormData.price || 0);
                           const suggestedPrice = Math.ceil(costPerKgRounded * 1.20); // 20% margin
                           return hasCosts ? (
                             <div style={{
@@ -2193,10 +2191,7 @@ const FarmerDashboard = () => {
 
                               <button
                                 type="button"
-                                onClick={() => setNewProduct(prev => ({
-                                  ...prev,
-                                  price: String(suggestedPrice)
-                                }))}
+                                onClick={() => setProductValue('price', String(suggestedPrice))}
                                 style={{
                                   width: '100%',
                                   marginTop: 6,
@@ -2221,8 +2216,8 @@ const FarmerDashboard = () => {
 
                       {/* Profit Analysis Result */}
                       {profitAnalysis &&
-                       newProduct.price &&
-                       newProduct.quantity && (
+                       productFormData.price &&
+                       productFormData.quantity && (
                         <div style={{
                           marginTop: 12,
                           padding: 16,
@@ -2396,14 +2391,12 @@ const FarmerDashboard = () => {
                           {profitAnalysis.status === 'LOSS' && (
                             <button
                               type="button"
-                              onClick={() => setNewProduct(
-                                prev => ({
-                                  ...prev,
-                                  price: String(
-                                    profitAnalysis
-                                      .suggestedMinPrice
-                                  )
-                                })
+                              onClick={() => setProductValue(
+                                'price',
+                                String(
+                                  profitAnalysis
+                                    .suggestedMinPrice
+                                )
                               )}
                               style={{
                                 width: '100%',
@@ -2443,15 +2436,34 @@ const FarmerDashboard = () => {
                     </div>
 
                     <div className="fd-form-group">
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '8px', alignItems: 'flex-end' }}>
-                        <Input label="Quantity" type="number" required placeholder="Qty" value={newProduct.quantity} onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })} />
-                        <select className="fd-select" style={{ height: '44px' }} value={newProduct.unit} onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}>
-                          {(units || []).map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
+                      <div className={`fd-input-wrapper ${productErrors.quantity ? 'error' : ''}`}>
+                        <label className="fd-label">Quantity *</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '8px' }}>
+                          <input
+                            type="number"
+                            className="fd-input"
+                            placeholder="Qty"
+                            {...registerProduct('quantity', { required: 'Quantity is required', min: { value: 1, message: 'Minimum 1' } })}
+                          />
+                          <select 
+                            className="fd-select" 
+                            style={{ height: '44px' }}
+                            {...registerProduct('unit')}
+                          >
+                            {(units || []).map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        {productErrors.quantity && <span className="fd-error-msg">{productErrors.quantity.message}</span>}
                       </div>
                     </div>
                     <div className="fd-form-group span-2">
-                      <Input label="Image URL" placeholder="Paste image URL..." value={newProduct.image} onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })} />
+                      <label className="fd-label">Image URL</label>
+                      <input 
+                        type="text" 
+                        className="fd-input" 
+                        placeholder="Paste image URL..." 
+                        {...registerProduct('image')} 
+                      />
                     </div>
 
                     {/* Price Advisor Box */}
@@ -2476,7 +2488,7 @@ const FarmerDashboard = () => {
                               <div>
                                 <div style={{ fontFamily: 'DM Sans', fontSize: 10, color: '#7A7A7A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ideal Range</div>
                                 <div style={{ fontFamily: 'DM Sans', fontWeight: 700, fontSize: 14, color: '#4A4A4A' }}>
-                                  ₹{priceAdvice.grade_ranges?.[newProduct.grade || 'local']?.min}–₹{priceAdvice.grade_ranges?.[newProduct.grade || 'local']?.max}/kg
+                                  ₹{priceAdvice.grade_ranges?.[productFormData.grade || 'local']?.min}–₹{priceAdvice.grade_ranges?.[productFormData.grade || 'local']?.max}/kg
                                 </div>
                               </div>
                             </div>
@@ -2489,7 +2501,7 @@ const FarmerDashboard = () => {
                           {priceAdvice.advice?.status !== 'optimal' && (
                             <button
                               type="button"
-                              onClick={() => setNewProduct(p => ({ ...p, price: String(priceAdvice.advice?.suggestedPrice) }))}
+                              onClick={() => setProductValue('price', String(priceAdvice.advice?.suggestedPrice))}
                               style={{
                                 marginTop: 10,
                                 padding: '6px 14px',
@@ -2533,12 +2545,12 @@ const FarmerDashboard = () => {
                           <button
                             key={g.value}
                             type="button"
-                            onClick={() => setNewProduct(p => ({ ...p, grade: g.value }))}
+                            onClick={() => setProductValue('grade', g.value)}
                             style={{
                               padding: '10px 12px',
                               borderRadius: 14,
-                              border: `1.5px solid ${newProduct.grade === g.value ? '#2D4F1E' : '#EDD9B0'}`,
-                              background: newProduct.grade === g.value ? 'rgba(45,79,30,0.08)' : '#FDFAF4',
+                              border: `1.5px solid ${productFormData.grade === g.value ? '#2D4F1E' : '#EDD9B0'}`,
+                              background: productFormData.grade === g.value ? 'rgba(45,79,30,0.08)' : '#FDFAF4',
                               cursor: 'pointer',
                               textAlign: 'left',
                               transition: 'all 0.2s ease'
@@ -2548,7 +2560,7 @@ const FarmerDashboard = () => {
                               fontFamily: 'DM Sans',
                               fontWeight: 700,
                               fontSize: 13,
-                              color: newProduct.grade === g.value ? '#2D4F1E' : '#4A4A4A'
+                              color: productFormData.grade === g.value ? '#2D4F1E' : '#4A4A4A'
                             }}>
                               {g.label}
                             </div>
@@ -2562,8 +2574,8 @@ const FarmerDashboard = () => {
 
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
-                    <Button variant="ghost" onClick={() => {
-                      setNewProduct({ name: "", description: "", category: "", price: "", quantity: "", unit: "kg", image: "", published: true, grade: "local" });
+                    <Button variant="ghost" type="button" onClick={() => {
+                      resetProduct();
                       setPriceAdvice(null);
                     }}>Clear Details</Button>
 
@@ -2737,7 +2749,7 @@ const FarmerDashboard = () => {
                 gap: 20
               }}>
                 <FarmerAvatar
-                  name={profileForm.name
+                  name={watch('name')
                     || user?.name
                     || 'F'}
                   size={72}
@@ -2750,7 +2762,7 @@ const FarmerDashboard = () => {
                     fontSize: 20,
                     color: '#2D4F1E'
                   }}>
-                    {profileForm.name
+                    {watch('name')
                       || user?.name
                       || 'Your Name'}
                   </div>
@@ -2781,43 +2793,9 @@ const FarmerDashboard = () => {
                 </div>
               </div>
 
-              {/* Success/Error messages */}
-              {profileSuccess && (
-                <div style={{
-                  padding: '12px 16px',
-                  background:
-                    'rgba(76,175,80,0.10)',
-                  borderRadius: 10,
-                  border:
-                    '1px solid rgba(76,175,80,0.25)',
-                  fontFamily: 'DM Sans',
-                  fontSize: 13,
-                  color: '#2E7D32',
-                  fontWeight: 600,
-                  marginBottom: 16
-                }}>
-                  {profileSuccess}
-                </div>
-              )}
+              {/* Messages are now handled by Mantine notifications */}
 
-              {profileError && (
-                <div style={{
-                  padding: '12px 16px',
-                  background:
-                    'rgba(255,82,82,0.08)',
-                  borderRadius: 10,
-                  border:
-                    '1px solid rgba(255,82,82,0.25)',
-                  fontFamily: 'DM Sans',
-                  fontSize: 13,
-                  color: '#FF5252',
-                  fontWeight: 600,
-                  marginBottom: 16
-                }}>
-                  {profileError}
-                </div>
-              )}
-
+              <form onSubmit={handleSubmit(onSubmitProfile)}>
               {/* SECTION 1 — Personal Info */}
               <div style={{
                 background: '#FDFAF4',
@@ -2841,96 +2819,74 @@ const FarmerDashboard = () => {
                   gridTemplateColumns: '1fr 1fr',
                   gap: 14
                 }}>
-                  {[
-                    {
-                      key: 'name',
-                      label: 'Full Name *',
-                      placeholder: 'Ramesh Kumar',
-                      type: 'text'
-                    },
-                    {
-                      key: 'phone',
-                      label: 'Phone Number',
-                      placeholder: '+91 9876543210',
-                      type: 'tel'
-                    },
-                    {
-                      key: 'experience',
-                      label: 'Years of Farming',
-                      placeholder: '15',
-                      type: 'number'
-                    },
-                    {
-                      key: 'state',
-                      label: 'State',
-                      placeholder: 'Maharashtra',
-                      type: 'text'
-                    },
-                    {
-                      key: 'district',
-                      label: 'District',
-                      placeholder: 'Nashik',
-                      type: 'text'
-                    },
-                    {
-                      key: 'pincode',
-                      label: 'Pincode',
-                      placeholder: '422001',
-                      type: 'text'
-                    }
-                  ].map(field => (
-                    <div key={field.key}>
-                      <label style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#4A4A4A',
-                        display: 'block',
-                        marginBottom: 5,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em'
-                      }}>
-                        {field.label}
-                      </label>
-                      <input
-                        type={field.type}
-                        placeholder={field.placeholder}
-                        value={
-                          profileForm[field.key]
-                        }
-                        onChange={e =>
-                          setProfileForm(prev =>
-                            ({
-                              ...prev,
-                              [field.key]:
-                                e.target.value
-                            })
-                          )
-                        }
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          border:
-                            '1.5px solid #EDD9B0',
-                          background: '#F5E6CC',
-                          fontFamily: 'DM Sans',
-                          fontSize: 13,
-                          color: '#4A4A4A',
-                          boxSizing: 'border-box',
-                          outline: 'none'
-                        }}
-                        onFocus={e => {
-                          e.target.style.border =
-                            '1.5px solid #2D4F1E'
-                        }}
-                        onBlur={e => {
-                          e.target.style.border =
-                            '1.5px solid #EDD9B0'
-                        }}
-                      />
-                    </div>
-                  ))}
+                  <div key="name">
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Full Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Ramesh Kumar"
+                      {...register('name', { required: 'Name is required' })}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.name ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                    {profileErrors.name && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.name.message}</span>}
+                  </div>
+
+                  <div key="phone">
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Phone Number *</label>
+                    <input
+                      type="tel"
+                      placeholder="+91 9876543210"
+                      {...register('phone', { 
+                        required: 'Phone is required',
+                        pattern: { value: /^[0-9]{10}$/, message: 'Must be 10 digits' }
+                      })}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.phone ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                    {profileErrors.phone && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.phone.message}</span>}
+                  </div>
+
+                  <div key="experience">
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Years of Farming</label>
+                    <input
+                      type="number"
+                      placeholder="15"
+                      {...register('experience', { min: { value: 0, message: 'Invalid value' } })}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.experience ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                    {profileErrors.experience && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.experience.message}</span>}
+                  </div>
+
+                  <div key="state">
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>State</label>
+                    <input
+                      type="text"
+                      placeholder="Maharashtra"
+                      {...register('state')}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div key="district">
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>District</label>
+                    <input
+                      type="text"
+                      placeholder="Nashik"
+                      {...register('district')}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div key="pincode">
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pincode</label>
+                    <input
+                      type="text"
+                      placeholder="422001"
+                      {...register('pincode', {
+                        pattern: { value: /^[0-9]{6}$/, message: 'Must be 6 digits' }
+                      })}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.pincode ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                    {profileErrors.pincode && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.pincode.message}</span>}
+                  </div>
                 </div>
 
                 {/* Bio full width */}
@@ -2949,13 +2905,7 @@ const FarmerDashboard = () => {
                   </label>
                   <textarea
                     placeholder="Tell buyers about yourself and your farming practices..."
-                    value={profileForm.bio}
-                    onChange={e =>
-                      setProfileForm(prev => ({
-                        ...prev,
-                        bio: e.target.value
-                      }))
-                    }
+                    {...register('bio')}
                     rows={3}
                     style={{
                       width: '100%',
@@ -2992,170 +2942,31 @@ const FarmerDashboard = () => {
                   🌾 Farm Details
                 </h3>
 
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 14
-                }}>
-                  {[
-                    {
-                      key: 'farmName',
-                      label: 'Farm Name',
-                      placeholder:
-                        'Green Valley Farm',
-                      span: 2
-                    },
-                    {
-                      key: 'farmLocation',
-                      label: 'Farm Location / Village',
-                      placeholder:
-                        'Village name, Taluka',
-                      span: 2
-                    },
-                    {
-                      key: 'primaryCrops',
-                      label: 'Primary Crops',
-                      placeholder:
-                        'Tomato, Onion, Wheat',
-                      span: 2
-                    }
-                  ].map(field => (
-                    <div
-                      key={field.key}
-                      style={{
-                        gridColumn:
-                          field.span === 2
-                            ? '1 / -1' : 'auto'
-                      }}
-                    >
-                      <label style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#4A4A4A',
-                        display: 'block',
-                        marginBottom: 5,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em'
-                      }}>
-                        {field.label}
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={
-                          field.placeholder
-                        }
-                        value={
-                          profileForm[field.key]
-                        }
-                        onChange={e =>
-                          setProfileForm(prev =>
-                            ({
-                              ...prev,
-                              [field.key]:
-                                e.target.value
-                            })
-                          )
-                        }
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          border:
-                            '1.5px solid #EDD9B0',
-                          background: '#F5E6CC',
-                          fontFamily: 'DM Sans',
-                          fontSize: 13,
-                          color: '#4A4A4A',
-                          boxSizing: 'border-box',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                  ))}
-
-                  {/* Farm size with unit */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Farm Name</label>
+                    <input type="text" placeholder="Green Valley Farm" {...register('farmName')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Farm Location / Village</label>
+                    <input type="text" placeholder="Village name, Taluka" {...register('farmLocation')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Primary Crops</label>
+                    <input type="text" placeholder="Tomato, Onion, Wheat" {...register('primaryCrops')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                  </div>
                   <div>
-                    <label style={{
-                      fontFamily: 'DM Sans',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#4A4A4A',
-                      display: 'block',
-                      marginBottom: 5,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em'
-                    }}>
-                      Farm Size
-                    </label>
-                    <div style={{
-                      display: 'flex',
-                      gap: 8
-                    }}>
-                      <input
-                        type="number"
-                        placeholder="5"
-                        value={profileForm.farmSize}
-                        onChange={e =>
-                          setProfileForm(prev =>
-                            ({
-                              ...prev,
-                              farmSize: e.target.value
-                            })
-                          )
-                        }
-                        style={{
-                          flex: 1,
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          border:
-                            '1.5px solid #EDD9B0',
-                          background: '#F5E6CC',
-                          fontFamily: 'DM Sans',
-                          fontSize: 13,
-                          color: '#4A4A4A',
-                          outline: 'none'
-                        }}
-                      />
-                      <select
-                        value={
-                          profileForm.farmSizeUnit
-                        }
-                        onChange={e =>
-                          setProfileForm(prev =>
-                            ({
-                              ...prev,
-                              farmSizeUnit:
-                                e.target.value
-                            })
-                          )
-                        }
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          border:
-                            '1.5px solid #EDD9B0',
-                          background: '#F5E6CC',
-                          fontFamily: 'DM Sans',
-                          fontSize: 13,
-                          color: '#4A4A4A',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="acres">
-                          Acres
-                        </option>
-                        <option value="hectares">
-                          Hectares
-                        </option>
-                        <option value="bigha">
-                          Bigha
-                        </option>
-                        <option value="guntha">
-                          Guntha
-                        </option>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Farm Size</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input type="number" placeholder="5" {...register('farmSize', { min: { value: 0, message: 'Invalid' } })} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.farmSize ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', outline: 'none' }} />
+                      <select {...register('farmSizeUnit')} style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', cursor: 'pointer' }}>
+                        <option value="acres">Acres</option>
+                        <option value="hectares">Hectares</option>
+                        <option value="bigha">Bigha</option>
+                        <option value="guntha">Guntha</option>
                       </select>
                     </div>
+                    {profileErrors.farmSize && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.farmSize.message}</span>}
                   </div>
                 </div>
               </div>
@@ -3186,91 +2997,26 @@ const FarmerDashboard = () => {
                   For receiving payments from buyers
                 </p>
 
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 14
-                }}>
-                  {[
-                    {
-                      key: 'upiId',
-                      label: 'UPI ID',
-                      placeholder:
-                        'yourname@upi',
-                      span: 2
-                    },
-                    {
-                      key: 'bankName',
-                      label: 'Bank Name',
-                      placeholder:
-                        'State Bank of India'
-                    },
-                    {
-                      key: 'accountNumber',
-                      label: 'Account Number',
-                      placeholder:
-                        'XXXXXXXXXXXX',
-                      type: 'password'
-                    },
-                    {
-                      key: 'ifscCode',
-                      label: 'IFSC Code',
-                      placeholder: 'SBIN0001234'
-                    }
-                  ].map(field => (
-                    <div
-                      key={field.key}
-                      style={{
-                        gridColumn:
-                          field.span === 2
-                            ? '1 / -1' : 'auto'
-                      }}
-                    >
-                      <label style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#4A4A4A',
-                        display: 'block',
-                        marginBottom: 5,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em'
-                      }}>
-                        {field.label}
-                      </label>
-                      <input
-                        type={field.type || 'text'}
-                        placeholder={
-                          field.placeholder
-                        }
-                        value={
-                          profileForm[field.key]
-                        }
-                        onChange={e =>
-                          setProfileForm(prev =>
-                            ({
-                              ...prev,
-                              [field.key]:
-                                e.target.value
-                            })
-                          )
-                        }
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          border:
-                            '1.5px solid #EDD9B0',
-                          background: '#F5E6CC',
-                          fontFamily: 'DM Sans',
-                          fontSize: 13,
-                          color: '#4A4A4A',
-                          boxSizing: 'border-box',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                  ))}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>UPI ID</label>
+                    <input type="text" placeholder="yourname@upi" {...register('upiId', { pattern: { value: /^[\w.-]+@[\w.-]+$/, message: 'Invalid UPI ID format' } })} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.upiId ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                    {profileErrors.upiId && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.upiId.message}</span>}
+                  </div>
+                  <div>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Bank Name</label>
+                    <input type="text" placeholder="State Bank of India" {...register('bankName')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDD9B0', background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Account Number</label>
+                    <input type="password" placeholder="XXXXXXXXXXXX" {...register('accountNumber', { minLength: { value: 9, message: 'Too short' } })} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.accountNumber ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                    {profileErrors.accountNumber && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.accountNumber.message}</span>}
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>IFSC Code</label>
+                    <input type="text" placeholder="SBIN0001234" {...register('ifscCode', { pattern: { value: /^[A-Z]{4}0[A-Z0-9]{6}$/, message: 'Invalid IFSC (e.g. SBIN0001234)' } })} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.ifscCode ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                    {profileErrors.ifscCode && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.ifscCode.message}</span>}
+                  </div>
                 </div>
 
                 <p style={{
@@ -3287,12 +3033,12 @@ const FarmerDashboard = () => {
 
               {/* Save Button */}
               <button
-                onClick={saveProfile}
-                disabled={profileLoading}
+                type="submit"
+                disabled={profileSubmitting}
                 style={{
                   width: '100%',
                   padding: '16px',
-                  background: profileLoading
+                  background: profileSubmitting
                     ? '#7A7A7A'
                     : 'linear-gradient(135deg,' +
                       '#2D4F1E,#3D6B2A)',
@@ -3302,9 +3048,9 @@ const FarmerDashboard = () => {
                   fontFamily: 'DM Sans',
                   fontWeight: 700,
                   fontSize: 16,
-                  cursor: profileLoading
+                  cursor: profileSubmitting
                     ? 'not-allowed' : 'pointer',
-                  boxShadow: profileLoading
+                  boxShadow: profileSubmitting
                     ? 'none'
                     : '0 4px 16px ' +
                       'rgba(45,79,30,0.35)',
@@ -3315,12 +3061,13 @@ const FarmerDashboard = () => {
                   gap: 8
                 }}
               >
-                {profileLoading ? (
+                {profileSubmitting ? (
                   <>⏳ Saving Profile...</>
                 ) : (
                   <>💾 Save Profile</>
                 )}
               </button>
+              </form>
 
             </div>
           )}

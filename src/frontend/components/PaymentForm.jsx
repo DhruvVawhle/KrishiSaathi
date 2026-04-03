@@ -9,12 +9,11 @@ import {
   FaUniversity,
   FaSpinner,
 } from "react-icons/fa";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { toast } from "react-toastify";
 
 const API_BASE = "/api/payment";
 
 export default function PaymentForm() {
-  const toast = useToast();
   const navigate = useNavigate();
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("cod");
@@ -62,7 +61,7 @@ export default function PaymentForm() {
     setError("");
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
     if (!isLoggedIn) {
-      toast.warning("Please login first to proceed with payment.");
+      toast.warn("Please login first to proceed with payment.");
       navigate("/login");
       return false;
     }

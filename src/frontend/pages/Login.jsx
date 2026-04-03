@@ -10,7 +10,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/frontend/config/firebaseConfig";
 import { useUser } from "@/frontend/contexts/UserContext";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { notifications } from '@mantine/notifications';
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Leaf,
@@ -81,7 +81,6 @@ function GoogleIcon() {
 export default function Login() {
   const navigate = useNavigate();
   const { setUser } = useUser();
-  const toast = useToast();
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -150,7 +149,12 @@ export default function Login() {
       window.__KS_RECAPTCHA = v;
       return v;
     } catch (err) {
-      toast.error("reCAPTCHA init failed: " + err.message);
+      notifications.show({
+        title: '❌ reCAPTCHA Failed',
+        message: err.message,
+        color: 'red', autoClose: 5000,
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #FF5252', borderRadius: 12 } }
+      });
       return null;
     }
   }, []);
@@ -242,21 +246,49 @@ export default function Login() {
 
   // ─── Email login ───
   const handleEmailLogin = async () => {
+    const id = notifications.show({
+      loading: true,
+      title: '⏳ Signing in...',
+      message: 'Authenticating your credentials',
+      autoClose: false,
+      withCloseButton: false,
+      styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' } }
+    });
+
     try {
       setLoading(true);
       const cred = await signInWithEmailAndPassword(auth, identifier, password);
-      // Wait for onboardUser to sync the correct server role and redirect
       await onboardUser(cred.user);
       setLoginSuccess(true);
-      // No toast — dashboard redirect is the feedback
+      notifications.update({
+        id,
+        title: '✅ Welcome back!',
+        message: 'You have successfully signed in.',
+        color: 'green',
+        loading: false,
+        autoClose: 3000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' },
+          title: { fontWeight: 700, color: '#2D4F1E' }
+        }
+      });
     } catch (err) {
+      let errorMsg = err.message || 'Email login failed. Please try again.';
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setErrors({ identifier: 'Invalid email or password.' });
+        errorMsg = 'Invalid email or password.';
+        setErrors({ identifier: errorMsg });
       } else if (err.code === 'auth/too-many-requests') {
-        setInlineError('Too many attempts. Please try again later.');
-      } else {
-        setInlineError(err.message || 'Email login failed. Please try again.');
+        errorMsg = 'Too many attempts. Please try again later.';
       }
+      notifications.update({
+        id,
+        title: '❌ Login Failed',
+        message: errorMsg,
+        color: 'red',
+        loading: false,
+        autoClose: 5000,
+        styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+      });
     } finally {
       if (!loginSuccess) setLoading(false);
     }
@@ -305,30 +337,67 @@ export default function Login() {
 
   // ─── Verify OTP ───
   const verifyOtp = async () => {
-    if (!confirmationResult) { setInlineError("No OTP session. Please send OTP first."); return; }
-    if (!otp.trim() || otp.replace(/\D/g, "").length < 6) {
-      setInlineError("Please enter the complete 6-digit OTP.");
+    if (!confirmationResult) {
+      notifications.show({
+        title: '⚠️ Session Expired',
+        message: 'No OTP session. Please send OTP first.',
+        color: 'orange'
+      });
       return;
     }
+    if (!otp.trim() || otp.replace(/\D/g, "").length < 6) {
+      notifications.show({
+        title: '⌨️ Incomplete OTP',
+        message: 'Please enter the complete 6-digit OTP.',
+        color: 'orange'
+      });
+      return;
+    }
+
+    const id = notifications.show({
+      loading: true,
+      title: '⏳ Verifying...',
+      message: 'Checking your OTP code',
+      autoClose: false,
+      withCloseButton: false,
+      styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' } }
+    });
+
     try {
       setLoading(true);
-      setInlineError("");
       const res = await confirmationResult.confirm(otp.trim());
-      // Onboard user silently (no toasts)
       await onboardUser(res.user);
       setLoginSuccess(true);
-      // Silent redirect happens via onboardUser -> navigate
+      notifications.update({
+        id,
+        title: '✅ Verified!',
+        message: 'Identity confirmed. Welcome back!',
+        color: 'green',
+        loading: false,
+        autoClose: 3000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' },
+          title: { fontWeight: 700, color: '#2D4F1E' }
+        }
+      });
     } catch (err) {
-      console.error("OTP verify error:", err);
+      let errorMsg = 'Verification failed. Please try again.';
       if (err.code === 'auth/invalid-verification-code') {
-        setInlineError("Wrong OTP. Please check and try again.");
+        errorMsg = 'Wrong OTP. Please check and try again.';
       } else if (err.code === 'auth/code-expired') {
-        setInlineError("OTP has expired. Please resend.");
+        errorMsg = 'OTP has expired. Please resend.';
         setShowOtpInput(false);
         setConfirmationResult(null);
-      } else {
-        setInlineError("Verification failed. Please try again.");
       }
+      notifications.update({
+        id,
+        title: '❌ Verification Failed',
+        message: errorMsg,
+        color: 'red',
+        loading: false,
+        autoClose: 5000,
+        styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+      });
     } finally {
       if (!loginSuccess) setLoading(false);
     }
@@ -345,23 +414,55 @@ export default function Login() {
 
   // ─── Google Login ───
   const handleGoogleLogin = async () => {
-    if (!role) { setInlineError("Please choose a role first (Farmer / Buyer)."); return; }
+    if (!role) {
+      notifications.show({
+        title: '⚠️ Role Required',
+        message: 'Please choose a role first (Farmer / Buyer).',
+        color: 'orange'
+      });
+      return;
+    }
+
+    const id = notifications.show({
+      loading: true,
+      title: '⏳ Connecting to Google...',
+      message: 'Please wait while we sync with your account',
+      autoClose: false,
+      withCloseButton: false,
+      styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' } }
+    });
+
     try {
       setLoading(true);
-      setInlineError("");
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      // Wait for onboardUser to sync the correct server role and redirect
       await onboardUser(result.user);
       setLoginSuccess(true);
-      // No toast — dashboard redirect is the feedback
+      notifications.update({
+        id,
+        title: '✅ Auth Success!',
+        message: 'Google login successful. Welcome!',
+        color: 'green',
+        loading: false,
+        autoClose: 3000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' },
+          title: { fontWeight: 700, color: '#2D4F1E' }
+        }
+      });
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user') {
-        // User dismissed the popup — not an error
-      } else if (err.code === 'auth/too-many-requests') {
-        setInlineError('Too many attempts. Please try again later.');
+        notifications.hide(id);
       } else {
-        setInlineError(err.message || 'Google login failed. Please try again.');
+        notifications.update({
+          id,
+          title: '❌ Google Auth Error',
+          message: err.message || 'Google login failed.',
+          color: 'red',
+          loading: false,
+          autoClose: 5000,
+          styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+        });
       }
     } finally {
       if (!loginSuccess) setLoading(false);
@@ -369,29 +470,15 @@ export default function Login() {
   };
 
   const handleFacebookLogin = async () => {
-    setLoading(true);
-    setInlineError("");
-    try {
-      const { FacebookAuthProvider, signInWithPopup } = await import("firebase/auth");
-      const provider = new FacebookAuthProvider();
-      provider.addScope('email');
-      provider.addScope('public_profile');
-
-      const result = await signInWithPopup(auth, provider);
-      await onboardUser(result.user);
-      setLoginSuccess(true);
-    } catch (err) {
-      console.error("Facebook login error:", err);
-      if (err.code === 'auth/account-exists-with-different-credential') {
-        setInlineError("Account exists with different login method. Try Google login.");
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        // Closed by user
-      } else {
-        setInlineError(err.message || "Facebook login failed");
+    notifications.show({
+      title: '📘 Coming soon',
+      message: 'Facebook login is coming soon — use Google login for now.',
+      color: 'blue', autoClose: 4000,
+      styles: {
+        root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #1877F2', borderRadius: 12 },
+        title: { fontWeight: 700, color: '#1877F2' }
       }
-    } finally {
-      if (!loginSuccess) setLoading(false);
-    }
+    });
   };
 
   const handleAppleLogin = async () => {

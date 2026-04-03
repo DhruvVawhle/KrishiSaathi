@@ -105,6 +105,18 @@ app.use('/api/products', productRoutes);
 // GST e-Invoice endpoint
 app.use('/api/einvoice', einvoiceRoutes);
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("❌ [Main Server] Global Error:", err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    success: false,
+    error: err.message || "Internal Server Error",
+    code: err.code || "INTERNAL_ERROR",
+    path: req.path
+  });
+});
+
 const PRIMARY_PORT = process.env.PORT_MAIN || process.env.PORT || 3000;
 const FALLBACK_PORT = 3010;
 

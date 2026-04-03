@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useProducts } from "@/frontend/contexts/ProductContext";
 import { useCart } from "@/frontend/contexts/CartContext";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { notifications } from "@mantine/notifications";
 import EmptyState from "@/frontend/components/ui/EmptyState";
 import Skeleton from "@/frontend/components/ui/Skeleton";
 import Button from "@/frontend/components/ui/Button";
@@ -33,7 +33,6 @@ const Marketplace = () => {
   const { addToCart, cart } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const toast = useToast();
 
   useEffect(() => {
     updateSEO('/marketplace');
@@ -227,7 +226,13 @@ const Marketplace = () => {
   /* ── Cart logic ── */
   const doAddToCart = (product) => {
     if (!isLoggedIn) {
-      toast.warn("Please login first to add items.", { autoClose: 2000 });
+      notifications.show({
+        title: '🔒 Login Required',
+        message: 'Please login first to add items to your cart.',
+        color: 'yellow',
+        autoClose: 3000,
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #F5A623', borderRadius: 12 } }
+      });
       setTimeout(() => navigate(`/login?redirect=${encodeURIComponent("/marketplace")}`), 2000);
       return;
     }
@@ -268,18 +273,23 @@ const Marketplace = () => {
     const newPrice = Number(entry.price);
     const newQty = Number(entry.quantity);
     if (!Number.isFinite(newPrice) || newPrice < 0) {
-      toast.error("Enter a valid price (≥ 0).");
+      notifications.show({ title: '❌ Invalid price', message: 'Enter a valid price (≥ 0).', color: 'red' });
       return;
     }
     if (!Number.isFinite(newQty) || newQty < 0) {
-      toast.error("Enter a valid quantity (≥ 0).");
+      notifications.show({ title: '❌ Invalid quantity', message: 'Enter a valid quantity (≥ 0).', color: 'red' });
       return;
     }
 
     setEditing((s) => ({ ...s, [id]: { ...s[id], saving: true } }));
     try {
       await updateProduct(id, { price: newPrice, quantity: clamp(newQty, 0, 9999999) });
-      toast.success("Product updated successfully.");
+      notifications.show({
+        title: '✅ Product updated',
+        message: 'Changes saved successfully.',
+        color: 'green',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #2D4F1E', borderRadius: 12 } }
+      });
       setEditing((s) => {
         const copy = { ...s };
         delete copy[id];
@@ -287,7 +297,7 @@ const Marketplace = () => {
       });
     } catch (err) {
       console.error(err);
-      toast.error("Failed to update product.");
+      notifications.show({ title: '❌ Update failed', message: 'Could not update the product.', color: 'red' });
       setEditing((s) => ({ ...s, [id]: { ...s[id], saving: false } }));
     }
   };
@@ -299,13 +309,13 @@ const Marketplace = () => {
       const idStr = String(prodId || "");
       if (!idStr.startsWith("gs-") && !idStr.startsWith("farm-") && !idStr.match(/^[0-9a-fA-F]{24}$/)) {
         await updateProduct(prodId, { quantity: prev + 1 });
-        toast.info("Added +1 to stock local definition.", { autoClose: 2500 });
+        notifications.show({ title: '📦 Local stock updated', message: 'Added +1 manually.', color: 'blue' });
       } else {
-        toast.info("Item stock updated (DB/Static).", { autoClose: 2500 });
+        notifications.show({ title: '📈 Sync updated', message: 'Item stock updated in database.', color: 'green' });
       }
     } catch (err) {
       console.error(err);
-      toast.error("Could not increment stock");
+      notifications.show({ title: '❌ Error', message: 'Could not increment stock.', color: 'red' });
     }
   };
 

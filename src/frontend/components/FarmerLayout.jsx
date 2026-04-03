@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { toast } from "react-toastify";
 
 const SidebarItem = React.forwardRef(({ to, label, Icon, onClick, active }, ref) => (
   <Link
@@ -32,7 +32,6 @@ const SidebarItem = React.forwardRef(({ to, label, Icon, onClick, active }, ref)
 SidebarItem.displayName = "SidebarItem";
 
 const FarmerDashboardLayout = () => {
-  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -89,7 +88,28 @@ const FarmerDashboardLayout = () => {
       localStorage.removeItem(k)
     );
     window.dispatchEvent(new CustomEvent("cart-cleared"));
-    toast.success("You've been logged out. See you soon! 👋");
+    toast.success("You've been logged out. See you soon! 👋", {
+      toastId: 'logout',
+      icon: '👋',
+      style: {
+        background: '#1a3a1a',
+        color: '#ffffff',
+        borderRadius: '12px',
+        border: '1px solid rgba(255,255,255,0.15)',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        fontWeight: '500',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(8px)',
+        minWidth: '280px',
+      },
+      progressStyle: { background: '#c17a4a' },
+      position: 'top-right',
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+    });
     setTimeout(() => navigate("/login"), 1000);
   };
 

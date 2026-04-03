@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
@@ -64,7 +64,7 @@ const router = express.Router();
 
       const saved = await order.save()
       console.log(
-        '✅ Order saved to MongoDB:',
+        'âœ… Order saved to MongoDB:',
         saved.orderId
       )
 
@@ -77,7 +77,7 @@ const router = express.Router();
 
     } catch (err) {
       console.error(
-        '❌ Order save error:',
+        'âŒ Order save error:',
         err.message
       )
       res.status(500).json({
@@ -105,10 +105,10 @@ router.get("/", async (req, res) => {
     console.error("orders fetch error:", err);
     return res.status(500).json({ error: "Could not fetch orders" });
   }
-});// ────────────────────────────────────────────────────────
-// ✅ FARMER DASHBOARD ENDPOINTS
+});// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âœ… FARMER DASHBOARD ENDPOINTS
 // Move ABOVE /:id to prevent route collision!
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/orders/farmer/:farmerId
 // Dedicated endpoint for farmer dashboard trends and recent orders

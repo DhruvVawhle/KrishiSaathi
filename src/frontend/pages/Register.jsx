@@ -9,7 +9,7 @@ import {
   signInWithPhoneNumber,
 } from "firebase/auth";
 import { auth } from "@/frontend/config/firebaseConfig";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { notifications } from "@mantine/notifications";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IndianRupee, ShieldCheck, Package, Users,
@@ -132,7 +132,6 @@ const BuyerBenefitsContent = () => (
 
 export default function Register() {
   const navigate = useNavigate();
-  const toast = useToast();
 
   useEffect(() => {
     updateSEO('/register');
@@ -318,7 +317,12 @@ export default function Register() {
 
       if (!res.ok) {
         const msg = (data && data.message) || `HTTP ${res.status}`;
-        toast.error(`Onboard failed: ${msg}`);
+        notifications.show({
+          title: '❌ Onboarding failed',
+          message: msg,
+          color: 'red',
+          styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #FF5252', borderRadius: 12 } }
+        });
         return;
       }
 
@@ -331,7 +335,7 @@ export default function Register() {
       }
     } catch (err) {
       console.error("onboard error", err);
-      toast.error("Network error during onboarding. Please try again.");
+      notifications.show({ title: '❌ Connection Error', message: 'Could not reach server for onboarding. Please try again.', color: 'red' });
     }
   }, [name, role, navigate]);
 
@@ -343,7 +347,11 @@ export default function Register() {
       handleSuccess(cred.user);
     } catch (err) {
       console.error(err);
-      toast.error(err?.message || "Registration failed");
+      notifications.show({
+        title: '❌ Registration failed',
+        message: err?.message || "Something went wrong during registration.",
+        color: 'red'
+      });
       setInlineError(err?.message || "Registration failed");
       setLoading(false);
     }
@@ -359,10 +367,15 @@ export default function Register() {
       setConfirmationResult(result);
       setShowOtpInput(true);
       setResendTimer(30);
-      toast.info(`OTP sent to ${phone}`);
+      notifications.show({
+        title: '📲 OTP Sent',
+        message: `Verify your phone number with the code sent to ${phone}.`,
+        color: 'green',
+        styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #4CAF50', borderRadius: 12 } }
+      });
     } catch (err) {
       console.error("sendOtp error", err);
-      toast.error("Failed to send OTP");
+      notifications.show({ title: '❌ OTP Failed', message: 'Could not send verification code. Check formatting.', color: 'red' });
       setInlineError("Failed to send OTP - Check formatting or try again");
     } finally {
       setLoading(false);
@@ -377,7 +390,7 @@ export default function Register() {
       handleSuccess(res.user);
     } catch (err) {
       console.error(err);
-      toast.error("Invalid OTP");
+      notifications.show({ title: '❌ Invalid OTP', message: 'The verification code entered is incorrect.', color: 'red' });
       setInlineError("Invalid OTP. Please try again.");
       setLoading(false);
     }
@@ -391,7 +404,7 @@ export default function Register() {
       handleSuccess(res.user);
     } catch (err) {
       console.error(err);
-      toast.error(err?.message || "Google sign-in failed");
+      notifications.show({ title: '❌ Google Sign-in Error', message: err?.message || 'Failed to authenticate via Google.', color: 'red' });
       setInlineError(err?.message || "Google sign-in failed");
       setLoading(false);
     }

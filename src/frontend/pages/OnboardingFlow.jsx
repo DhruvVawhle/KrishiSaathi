@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { getAuth } from "firebase/auth";
 import { useNavigate, Link } from "react-router-dom";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { toast } from "react-toastify";
 
 const STATES_IN = [
   "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
@@ -12,18 +12,17 @@ const STATES_IN = [
   "Uttarakhand","West Bengal","Delhi","Jammu and Kashmir","Ladakh","Puducherry"
 ];
 
+// small toast helper
+const notify = (type, msg) => {
+  if (type === "success") toast.success(msg);
+  else if (type === "warn") toast.warn(msg);
+  else toast.error(msg);
+};
+
 const Onboarding = () => {
-  const toast = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // small toast helper
-  const notify = (type, msg) => {
-    if (type === "success") toast.success(msg);
-    else if (type === "warn") toast.warning(msg);
-    else toast.error(msg);
-  };
 
   const [profile, setProfile] = useState({
     name: "",

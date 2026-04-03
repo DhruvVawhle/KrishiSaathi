@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -7,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [
+    react(),
     tailwindcss(),
   ],
   resolve: {
@@ -66,14 +68,23 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor': ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          'ui-icons': ['lucide-react'],
-          'charts': ['recharts']
+        manualChunks(id) {
+          if (id.includes('framer-motion')) {
+            return 'motion';
+          }
+          if (
+            id.includes('react-router') || 
+            id.includes('react-dom') || 
+            id.includes('react/')
+          ) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
         }
       }
     },
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 600
   }
 })

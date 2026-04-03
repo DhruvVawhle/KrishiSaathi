@@ -14,6 +14,13 @@
   --color-white: #FFFFFF;
   --color-card-bg: #FDFAF4;
 
+  /* Custom KS Tokens */
+  --ks-bg:      #F5E6CC;
+  --ks-card:    #FDFAF4;
+  --ks-primary: #2D4F1E;
+  --ks-accent:  #E27D60;
+  --ks-border:  #EDD9B0;
+
   /* Fonts */
   --font-heading: 'Playfair Display', serif;
   --font-subheading: 'DM Serif Display', serif;

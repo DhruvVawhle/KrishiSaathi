@@ -10,6 +10,15 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import "./CartSidebar.css";
 
 // SVG fallback - no external dependency
@@ -139,67 +148,29 @@ export default function CartSidebar({ open, onClose }) {
       <aside className="cs-drawer">
             {/* SECTION 1 - HEADER */}
             <header className="cs-header">
-              <AnimatePresence mode="wait">
-                {!showConfirm ? (
-                  <motion.div
-                    key="header-default"
-                    className="cs-header-content"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <div className="cs-header-left">
-                      <ShoppingCart size={20} color="white" />
-                      <span className="cs-header-title">Cart</span>
-                      {itemCount > 0 && (
-                        <span className="cs-header-badge">{itemCount}</span>
-                      )}
-                    </div>
-                    <div className="cs-header-right">
-                      {cartItems.length > 0 && (
-                        <button
-                          className="cs-clear-all-btn"
-                          onClick={handleClearClick}
-                        >
-                          <Trash2 size={13} color="#E27D60" />
-                          <span>Clear All</span>
-                        </button>
-                      )}
-                      <button className="cs-close-btn" onClick={() => { window.dispatchEvent(new CustomEvent("close-cart")); onClose?.(); }}>
-                        <X size={16} color="white" />
-                      </button>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="header-confirm"
-                    className="cs-header-content cs-header-confirm"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <div className="cs-header-left">
-                      <span className="cs-confirm-text">Remove all items?</span>
-                    </div>
-                    <div className="cs-header-right">
-                      <button
-                        className="cs-confirm-yes-btn"
-                        onClick={handleConfirmClear}
-                      >
-                        Yes, clear ({countdown})
-                      </button>
-                      <button
-                        className="cs-confirm-cancel-btn"
-                        onClick={handleCancelClear}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <div className="cs-header-content">
+                <div className="cs-header-left">
+                  <ShoppingCart size={20} color="white" />
+                  <span className="cs-header-title">Cart</span>
+                  {itemCount > 0 && (
+                    <span className="cs-header-badge">{itemCount}</span>
+                  )}
+                </div>
+                <div className="cs-header-right">
+                  {cartItems.length > 0 && (
+                    <button
+                      className="cs-clear-all-btn"
+                      onClick={handleClearClick}
+                    >
+                      <Trash2 size={13} color="#E27D60" />
+                      <span>Clear All</span>
+                    </button>
+                  )}
+                  <button className="cs-close-btn" onClick={() => { window.dispatchEvent(new CustomEvent("close-cart")); onClose?.(); }}>
+                    <X size={16} color="white" />
+                  </button>
+                </div>
+              </div>
             </header>
 
             {/* SECTION 2 - DELIVERY BAR */}
@@ -252,14 +223,22 @@ export default function CartSidebar({ open, onClose }) {
                   </button>
                 </div>
               ) : (
-                <div className="cs-items-list">
+                <motion.div layout className="cs-items-list">
+                  <AnimatePresence mode="popLayout">
                   {cartItems.map((item, index) => {
                     const qty = Number(item.quantity) || 0;
                     const price = Number(item.price) || 0;
                     const lineTotal = price * qty;
 
                     return (
-                      <div key={item.id} className="cs-item-card">
+                      <motion.div
+                        layout
+                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+                        key={item.id}
+                        className="cs-item-card"
+                      >
                         <img
                           src={item.image || IMAGE_FALLBACK}
                           onError={(e) => {
@@ -303,11 +282,12 @@ export default function CartSidebar({ open, onClose }) {
                             <Trash2 size={16} />
                           </button>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
+                  </AnimatePresence>
                   <div ref={itemsEndRef} />
-                </div>
+                </motion.div>
               )}
             </div>
 
@@ -341,6 +321,24 @@ export default function CartSidebar({ open, onClose }) {
               </div>
             )}
       </aside>
+
+      {/* SHADCN DIALOG */}
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear all items?</DialogTitle>
+            <DialogDescription>
+              This will remove all items from your cart. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelClear}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmClear} disabled={countdown > 0}>
+              Yes, clear {countdown > 0 ? `(${countdown})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

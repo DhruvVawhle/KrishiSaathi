@@ -1,7 +1,6 @@
-// ✅ Add this as first line
 import React from 'react'
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   ShoppingCart, Check,
@@ -18,10 +17,10 @@ const RecommendedProducts = () => {
   const { addToCart } = useCart()
   const {
     recommendations,
-    label,
     loading,
+    error,
     type,
-    refresh
+    label
   } = useRecommendations()
 
   const [addedIds, setAddedIds] = useState([])
@@ -36,41 +35,27 @@ const RecommendedProducts = () => {
     }, 1500)
   }
 
-  // SKELETON
+  // SKELETON (animate-pulse using inline style for simplicity or CSS)
   if (loading) return (
     <section style={{
       padding: '60px 40px',
       background: '#F5E6CC'
     }}>
       <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% center }
-          100% { background-position: -200% center }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: .5; }
         }
-        .shimmer {
-          background: linear-gradient(
-            90deg,
-            #EDD9B0 0%,
-            #F5E6CC 50%,
-            #EDD9B0 100%
-          );
-          background-size: 200% 100%;
-          animation: shimmer 1.5s ease-in-out infinite;
-          border-radius: 8px;
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
       <div style={{
         maxWidth: 1200,
         margin: '0 auto'
       }}>
-        <div className="shimmer" style={{
-          height: 20, width: 160,
-          marginBottom: 8
-        }} />
-        <div className="shimmer" style={{
-          height: 36, width: 300,
-          marginBottom: 40
-        }} />
+        <div style={{ height: 20, width: 160, background: '#EDD9B0', marginBottom: 8, borderRadius: 4 }} className="animate-pulse" />
+        <div style={{ height: 36, width: 300, background: '#EDD9B0', marginBottom: 40, borderRadius: 4 }} className="animate-pulse" />
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
@@ -83,11 +68,11 @@ const RecommendedProducts = () => {
               overflow: 'hidden',
               border: '1.5px solid #EDD9B0'
             }}>
-              <div className="shimmer" style={{ height: 180 }} />
+              <div style={{ height: 180, background: '#EDD9B0' }} className="animate-pulse" />
               <div style={{ padding: 16 }}>
-                <div className="shimmer" style={{ height: 16, width: '80%', marginBottom: 8 }} />
-                <div className="shimmer" style={{ height: 14, width: '60%', marginBottom: 16 }} />
-                <div className="shimmer" style={{ height: 40 }} />
+                <div style={{ height: 16, width: '80%', background: '#EDD9B0', marginBottom: 8, borderRadius: 4 }} className="animate-pulse" />
+                <div style={{ height: 14, width: '60%', background: '#EDD9B0', marginBottom: 16, borderRadius: 4 }} className="animate-pulse" />
+                <div style={{ height: 40, background: '#EDD9B0', borderRadius: 12 }} className="animate-pulse" />
               </div>
             </div>
           ))}
@@ -96,7 +81,15 @@ const RecommendedProducts = () => {
     </section>
   )
 
-  if (!recommendations.length) return null
+  if (error) return (
+    <section style={{ padding: '40px', background: '#FFF5F5', textAlign: 'center' }}>
+      <div style={{ color: '#C53030', fontWeight: 600 }}>
+        ⚠️ Could not load recommendations: {error}
+      </div>
+    </section>
+  )
+
+  if (!recommendations?.length) return null
 
   return (
     <section style={{
@@ -147,24 +140,6 @@ const RecommendedProducts = () => {
             gap: 12,
             alignItems: 'center'
           }}>
-            {/* Refresh button */}
-            <button
-              onClick={refresh}
-              style={{
-                width: 40, height: 40,
-                borderRadius: '50%',
-                border: '1.5px solid #EDD9B0',
-                background: '#FDFAF4',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#2D4F1E'
-              }}
-            >
-              <RefreshCw size={16} />
-            </button>
-
             {/* View all */}
             <button
               onClick={() => navigate('/marketplace')}
@@ -185,30 +160,6 @@ const RecommendedProducts = () => {
           </div>
         </div>
 
-        {/* Type indicator */}
-        {type === 'personalized' && (
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 14px',
-            background: 'rgba(45,79,30,0.08)',
-            borderRadius: 999,
-            marginBottom: 24,
-            border: '1px solid rgba(45,79,30,0.15)'
-          }}>
-            <span style={{ fontSize: 12 }}>✨</span>
-            <span style={{
-              fontFamily: 'DM Sans',
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#2D4F1E'
-            }}>
-              Personalized based on your purchases
-            </span>
-          </div>
-        )}
-
         {/* Products grid */}
         <div className="rec-grid" style={{
           display: 'grid',
@@ -219,7 +170,7 @@ const RecommendedProducts = () => {
             {recommendations.map((product, i) => {
               const isAdded = addedIds.includes(product.id)
               return (
-                <motion.div
+                <m.div
                   key={product.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -250,8 +201,7 @@ const RecommendedProducts = () => {
                     <img
                       src={product.image}
                       alt={product.name}
-                      loading={i < 2 ? "eager" : "lazy"}
-                      {...(i < 2 ? { fetchPriority: "high" } : {})}
+                      loading="lazy"
                       style={{
                         width: '100%',
                         height: '100%',
@@ -279,23 +229,6 @@ const RecommendedProducts = () => {
                     }}>
                       {product.category}
                     </div>
-
-                    {/* Personalized tag */}
-                    {type === 'personalized' && i < 2 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 10,
-                        right: 10,
-                        padding: '3px 8px',
-                        background: '#E27D60',
-                        borderRadius: 999,
-                        fontFamily: 'Caveat',
-                        fontSize: 11,
-                        color: 'white'
-                      }}>
-                        For You ✨
-                      </div>
-                    )}
                   </div>
 
                   {/* Product info */}
@@ -362,7 +295,7 @@ const RecommendedProducts = () => {
                       )}
                     </button>
                   </div>
-                </motion.div>
+                </m.div>
               )
             })}
           </AnimatePresence>

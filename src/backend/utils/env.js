@@ -29,4 +29,11 @@ function loadEnv() {
 
 loadEnv();
 
+/**
+ * 💡 Safe environment variable getter
+ */
+export function getEnv(key) {
+  return process.env[key];
+}
+
 export default process.env;

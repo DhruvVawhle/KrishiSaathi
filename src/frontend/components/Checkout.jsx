@@ -2,15 +2,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
+import { notifications } from '@mantine/notifications';
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Mail, Phone, MapPin, Tag,
   ArrowRight, Check, CheckCircle,
   ShoppingBag, Loader2, ShieldCheck, ChevronRight
 } from "lucide-react";
-import { useToast } from "@/frontend/contexts/ToastContext";
-import { Steps, ConfigProvider } from "antd";
-import { useForm, Controller } from "react-hook-form";
+// import { useToast } from "@/frontend/contexts/ToastContext";
 import Input from "@/frontend/components/ui/Input";
 import Button from "@/frontend/components/ui/Button";
 import Card from "@/frontend/components/ui/Card";
@@ -30,26 +29,21 @@ const PROMO_CODES = {
 export default function Checkout() {
   const { cart = [], clearAllCart, saveOrderHistory } = useCart();
   const navigate = useNavigate();
-  const toast = useToast();
+  // const toast = useToast();
 
   /* ------------------------
      State Management
      ------------------------ */
-  const [currentStep, setCurrentStep] = useState(0); // 0-indexed for Ant Design Steps
+  const [currentStep, setCurrentStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState("cod");
-  
-  const { control, handleSubmit, setValue, watch, formState: { errors: formErrors } } = useForm({
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
-      city: "",
-      pincode: "",
-    }
+  const [customer, setCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    pincode: "",
   });
-
-  const customer = watch();
 
   const [promo, setPromo] = useState("");
   const [appliedPromo, setAppliedPromo] = useState(null);
@@ -75,12 +69,13 @@ export default function Checkout() {
         }
       : savedData || {};
 
-    Object.entries(profileSource).forEach(([key, value]) => {
-      if (value) setValue(key, value);
-    });
-    if (storedEmail) setValue("email", storedEmail);
-    if (storedName) setValue("name", storedName);
-  }, [setValue]);
+    setCustomer((c) => ({
+      ...c,
+      ...(storedEmail ? { email: storedEmail } : {}),
+      ...(storedName ? { name: storedName } : {}),
+      ...profileSource,
+    }));
+  }, []);
 
   /* ------------------------
      Billing Logic
@@ -100,20 +95,61 @@ export default function Checkout() {
   /* ------------------------
      Action Handlers
      ------------------------ */
-  const onSubmitDetails = (data) => {
-    setCurrentStep(1);
+  const validateCustomer = useCallback(() => {
+    const errors = {};
+    if (!customer.name?.trim()) errors.name = "Name is required";
+    if (!customer.email || !/^\S+@\S+\.\S+$/.test(customer.email)) errors.email = "Valid email is required";
+    if (!customer.phone || !/^\d{10}$/.test(customer.phone)) errors.phone = "Phone must be 10 digits";
+    if (!customer.address?.trim()) errors.address = "Delivery address is required";
+    if (!customer.pincode || !/^\d{6}$/.test(customer.pincode)) errors.pincode = "6-digit pincode required";
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [customer]);
+
+  const handleNextStep = () => {
+    if (!validateCustomer()) {
+      notifications.show({
+        title: '❌ Error',
+        message: 'Please fix form errors',
+        color: 'red',
+        autoClose: 5000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' }
+        }
+      });
+      return;
+    }
+    setCurrentStep(2);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  const handleNextStep = handleSubmit(onSubmitDetails);
 
   const handleApplyPromo = () => {
     const code = (promo || "").trim().toUpperCase();
     if (!code) return toast.info("Enter a promo code");
     const found = PROMO_CODES[code];
-    if (!found) return toast.error("Invalid promo code");
+    if (!found) {
+      notifications.show({
+        title: '❌ Invalid Code',
+        message: 'Invalid promo code',
+        color: 'red',
+        autoClose: 3000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' }
+        }
+      });
+      return;
+    }
     setAppliedPromo(found);
-    toast.success(`Applied: ${found.label}`);
+    notifications.show({
+      title: '✅ Applied!',
+      message: `Applied: ${found.label}`,
+      color: 'green',
+      autoClose: 3000,
+      styles: {
+        root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' },
+        title: { fontWeight: 700, color: '#2D4F1E' }
+      }
+    });
   };
 
   /* Placeholder for Razorpay/API scripts */
@@ -137,67 +173,63 @@ export default function Checkout() {
       document.body.appendChild(script);
     });
 
-  const createOrder = async () => {
-    try {
-      const res = await fetch("/api/payment/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ total }),
-      });
-      if (!res.ok) throw new Error("Order creation failed");
-      return await res.json();
-    } catch (e) {
-      toast.error("Server error while creating payment order");
-      return null;
-    }
-  };
-
   const handlePlaceOrder = async () => {
     setLoading(true);
+    const id = notifications.show({
+      loading: true,
+      title: '⏳ Placing order...',
+      message: 'Please wait while we process your request',
+      autoClose: false,
+      withCloseButton: false,
+      styles: {
+        root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' }
+      }
+    });
 
     try {
-      const user = JSON.parse(
-        localStorage.getItem('ks_user')
-        || 'null'
-      )
-      const uid = user?.uid
-        || user?.id
-        || null
+      const user = JSON.parse(localStorage.getItem('ks_user') || 'null');
+      const uid = user?.uid || user?.id || null;
 
       if (!uid) {
-        toast.error('Please login to place order')
-        return
+        notifications.update({
+          id,
+          title: '❌ Login Required',
+          message: 'Please login to place order',
+          color: 'red',
+          loading: false,
+          autoClose: 5000,
+          styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+        });
+        return;
       }
 
       if (!cart || cart.length === 0) {
-        toast.error('Cart is empty')
-        return
+        notifications.update({
+          id,
+          title: '🛒 Cart Empty',
+          message: 'Cart is empty',
+          color: 'red',
+          loading: false,
+          autoClose: 3000,
+          styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+        });
+        return;
       }
 
-      const orderId = 'ORD' + Date.now()
-
       const orderPayload = {
-        orderId,
+        orderId: 'ORD' + Date.now(),
         buyerId: uid,
         buyerName: user?.name || 'Buyer',
         buyerEmail: user?.email || '',
         buyerPhone: customer?.phone || '',
         items: cart.map(item => ({
-          productId: String(
-            item.id || item._id || ''
-          ),
+          productId: String(item.id || item._id || ''),
           name: String(item.name || ''),
           price: Number(item.price || 0),
-          qty: Number(
-            item.qty || item.quantity || 1
-          ),
+          qty: Number(item.qty || item.quantity || 1),
           image: String(item.image || ''),
-          farmerId: String(
-            item.farmerId || 'demo'
-          ),
-          category: String(
-            item.category || ''
-          ),
+          farmerId: String(item.farmerId || 'demo'),
+          category: String(item.category || ''),
           unit: String(item.unit || 'kg')
         })),
         total: Number(total || 0),
@@ -214,280 +246,163 @@ export default function Checkout() {
         paymentMethod: paymentMethod || 'cod',
         status: 'confirmed',
         createdAt: new Date().toISOString()
-      }
+      };
 
-      // Handle payment based on method
       if (paymentMethod === 'cod') {
-        // Direct COD order
-        await saveOrder(orderPayload);
-      } else if (paymentMethod === 'upi' || paymentMethod === 'card') {
-        // Process payment through Razorpay
-        await processRazorpayPayment(orderPayload);
+        await saveOrder(orderPayload, id);
       } else {
-        throw new Error('Invalid payment method');
+        await processRazorpayPayment(orderPayload, id);
       }
 
     } catch (err) {
-      console.error('Place order error:', err.message)
-      toast.error(err.message || 'Failed to place order. Try again.')
+      console.error('Place order error:', err.message);
+      notifications.update({
+        id,
+        title: '❌ Order Failed',
+        message: err.message || 'Failed to place order. Try again.',
+        color: 'red',
+        loading: false,
+        autoClose: 5000,
+        styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const saveOrder = async (orderPayload) => {
-    // PRIMARY — Save to Firestore
-    // Works on Vercel without backend
-    let firestoreSaved = false;
+  const saveOrder = async (orderPayload, notificationId) => {
+    let saved = false;
     try {
-      const {
-        collection,
-        addDoc,
-        serverTimestamp
-      } = await import('firebase/firestore');
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
       const { db } = await import('../config/firebaseConfig');
 
-      const docRef = await addDoc(
-        collection(db, 'orders'),
-        {
-          ...orderPayload,
-          createdAt: serverTimestamp(),
-          source: 'web'
-        }
-      );
-
-      firestoreSaved = true;
-      console.log('✅ Order → Firestore:', docRef.id);
-    } catch (fsErr) {
-      console.warn('⚠️ Firestore order:', fsErr.message);
-    }
-
-    // SECONDARY — Save to MongoDB
-    // Works only on localhost
-    let mongoSaved = false;
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(orderPayload),
-        signal: controller.signal
+      await addDoc(collection(db, 'orders'), {
+        ...orderPayload,
+        createdAt: serverTimestamp(),
+        source: 'web'
       });
-
-      clearTimeout(timeout);
-
-      const contentType = res.headers.get('content-type');
-
-      if (res.ok && contentType?.includes('application/json')) {
-        mongoSaved = true;
-        console.log('✅ Order → MongoDB');
-      }
-    } catch (mongoErr) {
-      // MongoDB not available on Vercel — This is expected
-      console.warn('⚠️ MongoDB not available:', mongoErr.message);
+      saved = true;
+    } catch (fsErr) {
+      console.warn('⚠️ Firestore error:', fsErr.message);
     }
 
-    // If saved to at least one DB, consider it success
-    if (firestoreSaved || mongoSaved) {
+    if (saved) {
       await clearAllCart();
+      notifications.update({
+        id: notificationId,
+        title: '🎉 Order Success!',
+        message: 'Your order has been placed successfully',
+        color: 'green',
+        loading: false,
+        autoClose: 3000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' },
+          title: { fontWeight: 700, color: '#2D4F1E' }
+        }
+      });
       navigate('/thank-you', {
         replace: true,
         state: { orderId: orderPayload.orderId, orderData: orderPayload }
       });
     } else {
-      throw new Error('Failed to save order to any database. Please try again.');
+      throw new Error('Failed to save order to database');
     }
-  }
+  };
 
-  const processRazorpayPayment = async (orderPayload) => {
-    try {
-      console.log('🔵 Starting Razorpay payment for method:', paymentMethod);
+  const processRazorpayPayment = async (orderPayload, notificationId) => {
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded) throw new Error('Failed to load payment gateway');
 
-      // Step 1: Load Razorpay script
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        throw new Error('Failed to load Razorpay script');
-      }
-      console.log('✅ Razorpay script loaded');
+    const orderRes = await fetch('/api/payment/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ total }),
+    });
 
-      if (!window.Razorpay) {
-        throw new Error('Razorpay not available');
-      }
+    if (!orderRes.ok) throw new Error('Payment server error');
+    const orderData = await orderRes.json();
 
-      // Step 2: Create order on backend
-      console.log('📝 Creating order with amount:', total);
-      const orderRes = await fetch('/api/payment/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ total }),
-      });
-
-      if (!orderRes.ok) {
-        let errorMsg = 'Failed to create payment order';
+    const options = {
+      key: import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_RXkiOg4W6ACRdc',
+      order_id: orderData.id,
+      amount: total * 100,
+      currency: 'INR',
+      name: 'KrishiSaathi',
+      handler: async (response) => {
         try {
-          const errorData = await orderRes.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch {
-          // Response body is empty or not JSON
-          errorMsg = `Payment server error (${orderRes.status}). Please try again or use Cash on Delivery.`;
+          const verifyRes = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }),
+          });
+          const verifyData = await verifyRes.json();
+
+          if (verifyData.status === 'success') {
+            await saveOrder({ ...orderPayload, status: 'paid' }, notificationId);
+          } else {
+            throw new Error('Payment verification failed');
+          }
+        } catch (err) {
+          notifications.update({
+            id: notificationId,
+            title: '❌ Payment Error',
+            message: err.message,
+            color: 'red',
+            loading: false,
+            autoClose: 5000
+          });
         }
-        throw new Error(errorMsg);
+      },
+      prefill: { name: customer.name, email: customer.email, contact: customer.phone },
+      theme: { color: '#2D4F1E' },
+      modal: {
+        ondismiss: () => {
+          setLoading(false);
+          notifications.update({
+            id: notificationId,
+            title: '⚠️ Payment Cancelled',
+            message: 'You cancelled the payment process',
+            color: 'orange',
+            loading: false,
+            autoClose: 3000
+          });
+        }
       }
+    };
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+  };
 
-      const orderData = await orderRes.json();
-      console.log('✅ Razorpay Order Created:', orderData.id);
-
-      // Step 3: Build payment methods object
-      // Enable all methods that should be available in Razorpay
-      let methodsObj = {
-        card: true,
-        netbanking: true,
-        wallet: false,
-        upi: true,
-        emandate: false,
-      };
-
-      console.log('💳 Payment methods enabled:', methodsObj);
-
-      // Step 4: Open Razorpay checkout
-      const razorpayOptions = {
-        key: import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_RXkiOg4W6ACRdc',
-        order_id: orderData.id,
-        amount: total * 100,
-        currency: 'INR',
-        name: 'KrishiSaathi',
-        description: `Order #${orderPayload.orderId}`,
-        image: 'https://krishisaathi.vercel.app/krishisaathi-logo.png',
-        handler: async (response) => {
-          try {
-            setLoading(false);
-            console.log('✅ Payment response received:', {
-              orderId: response.razorpay_order_id,
-              paymentId: response.razorpay_payment_id,
-            });
-
-            // Step 5: Verify payment
-            const verifyRes = await fetch('/api/payment/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (verifyData.status === 'success') {
-              console.log('✅ Payment Verified:', response.razorpay_payment_id);
-              
-              // Update order payload with payment info
-              const updatedPayload = {
-                ...orderPayload,
-                paymentId: response.razorpay_payment_id,
-                razorpayOrderId: response.razorpay_order_id,
-                status: 'paid'
-              };
-
-              // Save order with payment details
-              await saveOrder(updatedPayload);
-              toast.success('Payment successful! Order placed.');
-            } else {
-              navigate('/payment-failure', {
-                replace: true,
-                state: { error: 'Payment verification failed. Please try again.', orderId: orderPayload.orderId, method: paymentMethod }
-              });
-              return;
-            }
-          } catch (err) {
-            console.error('❌ Payment verification error:', err.message);
-            navigate('/payment-failure', {
-              replace: true,
-              state: { error: err.message || 'Payment verification failed. Contact support.', orderId: orderPayload.orderId, method: paymentMethod }
-            });
-          }
-        },
-        prefill: {
-          name: customer.name || '',
-          email: customer.email || '',
-          contact: customer.phone || '',
-        },
-        method: methodsObj,
-        theme: {
-          color: '#2D4F1E',
-        },
-        display: {
-          blocks: {
-            utib: 'hide',
-            emi: 'hide',
-            emandate: 'hide',
-          },
-          hide: [],
-          preferences: {
-            parent_window: 'window',
-          },
-        },
-        modal: {
-          ondismiss: () => {
-            console.log('⚠️ User dismissed payment modal');
-            setLoading(false);
-            navigate('/payment-failure', {
-              replace: true,
-              state: { error: 'Payment was cancelled. You can retry anytime.', orderId: orderPayload.orderId, method: paymentMethod }
-            });
-          }
-        },
-        readonly: {
-          contact: !!customer.phone,
-          email: !!customer.email,
-        }
-      };
-
-      console.log('🔓 Opening Razorpay checkout with options:', razorpayOptions);
-      
-      const razorpayInstance = new window.Razorpay(razorpayOptions);
-      razorpayInstance.open();
-      
-    } catch (err) {
-      console.error('❌ Razorpay payment error:', err.message);
-      setLoading(false);
-      navigate('/payment-failure', {
-        replace: true,
-        state: { error: err.message || 'Payment processing failed. Please try again.', orderId: orderPayload.orderId, method: paymentMethod }
-      });
-    }
-  }
 
   const onFieldChange = (key, value) => {
-    setValue(key, value);
+    setCustomer((s) => ({ ...s, [key]: value }));
+    if (fieldErrors[key]) setFieldErrors((fe) => { const copy = { ...fe }; delete copy[key]; return copy; });
   };
 
   return (
     <div className="checkout-page-wrapper">
       {/* Progress Bar */}
-      <div className="checkout-progress" style={{ maxWidth: 800, margin: '0 auto 40px' }}>
-        <ConfigProvider
-          theme={{
-            token: {
-              colorPrimary: '#2D4F1E',
-              fontFamily: 'DM Sans',
-            }
-          }}
-        >
-          <Steps
-            current={currentStep}
-            items={[
-              { title: 'Details', icon: <User size={18} /> },
-              { title: 'Payment', icon: <ShoppingBag size={18} /> },
-              { title: 'Confirmation', icon: <CheckCircle size={18} /> },
-            ]}
-          />
-        </ConfigProvider>
+      <div className="checkout-progress">
+        {['Details', 'Payment', 'Done'].map((label, i) => {
+          const stepNum = i + 1;
+          const isActive = currentStep === stepNum;
+          const isDone = currentStep > stepNum;
+          return (
+            <React.Fragment key={label}>
+              <div className="checkout-progress-item">
+                <div className={`checkout-progress-circle ${isDone ? 'done' : isActive ? 'active' : 'pending'}`}>
+                  {isDone ? <Check size={16} /> : stepNum}
+                </div>
+                <span className={`checkout-progress-label ${isActive ? 'active' : 'pending'}`}>{label}</span>
+              </div>
+              {i < 2 && <div className={`checkout-progress-line ${isDone ? 'done' : ''}`} />}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       <div className="checkout-container">
@@ -508,76 +423,41 @@ export default function Checkout() {
                 </div>
 
                 <div className="checkout-form-grid">
-                  <Controller
-                    name="name"
-                    control={control}
-                    rules={{ required: "Name is required" }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label="Full Name"
-                        required
-                        placeholder="e.g. Ravi Kumar"
-                        icon={User}
-                        error={formErrors.name?.message}
-                      />
-                    )}
+                  <Input
+                    label="Full Name"
+                    required
+                    value={customer.name}
+                    onChange={(e) => onFieldChange("name", e.target.value)}
+                    placeholder="e.g. Ravi Kumar"
+                    icon={User}
+                    error={fieldErrors.name}
                   />
-                  <Controller
-                    name="email"
-                    control={control}
-                    rules={{ 
-                      required: "Email is required",
-                      pattern: { value: /^\S+@\S+\.\S+$/, message: "Invalid email address" }
-                    }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label="Email Address"
-                        required
-                        placeholder="demo@gmail.com"
-                        icon={Mail}
-                        error={formErrors.email?.message}
-                      />
-                    )}
+                  <Input
+                    label="Email Address"
+                    required
+                    value={customer.email}
+                    onChange={(e) => onFieldChange("email", e.target.value)}
+                    placeholder="demo@gmail.com"
+                    icon={Mail}
+                    error={fieldErrors.email}
                   />
-                  <Controller
-                    name="phone"
-                    control={control}
-                    rules={{ 
-                      required: "Phone is required",
-                      pattern: { value: /^\d{10}$/, message: "Must be 10 digits" }
-                    }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label="Phone Number"
-                        required
-                        placeholder="10-digit phone"
-                        icon={Phone}
-                        error={formErrors.phone?.message}
-                        onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      />
-                    )}
+                  <Input
+                    label="Phone Number"
+                    required
+                    value={customer.phone}
+                    onChange={(e) => onFieldChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="10-digit phone"
+                    icon={Phone}
+                    error={fieldErrors.phone}
                   />
-                  <Controller
-                    name="pincode"
-                    control={control}
-                    rules={{ 
-                      required: "Pincode is required",
-                      pattern: { value: /^\d{6}$/, message: "Must be 6 digits" }
-                    }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label="Pincode"
-                        required
-                        placeholder="e.g. 560001"
-                        icon={MapPin}
-                        error={formErrors.pincode?.message}
-                        onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      />
-                    )}
+                  <Input
+                    label="Pincode"
+                    required
+                    value={customer.pincode}
+                    onChange={(e) => onFieldChange("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="e.g. 560001"
+                    icon={MapPin}
+                    error={fieldErrors.pincode}
                   />
                 </div>
 
@@ -585,21 +465,15 @@ export default function Checkout() {
                   <label className="checkout-label">Delivery Address *</label>
                   <div className="relative mt-1">
                     <MapPin size={16} style={{ position: 'absolute', left: 14, top: 14, color: '#b0a898', zIndex: 10 }} />
-                    <Controller
-                      name="address"
-                      control={control}
-                      rules={{ required: "Delivery address is required" }}
-                      render={({ field }) => (
-                        <textarea
-                          {...field}
-                          className={`w-full pl-12 pr-4 py-3 rounded-xl border border-[#EDD9B0] bg-[#FDFAF4] focus:ring-2 focus:ring-[#2D4F1E] outline-none min-h-[100px] ${formErrors.address ? 'border-red-500' : ''}`}
-                          placeholder="House number, street, landmark, city"
-                          rows={3}
-                        />
-                      )}
+                    <textarea
+                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-[#EDD9B0] bg-[#FDFAF4] focus:ring-2 focus:ring-[#2D4F1E] outline-none min-h-[100px]"
+                      value={customer.address}
+                      onChange={(e) => onFieldChange("address", e.target.value)}
+                      placeholder="House number, street, landmark, city"
+                      rows={3}
                     />
                   </div>
-                  {formErrors.address && <p className="text-red-500 text-xs mt-1">{formErrors.address.message}</p>}
+                  {fieldErrors.address && <p className="text-red-500 text-xs mt-1">{fieldErrors.address}</p>}
                 </div>
 
                 <div className="checkout-promo-box">
@@ -634,7 +508,7 @@ export default function Checkout() {
               </motion.div>
             )}
 
-            {currentStep === 1 && (
+            {currentStep === 2 && (
               <motion.div
                 key="step2"
                 initial={{ opacity: 0, x: 20 }}
@@ -693,7 +567,7 @@ export default function Checkout() {
         </main>
 
         <aside>
-          {currentStep < 2 && (
+          {currentStep < 3 && (
             <div className="summary-card">
               <div className="summary-header">
                 <h3 className="summary-title">Order Summary</h3>
@@ -753,7 +627,7 @@ export default function Checkout() {
               )}
 
               <div className="summary-actions">
-                <Button variant="ghost" size="sm" fullWidth onClick={() => { setCurrentStep(0); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✏️ Edit Details</Button>
+                <Button variant="ghost" size="sm" fullWidth onClick={() => { setCurrentStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✏️ Edit Details</Button>
                 <Button variant="ghost" size="sm" fullWidth onClick={() => navigate('/support')} style={{ marginTop: 8 }}>💬 Need Help?</Button>
               </div>
 

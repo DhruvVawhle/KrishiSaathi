@@ -1,72 +1,84 @@
-import React, { createContext, useContext, useCallback } from 'react';
-import { notifications } from '@mantine/notifications';
+import React, {
+  createContext, useContext,
+  useState, useCallback
+} from 'react'
+import { AnimatePresence, motion }
+  from 'framer-motion'
+import Toast from '../components/ui/Toast'
 
-const ToastContext = createContext(null);
+const ToastContext = createContext(null)
 
 export const ToastProvider = ({ children }) => {
-  const showToast = useCallback((message, type = 'info', duration = 3000) => {
-    const iconMap = {
-      success: '✅',
-      error: '❌',
-      warning: '⚠️',
-      info: 'ℹ️',
-    };
+  const [toasts, setToasts] = useState([])
 
-    const colorMap = {
-      success: 'green',
-      error: 'red',
-      warning: 'orange',
-      info: 'blue',
-    };
+  const showToast = useCallback((
+    message, type = 'info', duration = 3000
+  ) => {
+    const id = Date.now()
+    setToasts(prev => [...prev, {
+      id, message, type, duration
+    }])
+    setTimeout(() => {
+      setToasts(prev =>
+        prev.filter(t => t.id !== id)
+      )
+    }, duration + 500)
+  }, [])
 
-    return notifications.show({
-      title: type.charAt(0).toUpperCase() + type.slice(1),
-      message,
-      color: colorMap[type] || 'blue',
-      autoClose: duration,
-      icon: iconMap[type] || 'ℹ️',
-    });
-  }, []);
+  const removeToast = useCallback((id) => {
+    setToasts(prev =>
+      prev.filter(t => t.id !== id)
+    )
+  }, [])
 
-  // Consistency with previous API
+  // Convenience methods
   const toast = {
-    success: (msg, dur) => showToast(msg, 'success', dur),
-    error: (msg, dur) => showToast(msg, 'error', dur),
-    warning: (msg, dur) => showToast(msg, 'warning', dur),
-    info: (msg, dur) => showToast(msg, 'info', dur),
-    show: showToast,
-    loading: (message) => notifications.show({
-      title: 'Loading',
-      message,
-      loading: true,
-      autoClose: false,
-      withCloseButton: false,
-    }),
-    // Add update support for loading toasts
-    update: (id, options) => {
-      const { render, type, isLoading, autoClose, ...rest } = options;
-      const colorMap = { success: 'green', error: 'red', warning: 'orange', info: 'blue' };
-      return notifications.update({
-        id,
-        message: render || rest.message,
-        color: colorMap[type] || 'blue',
-        loading: isLoading ?? false,
-        autoClose: autoClose ?? 3000,
-        withCloseButton: true,
-        ...rest
-      });
-    },
-  };
+    success: (msg, dur) =>
+      showToast(msg, 'success', dur),
+    error: (msg, dur) =>
+      showToast(msg, 'error', dur),
+    warning: (msg, dur) =>
+      showToast(msg, 'warning', dur),
+    info: (msg, dur) =>
+      showToast(msg, 'info', dur),
+  }
 
   return (
     <ToastContext.Provider value={toast}>
       {children}
+      <div style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        zIndex: 9999,
+        pointerEvents: 'none'
+      }}>
+        <AnimatePresence>
+          {toasts.map(t => (
+            <div key={t.id}
+              style={{ pointerEvents: 'all' }}>
+              <Toast
+                message={t.message}
+                type={t.type}
+                duration={t.duration}
+                visible={true}
+                onClose={() => removeToast(t.id)}
+              />
+            </div>
+          ))}
+        </AnimatePresence>
+      </div>
     </ToastContext.Provider>
-  );
-};
+  )
+}
 
 export const useToast = () => {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used within ToastProvider');
-  return ctx;
-};
+  const ctx = useContext(ToastContext)
+  if (!ctx) throw new Error(
+    'useToast must be used within ToastProvider'
+  )
+  return ctx
+}

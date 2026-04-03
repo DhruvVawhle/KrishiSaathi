@@ -105,11 +105,16 @@
     href="/manifest.json" />
 
   <!-- ═══ FONTS (optimized loading) ═══ -->
-  <link rel="preconnect"
-    href="https://fonts.googleapis.com" />
-  <link rel="preconnect"
-    href="https://fonts.gstatic.com"
-    crossorigin />
+  <!-- ═══ PERFORMANCE OPTIMIZATIONS ═══ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+  <link rel="dns-prefetch" href="http://localhost:3000" />
+  <link rel="dns-prefetch" href="http://localhost:5000" />
+  <link rel="dns-prefetch" href="http://localhost:5001" />
+  <link rel="dns-prefetch" href="http://localhost:5002" />
+  <link rel="preload" href="/logo.png" as="image" />
+
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Caveat:wght@400;600;700&display=swap"
     media="print"

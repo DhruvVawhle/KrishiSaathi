@@ -1,7 +1,7 @@
 // ✅ src/frontend/components/CheckoutButton.jsx (Enhanced & Tested)
 import React, { useState } from "react";
 import { useCart } from "@/frontend/contexts/CartContext";
-import { useToast } from "@/frontend/contexts/ToastContext";
+import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
@@ -19,7 +19,6 @@ const CheckoutButton = ({
   children = "Checkout",
   variant = "green", // 'green' | 'blue' | 'gray'
 }) => {
-  const toast = useToast();
   const navigate = useNavigate();
   const { cart = [], clearAllCart, saveOrderHistory } = useCart();
   const [loading, setLoading] = useState(false);
@@ -35,7 +34,7 @@ const CheckoutButton = ({
     try {
       // 🧠 1. Verify login
       if (!isLoggedIn) {
-        toast.warning("🔒 Please login first. Redirecting...", 1500);
+        toast.warn("🔒 Please login first. Redirecting...", { autoClose: 1500 });
         setTimeout(() => {
           navigate(`/login?redirect=${encodeURIComponent("/checkout")}`);
         }, 1600);

@@ -1,10 +1,8 @@
 import { 
-  updateUserProfile, 
-  saveCart, 
-  getProductsFromFirestore,
   getUserProfile,
   getNotificationsRealtime,
   saveNotificationsToFirestore,
+  getFarmerProductsFromFirestore,
   getProductsRealtime
 } from './firestoreService';
 import axios from 'axios';
@@ -177,6 +175,62 @@ export const getHybridProducts = async (filters = {}) => {
     // Ultimate fallback to whatever Firestore has
     const fsProducts = await getProductsFromFirestore(filters);
     return sortByDate(fsProducts);
+  }
+};
+
+/**
+ * Hybrid Farmer Inventory Stitching
+ * 
+ * Fetches data from Firestore and MongoDB, merges them, 
+ * removes duplicates, and returns a unified list.
+ */
+export const getFarmerHybridProducts = async (farmerId) => {
+  if (!farmerId) return [];
+
+  try {
+    // 1. Fetch from Firestore
+    let firestoreProducts = [];
+    try {
+      firestoreProducts = await getFarmerProductsFromFirestore(farmerId);
+    } catch (err) {
+      console.warn('Firestore Farmer Product fetch failed:', err.message);
+    }
+
+    // 2. Fetch from MongoDB
+    let mongoProducts = [];
+    try {
+      const res = await axios.get('/api/products', { params: { farmerId } });
+      mongoProducts = res.data.products || res.data || [];
+    } catch (err) {
+      console.warn('MongoDB Farmer Product fetch failed:', err.message);
+    }
+
+    // 3. Stitch/Merge with Prioritization
+    const productMap = new Map();
+
+    // Map MongoDB products first
+    if (Array.isArray(mongoProducts)) {
+      mongoProducts.forEach(p => {
+        const id = String(p._id || p.id);
+        productMap.set(id, p);
+      });
+    }
+
+    // Overwrite with Firestore products (Priority)
+    if (Array.isArray(firestoreProducts)) {
+      firestoreProducts.forEach(p => {
+        const id = String(p.id || p._id);
+        productMap.set(id, p);
+      });
+    }
+
+    // Convert Map back to Array and Sort
+    const combined = Array.from(productMap.values());
+    
+    return sortByDate(combined);
+  } catch (err) {
+    console.error('hybridService.getFarmerHybridProducts:', err);
+    return [];
   }
 };
 

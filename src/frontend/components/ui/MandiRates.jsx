@@ -1,7 +1,4 @@
-import React, { useState, useEffect }
-  from 'react'
-import { motion, AnimatePresence }
-  from 'framer-motion'
+import React, { useState, useEffect, useCallback, useMemo, useTransition } from 'react'
 import {
   ComposedChart, Area, Line,
   XAxis, YAxis, CartesianGrid,
@@ -9,14 +6,27 @@ import {
   ReferenceLine, Legend,
   BarChart, Bar
 } from 'recharts'
-import { 
-  Table, 
-  Tag, 
-  ConfigProvider, 
+import {
+  Table,
+  Tag,
+  ConfigProvider,
   Input as AntInput,
   Typography,
   Space
 } from 'antd'
+import { DatePickerInput } from '@mantine/dates';
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxOption,
+  ComboboxOptions,
+  Listbox,
+  ListboxButton,
+  ListboxOptions,
+  ListboxOption
+} from '@headlessui/react'
+import '@mantine/dates/styles.css';
+
 import {
   TrendingUp, TrendingDown,
   Minus, RefreshCw,
@@ -25,82 +35,171 @@ import {
   ArrowUp, ArrowDown, Search
 } from 'lucide-react'
 
+import {
+  safeDate,
+  formatDate,
+  getDay,
+  getMonth,
+  getYear
+} from '@/frontend/utils/dateUtils'
+
+import {
+  fetchJSON,
+  handleFetchError
+} from '@/frontend/utils/fetchUtils'
+
+import { motion, AnimatePresence } from 'framer-motion'
+
 const INDIAN_STATES = [
   { value: '', label: 'All States' },
-  { value: 'Andhra Pradesh',
-    label: 'Andhra Pradesh' },
-  { value: 'Arunachal Pradesh',
-    label: 'Arunachal Pradesh' },
-  { value: 'Assam',
-    label: 'Assam' },
-  { value: 'Bihar',
-    label: 'Bihar' },
-  { value: 'Chhattisgarh',
-    label: 'Chhattisgarh' },
-  { value: 'Goa',
-    label: 'Goa' },
-  { value: 'Gujarat',
-    label: 'Gujarat' },
-  { value: 'Haryana',
-    label: 'Haryana' },
-  { value: 'Himachal Pradesh',
-    label: 'Himachal Pradesh' },
-  { value: 'Jharkhand',
-    label: 'Jharkhand' },
-  { value: 'Karnataka',
-    label: 'Karnataka' },
-  { value: 'Kerala',
-    label: 'Kerala' },
-  { value: 'Madhya Pradesh',
-    label: 'Madhya Pradesh' },
-  { value: 'Maharashtra',
-    label: 'Maharashtra' },
-  { value: 'Manipur',
-    label: 'Manipur' },
-  { value: 'Meghalaya',
-    label: 'Meghalaya' },
-  { value: 'Mizoram',
-    label: 'Mizoram' },
-  { value: 'Nagaland',
-    label: 'Nagaland' },
-  { value: 'Odisha',
-    label: 'Odisha' },
-  { value: 'Punjab',
-    label: 'Punjab' },
-  { value: 'Rajasthan',
-    label: 'Rajasthan' },
-  { value: 'Sikkim',
-    label: 'Sikkim' },
-  { value: 'Tamil Nadu',
-    label: 'Tamil Nadu' },
-  { value: 'Telangana',
-    label: 'Telangana' },
-  { value: 'Tripura',
-    label: 'Tripura' },
-  { value: 'Uttar Pradesh',
-    label: 'Uttar Pradesh' },
-  { value: 'Uttarakhand',
-    label: 'Uttarakhand' },
-  { value: 'West Bengal',
-    label: 'West Bengal' },
-  { value: 'Andaman and Nicobar Islands',
-    label: 'Andaman & Nicobar Islands' },
-  { value: 'Chandigarh',
-    label: 'Chandigarh' },
-  { value: 'Dadra and Nagar Haveli',
-    label: 'Dadra & Nagar Haveli' },
-  { value: 'Daman and Diu',
-    label: 'Daman & Diu' },
-  { value: 'Delhi',
-    label: 'Delhi' },
-  { value: 'Jammu and Kashmir',
-    label: 'Jammu & Kashmir' },
-  { value: 'Ladakh',
-    label: 'Ladakh' },
-  { value: 'Lakshadweep',
-    label: 'Lakshadweep' },
-  { value: 'Puducherry',
-    label: 'Puducherry' },
+  {
+    value: 'Andhra Pradesh',
+    label: 'Andhra Pradesh'
+  },
+  {
+    value: 'Arunachal Pradesh',
+    label: 'Arunachal Pradesh'
+  },
+  {
+    value: 'Assam',
+    label: 'Assam'
+  },
+  {
+    value: 'Bihar',
+    label: 'Bihar'
+  },
+  {
+    value: 'Chhattisgarh',
+    label: 'Chhattisgarh'
+  },
+  {
+    value: 'Goa',
+    label: 'Goa'
+  },
+  {
+    value: 'Gujarat',
+    label: 'Gujarat'
+  },
+  {
+    value: 'Haryana',
+    label: 'Haryana'
+  },
+  {
+    value: 'Himachal Pradesh',
+    label: 'Himachal Pradesh'
+  },
+  {
+    value: 'Jharkhand',
+    label: 'Jharkhand'
+  },
+  {
+    value: 'Karnataka',
+    label: 'Karnataka'
+  },
+  {
+    value: 'Kerala',
+    label: 'Kerala'
+  },
+  {
+    value: 'Madhya Pradesh',
+    label: 'Madhya Pradesh'
+  },
+  {
+    value: 'Maharashtra',
+    label: 'Maharashtra'
+  },
+  {
+    value: 'Manipur',
+    label: 'Manipur'
+  },
+  {
+    value: 'Meghalaya',
+    label: 'Meghalaya'
+  },
+  {
+    value: 'Mizoram',
+    label: 'Mizoram'
+  },
+  {
+    value: 'Nagaland',
+    label: 'Nagaland'
+  },
+  {
+    value: 'Odisha',
+    label: 'Odisha'
+  },
+  {
+    value: 'Punjab',
+    label: 'Punjab'
+  },
+  {
+    value: 'Rajasthan',
+    label: 'Rajasthan'
+  },
+  {
+    value: 'Sikkim',
+    label: 'Sikkim'
+  },
+  {
+    value: 'Tamil Nadu',
+    label: 'Tamil Nadu'
+  },
+  {
+    value: 'Telangana',
+    label: 'Telangana'
+  },
+  {
+    value: 'Tripura',
+    label: 'Tripura'
+  },
+  {
+    value: 'Uttar Pradesh',
+    label: 'Uttar Pradesh'
+  },
+  {
+    value: 'Uttarakhand',
+    label: 'Uttarakhand'
+  },
+  {
+    value: 'West Bengal',
+    label: 'West Bengal'
+  },
+  {
+    value: 'Andaman and Nicobar Islands',
+    label: 'Andaman & Nicobar Islands'
+  },
+  {
+    value: 'Chandigarh',
+    label: 'Chandigarh'
+  },
+  {
+    value: 'Dadra and Nagar Haveli',
+    label: 'Dadra & Nagar Haveli'
+  },
+  {
+    value: 'Daman and Diu',
+    label: 'Daman & Diu'
+  },
+  {
+    value: 'Delhi',
+    label: 'Delhi'
+  },
+  {
+    value: 'Jammu and Kashmir',
+    label: 'Jammu & Kashmir'
+  },
+  {
+    value: 'Ladakh',
+    label: 'Ladakh'
+  },
+  {
+    value: 'Lakshadweep',
+    label: 'Lakshadweep'
+  },
+  {
+    value: 'Puducherry',
+    label: 'Puducherry'
+  },
 ]
 
 const COMMODITIES = [
@@ -120,7 +219,7 @@ const COMMODITIES = [
     tamil: 'தக்காளி',
     telugu: 'టమాటా',
     local: ['tamatar', 'tamato',
-            'lal sabzi']
+      'lal sabzi']
   },
   {
     value: 'Onion',
@@ -148,7 +247,7 @@ const COMMODITIES = [
     tamil: 'கத்தரிக்காய்',
     telugu: 'వంకాయ',
     local: ['baingan', 'baigan',
-            'vange', 'eggplant']
+      'vange', 'eggplant']
   },
   {
     value: 'Cauliflower',
@@ -158,7 +257,7 @@ const COMMODITIES = [
     tamil: 'காலிஃப்ளவர்',
     telugu: 'కాలీఫ్లవర్',
     local: ['gobi', 'gobhi',
-            'phool gobhi', 'flower']
+      'phool gobhi', 'flower']
   },
   {
     value: 'Cabbage',
@@ -168,7 +267,7 @@ const COMMODITIES = [
     tamil: 'முட்டைகோஸ்',
     telugu: 'క్యాబేజీ',
     local: ['patta gobhi', 'band gobhi',
-            'kobi']
+      'kobi']
   },
   {
     value: 'Capsicum',
@@ -178,7 +277,7 @@ const COMMODITIES = [
     tamil: 'குடைமிளகாய்',
     telugu: 'క్యాప్సికం',
     local: ['shimla mirch', 'shimla',
-            'bell pepper', 'dhobali']
+      'bell pepper', 'dhobali']
   },
   {
     value: 'Carrot',
@@ -197,7 +296,7 @@ const COMMODITIES = [
     tamil: 'பசலை கீரை',
     telugu: 'పాలకూర',
     local: ['palak', 'saag',
-            'harey patte']
+      'harey patte']
   },
   {
     value: 'Ladies Finger',
@@ -207,7 +306,7 @@ const COMMODITIES = [
     tamil: 'வெண்டைக்காய்',
     telugu: 'బెండకాయ',
     local: ['bhindi', 'bhendi',
-            'okra', 'lady finger']
+      'okra', 'lady finger']
   },
   {
     value: 'Green Chilli',
@@ -217,7 +316,7 @@ const COMMODITIES = [
     tamil: 'பச்சை மிளகாய்',
     telugu: 'పచ్చి మిర్చి',
     local: ['hari mirch', 'mirchi',
-            'chilli', 'mirch']
+      'chilli', 'mirch']
   },
   {
     value: 'Bitter Gourd',
@@ -227,7 +326,7 @@ const COMMODITIES = [
     tamil: 'பாகற்காய்',
     telugu: 'కాకరకాయ',
     local: ['karela', 'karle',
-            'bitter vegetable']
+      'bitter vegetable']
   },
   {
     value: 'Bottle Gourd',
@@ -237,7 +336,7 @@ const COMMODITIES = [
     tamil: 'சுரைக்காய்',
     telugu: 'సొర కాయ',
     local: ['lauki', 'dudhi', 'ghia',
-            'doodhi']
+      'doodhi']
   },
   {
     value: 'Pumpkin',
@@ -247,7 +346,7 @@ const COMMODITIES = [
     tamil: 'பரங்கிக்காய்',
     telugu: 'గుమ్మడికాయ',
     local: ['kaddu', 'bhopla',
-            'kumhda']
+      'kumhda']
   },
   {
     value: 'Radish',
@@ -257,7 +356,7 @@ const COMMODITIES = [
     tamil: 'முள்ளங்கி',
     telugu: 'ముల్లంగి',
     local: ['mooli', 'mula',
-            'white radish']
+      'white radish']
   },
   {
     value: 'Cucumber',
@@ -267,7 +366,7 @@ const COMMODITIES = [
     tamil: 'வெள்ளரிக்காய்',
     telugu: 'దోసకాయ',
     local: ['kheera', 'kakdi',
-            'khira', 'kakdi']
+      'khira', 'kakdi']
   },
   {
     value: 'Drumstick',
@@ -277,7 +376,7 @@ const COMMODITIES = [
     tamil: 'முருங்கைக்காய்',
     telugu: 'మునగకాయ',
     local: ['sahjan', 'shevga',
-            'moringa', 'murungai']
+      'moringa', 'murungai']
   },
   {
     value: 'Coriander Leaves',
@@ -287,7 +386,7 @@ const COMMODITIES = [
     tamil: 'கொத்தமல்லி',
     telugu: 'కొత్తిమీర',
     local: ['dhaniya', 'kothamalli',
-            'kothimbir', 'cilantro']
+      'kothimbir', 'cilantro']
   },
   {
     value: 'Methi Leaves',
@@ -297,7 +396,7 @@ const COMMODITIES = [
     tamil: 'வெந்தய கீரை',
     telugu: 'మెంతి కూర',
     local: ['methi', 'fenugreek leaves',
-            'methi saag']
+      'methi saag']
   },
   {
     value: 'Ginger',
@@ -307,7 +406,7 @@ const COMMODITIES = [
     tamil: 'இஞ்சி',
     telugu: 'అల్లం',
     local: ['adrak', 'aale',
-            'inji', 'allam']
+      'inji', 'allam']
   },
   {
     value: 'Garlic',
@@ -317,7 +416,7 @@ const COMMODITIES = [
     tamil: 'பூண்டு',
     telugu: 'వెల్లుల్లి',
     local: ['lahsun', 'lasun',
-            'lasoon', 'poondu']
+      'lasoon', 'poondu']
   },
   {
     value: 'Mushroom',
@@ -327,7 +426,7 @@ const COMMODITIES = [
     tamil: 'காளான்',
     telugu: 'పుట్టగొడుగు',
     local: ['mushroom', 'khumb',
-            'dhingri']
+      'dhingri']
   },
   {
     value: 'Sweet Potato',
@@ -337,7 +436,7 @@ const COMMODITIES = [
     tamil: 'சர்க்கரைவள்ளி',
     telugu: 'చిలగడదుంప',
     local: ['shakarkand', 'ratale',
-            'sweet aloo']
+      'sweet aloo']
   },
 
   // ── FRUITS ──────────────────────
@@ -358,7 +457,7 @@ const COMMODITIES = [
     tamil: 'வாழைப்பழம்',
     telugu: 'అరటి పండు',
     local: ['kela', 'kel', 'kele',
-            'kadali']
+      'kadali']
   },
   {
     value: 'Mango',
@@ -368,8 +467,8 @@ const COMMODITIES = [
     tamil: 'மாம்பழம்',
     telugu: 'మామిడి పండు',
     local: ['aam', 'amba', 'keri',
-            'hapus', 'alphonso',
-            'langda', 'dasheri']
+      'hapus', 'alphonso',
+      'langda', 'dasheri']
   },
   {
     value: 'Apple',
@@ -379,7 +478,7 @@ const COMMODITIES = [
     tamil: 'ஆப்பிள்',
     telugu: 'యాపిల్',
     local: ['seb', 'safarchand',
-            'apple fruit']
+      'apple fruit']
   },
   {
     value: 'Grapes',
@@ -389,7 +488,7 @@ const COMMODITIES = [
     tamil: 'திராட்சை',
     telugu: 'ద్రాక్ష',
     local: ['angur', 'draksha',
-            'angoor', 'drakhe']
+      'angoor', 'drakhe']
   },
   {
     value: 'Pomegranate',
@@ -399,7 +498,7 @@ const COMMODITIES = [
     tamil: 'மாதுளை',
     telugu: 'దానిమ్మ',
     local: ['anar', 'dalimb',
-            'matulam']
+      'matulam']
   },
   {
     value: 'Orange',
@@ -409,7 +508,7 @@ const COMMODITIES = [
     tamil: 'ஆரஞ்சு',
     telugu: 'నారింజ',
     local: ['santra', 'santre',
-            'orange fruit', 'narangi']
+      'orange fruit', 'narangi']
   },
   {
     value: 'Papaya',
@@ -419,7 +518,7 @@ const COMMODITIES = [
     tamil: 'பப்பாளி',
     telugu: 'బొప్పాయి',
     local: ['papita', 'papai',
-            'pappali']
+      'pappali']
   },
   {
     value: 'Watermelon',
@@ -429,7 +528,7 @@ const COMMODITIES = [
     tamil: 'தர்பூசணி',
     telugu: 'పుచ్చకాయ',
     local: ['tarbuj', 'kalingad',
-            'tarbooj']
+      'tarbooj']
   },
   {
     value: 'Guava',
@@ -439,7 +538,7 @@ const COMMODITIES = [
     tamil: 'கொய்யா',
     telugu: 'జామ',
     local: ['amrood', 'peru',
-            'koyya', 'jaam']
+      'koyya', 'jaam']
   },
   {
     value: 'Coconut',
@@ -449,7 +548,7 @@ const COMMODITIES = [
     tamil: 'தேங்காய்',
     telugu: 'కొబ్బరి',
     local: ['nariyal', 'naral',
-            'thengai', 'kobbari']
+      'thengai', 'kobbari']
   },
   {
     value: 'Lemon',
@@ -459,7 +558,7 @@ const COMMODITIES = [
     tamil: 'எலுமிச்சை',
     telugu: 'నిమ్మకాయ',
     local: ['nimbu', 'limbu',
-            'elumichai', 'nimboo']
+      'elumichai', 'nimboo']
   },
 
   // ── CEREALS ─────────────────────
@@ -471,7 +570,7 @@ const COMMODITIES = [
     tamil: 'கோதுமை',
     telugu: 'గోధుమ',
     local: ['gehun', 'gehu',
-            'gahu', 'gahun']
+      'gahu', 'gahun']
   },
   {
     value: 'Rice',
@@ -481,7 +580,7 @@ const COMMODITIES = [
     tamil: 'அரிசி',
     telugu: 'బియ్యం',
     local: ['chawal', 'tandul',
-            'arisi', 'bhat', 'anna']
+      'arisi', 'bhat', 'anna']
   },
   {
     value: 'Maize',
@@ -491,7 +590,7 @@ const COMMODITIES = [
     tamil: 'மக்காச்சோளம்',
     telugu: 'మొక్జొన్న',
     local: ['makka', 'bhutta',
-            'corn', 'makki', 'maka']
+      'corn', 'makki', 'maka']
   },
   {
     value: 'Paddy (Dhan) Common',
@@ -501,7 +600,7 @@ const COMMODITIES = [
     tamil: 'நெல்',
     telugu: 'వరి',
     local: ['dhan', 'bhat', 'nel',
-            'paddy', 'vari']
+      'paddy', 'vari']
   },
   {
     value: 'Bajra (Pearl Millet/Cumbu)',
@@ -511,7 +610,7 @@ const COMMODITIES = [
     tamil: 'கம்பு',
     telugu: 'సజ్జలు',
     local: ['bajra', 'bajri',
-            'kambu', 'sajjalu']
+      'kambu', 'sajjalu']
   },
   {
     value: 'Jowar (Sorghum)',
@@ -521,7 +620,7 @@ const COMMODITIES = [
     tamil: 'சோளம்',
     telugu: 'జొన్న',
     local: ['jowar', 'jwari',
-            'cholam', 'jonna']
+      'cholam', 'jonna']
   },
   {
     value: 'Ragi (Finger Millet)',
@@ -531,7 +630,7 @@ const COMMODITIES = [
     tamil: 'கேழ்வரகு',
     telugu: 'రాగి',
     local: ['ragi', 'nachni',
-            'nachani', 'mandua']
+      'nachani', 'mandua']
   },
 
   // ── PULSES ──────────────────────
@@ -543,8 +642,8 @@ const COMMODITIES = [
     tamil: 'தூவரம் பருப்பு',
     telugu: 'కందిపప్పు',
     local: ['arhar', 'tur', 'toor',
-            'tur dal', 'toor dal',
-            'red gram']
+      'tur dal', 'toor dal',
+      'red gram']
   },
   {
     value: 'Green Gram (Moong)',
@@ -554,8 +653,8 @@ const COMMODITIES = [
     tamil: 'பாசிப்பருப்பு',
     telugu: 'పెసలు',
     local: ['moong', 'mung',
-            'moog', 'green gram',
-            'moong dal']
+      'moog', 'green gram',
+      'moong dal']
   },
   {
     value: 'Black Gram (Urd Beans)',
@@ -565,7 +664,7 @@ const COMMODITIES = [
     tamil: 'உளுத்தம்பருப்பு',
     telugu: 'మినపప్పు',
     local: ['urad', 'udad', 'urad dal',
-            'black gram', 'maash']
+      'black gram', 'maash']
   },
   {
     value: 'Bengal Gram Dal (Chana Dal)',
@@ -575,8 +674,8 @@ const COMMODITIES = [
     tamil: 'கடலைப்பருப்பு',
     telugu: 'శనగపప్పు',
     local: ['chana', 'channa',
-            'chana dal', 'gram dal',
-            'chickpea']
+      'chana dal', 'gram dal',
+      'chickpea']
   },
   {
     value: 'Lentil (Masur)',
@@ -586,7 +685,7 @@ const COMMODITIES = [
     tamil: 'மசூர் பருப்பு',
     telugu: 'మసూర్ పప్పు',
     local: ['masur', 'masoor',
-            'masur dal', 'red lentil']
+      'masur dal', 'red lentil']
   },
   {
     value: 'Soybean',
@@ -596,7 +695,7 @@ const COMMODITIES = [
     tamil: 'சோயா பீன்',
     telugu: 'సోయాబీన్',
     local: ['soya', 'soyabean',
-            'soybean seeds']
+      'soybean seeds']
   },
 
   // ── OILSEEDS ────────────────────
@@ -608,8 +707,8 @@ const COMMODITIES = [
     tamil: 'வேர்க்கடலை',
     telugu: 'వేరుశెనగ',
     local: ['moongphali', 'shengdane',
-            'peanut', 'verkadalai',
-            'sing', 'mungphali']
+      'peanut', 'verkadalai',
+      'sing', 'mungphali']
   },
   {
     value: 'Mustard',
@@ -619,8 +718,8 @@ const COMMODITIES = [
     tamil: 'கடுகு',
     telugu: 'ఆవాలు',
     local: ['sarso', 'rai', 'mohri',
-            'kadugu', 'avalu',
-            'sarson', 'raai']
+      'kadugu', 'avalu',
+      'sarson', 'raai']
   },
   {
     value: 'Sunflower',
@@ -630,7 +729,7 @@ const COMMODITIES = [
     tamil: 'சூரியகாந்தி',
     telugu: 'పొద్దుతిరుగుడు',
     local: ['surajmukhi', 'surjamukhi',
-            'suryaphool']
+      'suryaphool']
   },
   {
     value: 'Cotton',
@@ -640,7 +739,7 @@ const COMMODITIES = [
     tamil: 'பருத்தி',
     telugu: 'పత్తి',
     local: ['kapas', 'kapoos',
-            'parutti', 'patti']
+      'parutti', 'patti']
   },
 
   // ── SPICES ──────────────────────
@@ -652,7 +751,7 @@ const COMMODITIES = [
     tamil: 'மஞ்சள்',
     telugu: 'పసుపు',
     local: ['haldi', 'halad',
-            'manjal', 'pasupu']
+      'manjal', 'pasupu']
   },
   {
     value: 'Chilli Red',
@@ -662,7 +761,7 @@ const COMMODITIES = [
     tamil: 'சிவப்பு மிளகாய்',
     telugu: 'ఎండు మిర్చి',
     local: ['lal mirch', 'lal mirchi',
-            'dry chilli', 'sukhi mirch']
+      'dry chilli', 'sukhi mirch']
   },
   {
     value: 'Coriander Seed',
@@ -672,7 +771,7 @@ const COMMODITIES = [
     tamil: 'மல்லி விதை',
     telugu: 'దనియాలు',
     local: ['dhaniya', 'dhana',
-            'dhane', 'kothmir seed']
+      'dhane', 'kothmir seed']
   },
   {
     value: 'Cumin Seed (Jeera)',
@@ -682,7 +781,7 @@ const COMMODITIES = [
     tamil: 'சீரகம்',
     telugu: 'జీలకర్ర',
     local: ['jeera', 'jira', 'jire',
-            'zeera', 'cumin']
+      'zeera', 'cumin']
   },
   {
     value: 'Fenugreek Seed (Methi)',
@@ -692,7 +791,7 @@ const COMMODITIES = [
     tamil: 'வெந்தயம்',
     telugu: 'మెంతులు',
     local: ['methi dana', 'methi seeds',
-            'fenugreek']
+      'fenugreek']
   },
   {
     value: 'Black Pepper',
@@ -702,7 +801,7 @@ const COMMODITIES = [
     tamil: 'கருமிளகு',
     telugu: 'నల్ల మిరియాలు',
     local: ['kali mirch', 'kali miri',
-            'pepper', 'miriyalu']
+      'pepper', 'miriyalu']
   },
   {
     value: 'Cardamom',
@@ -712,7 +811,7 @@ const COMMODITIES = [
     tamil: 'ஏலக்காய்',
     telugu: 'యాలకులు',
     local: ['elaichi', 'velchi',
-            'elakkai', 'cardamom']
+      'elakkai', 'cardamom']
   },
 
   // ── JAGGERY & SUGAR ─────────────
@@ -724,8 +823,8 @@ const COMMODITIES = [
     tamil: 'வெல்லம்',
     telugu: 'బెల్లం',
     local: ['gur', 'gud', 'gul',
-            'vellam', 'bellam',
-            'shakkar']
+      'vellam', 'bellam',
+      'shakkar']
   },
   {
     value: 'Sugarcane',
@@ -735,7 +834,7 @@ const COMMODITIES = [
     tamil: 'கரும்பு',
     telugu: 'చెరకు',
     local: ['ganna', 'oos', 'ikh',
-            'karumbu', 'cheraku']
+      'karumbu', 'cheraku']
   },
 
   // ── PLANTATION ──────────────────
@@ -747,7 +846,7 @@ const COMMODITIES = [
     tamil: 'பாக்கு',
     telugu: 'వక్కలు',
     local: ['supari', 'baaku',
-            'paan supari']
+      'paan supari']
   },
   {
     value: 'Cashew Kernel',
@@ -757,7 +856,7 @@ const COMMODITIES = [
     tamil: 'முந்திரி',
     telugu: 'జీడిపప్పు',
     local: ['kaju', 'keshew',
-            'mundhiri']
+      'mundhiri']
   },
   {
     value: 'Tamarind Fruit',
@@ -767,7 +866,7 @@ const COMMODITIES = [
     tamil: 'புளி',
     telugu: 'చింతపండు',
     local: ['imli', 'chinch',
-            'puli', 'chintapandu']
+      'puli', 'chintapandu']
   },
 ]
 
@@ -900,6 +999,9 @@ const STATE_LANGUAGE_MAP = {
   }
 }
 
+/**
+ * safeDate utility is now imported from @/frontend/utils/dateUtils
+ */
 
 // Safe render — never crashes on objects
 const safeRender = (value, fallback = '') => {
@@ -907,8 +1009,8 @@ const safeRender = (value, fallback = '') => {
     return fallback
   }
   if (typeof value === 'string'
-      || typeof value === 'number'
-      || typeof value === 'boolean') {
+    || typeof value === 'number'
+    || typeof value === 'boolean') {
     return value
   }
   if (typeof value === 'object') {
@@ -937,6 +1039,7 @@ const MandiRates = ({
   const [minPrice, setMinPrice] = useState(0)
   const [modalPrice, setModalPrice] = useState(0)
   const [maxPrice, setMaxPrice] = useState(0)
+  const [date, setDate] = useState(null)
   const [prediction, setPrediction]
     = useState(null)
   const [comparison, setComparison]
@@ -951,6 +1054,11 @@ const MandiRates = ({
     = useState('rates')
   const [error, setError] = useState(null)
 
+  const [searchQuery, setSearchQuery]
+    = useState('')
+  const [currentPage, setCurrentPage]
+    = useState(1)
+
   // Add state for search
   const [commoditySearch, setCommoditySearch]
     = useState('')
@@ -958,6 +1066,8 @@ const MandiRates = ({
     = useState([])
   const [showSearchDropdown, setShowSearchDropdown]
     = useState(false)
+
+  const [isPending, startTransition] = useTransition()
 
   // -- TABLE DATA PROCESSING --
   const filteredRecords = React.useMemo(() => {
@@ -1029,90 +1139,19 @@ const MandiRates = ({
       title: 'DATE',
       dataIndex: 'arrivalDate',
       key: 'arrivalDate',
-      sorter: (a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate)
+      sorter: (a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate),
+      render: (val) => formatDate(val)
     }
   ]
 
   // Price category badge
-  const getPriceBadge = (
-    modalPrice, minPrice, maxPrice
-  ) => {
+  const getPriceBadge = (modalPrice) => {
     if (!modalPrice) return null
     const kg = modalPrice / 100
-    if (kg < 5) return {
-      label: 'Low',
-      bg: 'rgba(255,82,82,0.10)',
-      color: '#FF5252',
-      dot: '#FF5252'
-    }
-    if (kg < 15) return {
-      label: 'Fair',
-      bg: 'rgba(76,175,80,0.10)',
-      color: '#2E7D32',
-      dot: '#4CAF50'
-    }
-    if (kg < 30) return {
-      label: 'Good',
-      bg: 'rgba(45,79,30,0.10)',
-      color: '#2D4F1E',
-      dot: '#2D4F1E'
-    }
-    return {
-      label: 'Premium',
-      bg: 'rgba(226,125,96,0.10)',
-      color: '#C96848',
-      dot: '#E27D60'
-    }
-  }
-
-  // Custom tooltip for charts
-  const CustomChartTooltip = ({
-    active, payload, label
-  }) => {
-    if (!active || !payload?.length) return null
-    return (
-      <div style={{
-        background: '#1A2E12',
-        border: 'none',
-        borderRadius: 10,
-        padding: '10px 14px',
-        fontFamily: 'DM Sans'
-      }}>
-        <p style={{
-          color: 'rgba(255,255,255,0.7)',
-          fontSize: 11,
-          margin: '0 0 4px'
-        }}>
-          {label}
-        </p>
-        {payload.map((p, i) => {
-          const isLiquid = (commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil')
-          const unit = isLiquid ? 'L' : 'kg'
-          const valQtl = p.payload?.price_qtl || (p.value * 100)
-          return (
-            <div key={i} style={{ marginTop: 4 }}>
-              <p style={{
-                color: p.color || 'white',
-                fontSize: 14,
-                fontWeight: 800,
-                margin: 0
-              }}>
-                ₹{p.value}/{unit}
-                {p.payload?.type === 'predicted' ? ' (est.)' : ''}
-              </p>
-              <p style={{
-                color: 'rgba(255,255,255,0.5)',
-                fontSize: 10,
-                fontWeight: 600,
-                margin: 0
-              }}>
-                ₹{Math.round(valQtl)}/qtl
-              </p>
-            </div>
-          )
-        })}
-      </div>
-    )
+    if (kg < 5) return { label: 'Low', color: '#FF5252' }
+    if (kg < 15) return { label: 'Fair', color: '#2E7D32' }
+    if (kg < 30) return { label: 'Good', color: '#2D4F1E' }
+    return { label: 'Premium', color: '#C96848' }
   }
 
   // Handle search input change
@@ -1120,17 +1159,18 @@ const MandiRates = ({
     const val = e.target.value
     setCommoditySearch(val)
 
-    if (val.trim().length > 0) {
-      const results = searchCommodity(val)
-      setSearchResults(results)
-      setShowSearchDropdown(true)
-    } else {
-      setSearchResults([])
-      setShowSearchDropdown(false)
-    }
+    startTransition(() => {
+      if (val.trim().length > 0) {
+        const results = searchCommodity(val)
+        setSearchResults(results)
+        setShowSearchDropdown(true)
+      } else {
+        setSearchResults([])
+        setShowSearchDropdown(false)
+      }
+    })
   }
 
-  // Handle selecting from search results
   const handleSelectFromSearch = (item) => {
     setCommodity(item.value)
     setCommoditySearch(item.label)
@@ -1140,291 +1180,160 @@ const MandiRates = ({
   const isLiquid = (commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil')
   const unit = isLiquid ? 'L' : 'kg'
 
+  // ✅ Consolidated Effect: Prevents duplicate triggers and ensures cleanup
   useEffect(() => {
-    // Load latest data immediately when page opens
-    fetchAll()
-  }, [])
+    const controller = new AbortController()
+    fetchAll(controller.signal)
+    return () => controller.abort()
+  }, [commodity, state, date])
 
-  useEffect(() => {
-    if (commodity || state) {
-      fetchAll()
-    }
-  }, [commodity, state])
-
-  const fetchAll = async () => {
+  const fetchAll = async (outerSignal) => {
     setLoading(true)
     setError('')
-    
-    console.log(
-      '[MandiRates] fetchAll triggered',
-      { commodity, state }
-    )
-
     try {
-      const API_KEY =
-        '579b464db66ec23bdd000001' +
-        'b7d45cb5d72243dd58f4c958c5478779'
+      const limit = (!commodity && !state) ? 100 : 50
+      let url = `/api/mandi/today?limit=${limit}&state=${encodeURIComponent(state || '')}&commodity=${encodeURIComponent(commodity || '')}`
 
-      const RESOURCE_ID =
-        '9ef84268-d588-465a-a308-a864a43d0070'
-
-      // More records when no filter
-      const limit =
-        (!commodity &&
-         !state)
-          ? 100 : 50
-
-      // Build URL — only add filters
-      // when actually selected
-      let url =
-        `https://api.data.gov.in/resource/` +
-        `${RESOURCE_ID}` +
-        `?api-key=${API_KEY}` +
-        `&format=json` +
-        `&limit=${limit}` +
-        `&offset=0`
-
-      if (commodity &&
-          commodity.trim() !== '') {
-        url +=
-          `&filters[commodity]=` +
-          encodeURIComponent(
-            commodity
-          )
-      }
-
-      if (state &&
-          state.trim() !== '') {
-        url +=
-          `&filters[state]=` +
-          encodeURIComponent(state)
-      }
-
-      console.log(
-        '[MandiRates] Fetching:',
-        url.replace(API_KEY, 'KEY')
-      )
-
-      const controller = new AbortController()
-      const timeout = setTimeout(
-        () => controller.abort(), 30000
-      )
-
-      const response = await fetch(url, {
-        signal: controller.signal
-      })
-      clearTimeout(timeout)
-
-      if (!response.ok) {
-        throw new Error(
-          `API error: ${response.status}`
-        )
-      }
-
-      const data = await response.json()
-
-      console.log(
-        '[MandiRates] Total records:',
-        data.total || 0
-      )
-      console.log(
-        '[MandiRates] Got records:',
-        (data.records || []).length
-      )
-
-      if (!data.records ||
-          data.records.length === 0) {
-        setRates([])
-        setError(
-          commodity || state
-            ? `No data found. Try All States or different commodity.`
-            : `No data available right now. Try again.`
-        )
-        setLoading(false)
-        return
-      }
-
-      // Parse and normalize records
-      const parsed = data.records
-        .map(r => ({
-          commodity: r.commodity
-            || r.Commodity || '',
-          market: r.market
-            || r.Market || '',
-          district: r.district
-            || r.District || '',
-          state: r.state
-            || r.State || '',
-          variety: r.variety
-            || r.Variety || 'Other',
-          minPrice: parseFloat(
-            r.min_price
-            || r.Min_Price
-            || r.minimum_price
-            || 0
-          ),
-          modalPrice: parseFloat(
-            r.modal_price
-            || r.Modal_Price
-            || r.modal_x0020_price
-            || 0
-          ),
-          maxPrice: parseFloat(
-            r.max_price
-            || r.Max_Price
-            || r.maximum_price
-            || 0
-          ),
-          arrivalDate: r.arrival_date
-            || r.Arrival_Date
-            || r.date
-            || new Date()
-              .toLocaleDateString('en-IN')
-        }))
-        .filter(r => r.modalPrice > 0)
-
-      console.log(
-        '[MandiRates] Valid records:',
-        parsed.length
-      )
-
-      // Set records for table
-      setRates(parsed)
-      setSource('live')
-
-      // Calculate summary cards
-      if (parsed.length > 0) {
-        const prices = parsed.map(
-          r => r.modalPrice
-        )
-        const minP = Math.min(
-          ...parsed.map(r => r.minPrice)
-            .filter(p => p > 0)
-        )
-        const maxP = Math.max(
-          ...parsed.map(r => r.maxPrice)
-            .filter(p => p > 0)
-        )
-        const avgModal = Math.round(
-          prices.reduce((a, b) => a + b, 0)
-          / prices.length * 10
-        ) / 10
-
-        setMinPrice(minP)
-        setModalPrice(avgModal)
-        setMaxPrice(maxP)
-
-        // Try to fetch prediction and history for the selected commodity
-        if (commodity) {
-          fetchPrediction(commodity, avgModal)
-          fetchHistory(commodity, state)
+      if (date) {
+        const dObj = safeDate(date)
+        if (dObj) {
+          const d = dObj.getDate().toString().padStart(2, '0')
+          const m = (dObj.getMonth() + 1).toString().padStart(2, '0')
+          const y = dObj.getFullYear()
+          url += `&date=${d}/${m}/${y}`
         }
       }
 
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        setError(
-          'Request timed out. Check connection.'
-        )
-        console.warn(
-          '[MandiRates] Fetch aborted:', err.message
-        )
-      } else {
-        setError(
-          'Failed to fetch rates. ' +
-          err.message
-        )
-        console.error(
-          '[MandiRates] Error:', err.message
-        )
+      const data = await fetchJSON(url, { signal: outerSignal })
+      if (data.aborted) return
+
+      if (!data.success || !data.records || data.records.length === 0) {
+        startTransition(() => {
+          setRates([])
+          const msg = data.error || (commodity || state ? `No data found. Try different filters.` : `No rates available.`)
+          setError(msg)
+          notifications.show({
+            title: '🔎 No data found',
+            message: msg,
+            color: 'orange',
+            styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #F5A623' } }
+          });
+        })
+        return
       }
+
+      const parsed = []
+      let sumModal = 0
+      let runningMin = Infinity
+      let runningMax = -Infinity
+
+      data.records.forEach(r => {
+        const modal = parseFloat(r.modal_price || r.Modal_Price || r.modalPrice || r.price_qtl || 0)
+        if (modal > 0) {
+          const min = parseFloat(r.min_price || r.Min_Price || r.minPrice || r.price_qtl || 0)
+          const max = parseFloat(r.max_price || r.Max_Price || r.maxPrice || r.price_qtl || 0)
+
+          parsed.push({
+            commodity: r.commodity || r.Commodity || '',
+            market: r.market || r.Market || '',
+            district: r.district || r.District || '',
+            state: r.state || r.State || '',
+            variety: r.variety || r.Variety || 'Other',
+            minPrice: min,
+            modalPrice: modal,
+            maxPrice: max,
+            arrivalDate: r.arrival_date || r.Arrival_Date || formatDate(new Date())
+          })
+
+          sumModal += modal
+          if (min > 0 && min < runningMin) runningMin = min
+          if (max > runningMax) runningMax = max
+        }
+      })
+
+      startTransition(() => {
+        setRates(parsed)
+        setSource('live')
+
+        if (parsed.length > 0) {
+          const avgModal = Math.round((sumModal / parsed.length) * 10) / 10
+          setModalPrice(avgModal)
+          setMinPrice(runningMin === Infinity ? 0 : runningMin)
+          setMaxPrice(runningMax === -Infinity ? 0 : runningMax)
+
+          if (commodity) {
+            fetchPrediction(commodity, avgModal, outerSignal)
+            fetchHistory(commodity, state, outerSignal)
+          }
+        }
+      })
+    } catch (err) {
+      const handled = handleFetchError(err)
+      if (!handled.aborted) setError(handled.error)
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchPrediction = async (
-    comm, price
-  ) => {
+  const fetchPrediction = async (comm, price, signal) => {
     if (!comm || !price) return
     setPredLoading(true)
     try {
-      // API expects price in KG
-      const kgPrice = price > 100 ? price / 100 : price
-      
-      const res = await fetch(
-        `/api/mandi/predict?commodity=${comm}&current_price=${kgPrice}&state=${state || ''}`
-      )
-      const data = await res.json()
-      if (data.success) {
-        setPrediction(data)
-        // DEBUG — shows exact API response
-        console.log(
-          '[Forecast Debug] Full response:',
-          JSON.stringify(data, null, 2)
-        )
-        console.log(
-          '[Forecast Debug] predictions:',
-          data.predictions,
-          'type:',
-          typeof data.predictions,
-          'isArray:',
-          Array.isArray(data.predictions)
-        )
-        console.log(
-          '[Forecast Debug] predictions[0]:',
-          data.predictions?.[0],
-          'type:',
-          typeof data.predictions?.[0]
-        )
+      const url = `/api/mandi/predict?commodity=${comm}&current_price=${price}&state=${state || ''}`
+      const data = await fetchJSON(url, { signal })
+      if (data.aborted) return
+      if (data.success && data.prediction) {
+        setPrediction(data.prediction)
       }
     } catch (err) {
-      console.error('Prediction error:', err)
+      handleFetchError(err)
     } finally {
       setPredLoading(false)
     }
   }
 
-  const fetchHistory = async (comm, st) => {
+  const fetchHistory = async (comm, st, signal) => {
     if (!comm) return
     try {
-      const res = await fetch(
-        `/api/mandi/history?commodity=${comm}&state=${st || ''}`
-      )
-      const data = await res.json()
+      const url = `/api/mandi/history?commodity=${comm}&state=${st || ''}`
+      const data = await fetchJSON(url, { signal })
+      if (data.aborted) return
       if (data.success && Array.isArray(data.history)) {
-        // Map modal_price to modal for the BarChart
-        const mapped = data.history.map(h => ({
+        setHistory(data.history.map(h => ({
           ...h,
           modal: h.modal_price || h.modalPrice || 0,
-          date: h.date?.slice(0, 5) || ''
-        }))
-        setHistory(mapped)
+          date: (h.date || h.arrival_date || '').slice(0, 5)
+        })))
       }
     } catch (err) {
-      console.error('History error:', err)
+      handleFetchError(err)
     }
   }
 
   const handleCompare = async () => {
     if (!commodity) {
-      setError('Please select a commodity first to compare prices.')
-      setTimeout(() => setError(null), 3000)
+      notifications.show({
+        title: '⚠️ Select Commodity',
+        message: 'Please select a commodity first to compare prices.',
+        color: 'orange',
+        styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #F5A623' } }
+      });
       return
     }
 
     if (!farmerPrice) return
-    
+
     const validPrice = validatePrice(
       farmerPrice
     )
 
-    if (farmerPrice &&
-        !validPrice) {
-      setError(
-        'Please enter a valid price' +
-        ' greater than ₹0'
-      )
+    if (farmerPrice && !validPrice) {
+      notifications.show({
+        title: '❌ Invalid Price',
+        message: 'Please enter a valid price greater than ₹0',
+        color: 'red',
+        styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
+      });
       return
     }
 
@@ -1433,7 +1342,7 @@ const MandiRates = ({
       getEnglishName(commodity)
 
     if (englishCommodity !==
-        commodity) {
+      commodity) {
       setCommodity(
         englishCommodity
       )
@@ -1445,8 +1354,11 @@ const MandiRates = ({
 
     try {
       if (!modalPrice || modalPrice <= 0) {
-        setError('Mandi rates are currently not available. Please wait or select a different state.')
-        setTimeout(() => setError(null), 3000)
+        notifications.show({
+          title: '⏳ No Mandi Data',
+          message: 'Mandi rates are currently not available. Please wait or select a different state.',
+          color: 'blue'
+        });
         return
       }
 
@@ -1456,16 +1368,16 @@ const MandiRates = ({
         farmer_price: yourPrice,
         mandi_modal: modalPrice
       }
-      
+
       const mandiKgPrice = modalPrice / 100
       const diff = yourPrice - mandiKgPrice
       const pct = (
         (yourPrice - mandiKgPrice) / mandiKgPrice * 100
       ).toFixed(1)
-      
+
       data.diff_percent = parseFloat(pct)
       data.diff = diff
-      
+
       if (diff > 0) {
         data.message = `Your price is ₹${diff.toFixed(2)} above mandi rate.`
         data.status = 'above_market'
@@ -1489,250 +1401,83 @@ const MandiRates = ({
     }
   }
 
-  const summary = rates.length ? {
-    avg_modal: parseFloat(
-      (rates.reduce(
-        (s, r) => s + r.modal_price, 0
-      ) / rates.length).toFixed(2)
-    ),
-    min: Math.min(...rates.map(r => r.min_price)),
-    max: Math.max(...rates.map(r => r.max_price))
-  } : null
+  // Helper utilities for data processing
+  const toKg = React.useCallback((qtlPrice) => {
+    if (!qtlPrice || qtlPrice <= 0) return 0
+    const kg = qtlPrice / 100
+    return Math.round(kg * 100) / 100
+  }, [])
+
+  const formatKg = React.useCallback((qtlPrice) => {
+    const kg = toKg(qtlPrice)
+    if (kg === 0) return '0'
+    return kg % 1 === 0 ? String(kg) : kg.toFixed(2)
+  }, [toKg])
 
   const forecastData = prediction
 
-  const buildChartData = () => {
-    if (!forecastData) return []
-
-    console.log(
-      '[buildChartData] forecastData keys:',
-      Object.keys(forecastData)
-    )
-
+  // Memoize chart data to avoid expensive re-calculations on every render
+  const chartData = React.useMemo(() => {
     const points = []
 
-    // ── SAFE NUMBER PARSER ──────────
-    // Handles all edge cases that
-    // cause NaN
-    const safeNum = (val) => {
-      if (val === null ||
-          val === undefined) return null
-
-      // Handle array → take first item
-      if (Array.isArray(val)) {
-        return safeNum(val[0])
-      }
-
-      // Handle object → try common keys
-      if (typeof val === 'object') {
-        const p = val.price
-               || val.value
-               || val.modal_price
-               || val.price_kg
-               || val.modal_kg
-               || null
-        return safeNum(p)
-      }
-
-      const n = parseFloat(String(val))
-      if (isNaN(n) || !isFinite(n)) {
-        return null
-      }
-      return n
-    }
-
-    // ── SAFE KG CONVERTER ──────────
-    // Detects qtl vs kg automatically
-    const toKg = (val) => {
-      const n = safeNum(val)
-      if (n === null) return null
-      if (n <= 0) return null
-      // If > 100 assume qtl
-      // divide by 100 to get kg
-      const kg = n > 100 ? n / 100 : n
-      return Math.round(kg * 100) / 100
-    }
-
-    // ── HISTORICAL DATA ─────────────
-    const histSources = [
-      forecastData.history,
-      forecastData.historical_data,
-      forecastData.trend_data,
-      forecastData.series,
-      forecastData.data,
-      forecastData.historical_chart
-    ]
-
-    const history = histSources.find(
-      s => Array.isArray(s) && s.length > 0
-    ) || []
-
-    console.log(
-      '[buildChartData] history points:',
-      history.length
-    )
-
-    history.forEach((item, i) => {
-      const raw =
-        item.price
-        || item.modal_price
-        || item.price_kg
-        || item.modal_kg
-        || item.value
-        || item.MandiWholeSalePrice
-        || null
-
-      const kg = toKg(raw)
-      if (!kg) return
-
-      const rawDate =
-        item.date
-        || item.month
-        || item.CalendarDay
-        || item.period
-        || ''
-
-      let dateLabel = String(rawDate)
-      try {
-        if (rawDate.includes('-')) {
-          const parts = rawDate.split('-')
-          const months = [
-            'Jan','Feb','Mar','Apr',
-            'May','Jun','Jul','Aug',
-            'Sep','Oct','Nov','Dec'
-          ]
-          if (parts.length >= 2) {
-            const m = months[
-              parseInt(parts[1]) - 1
-            ]
-            const yr = parts[0].slice(-2)
-            dateLabel = m
-              ? `${m} '${yr}` : rawDate
-          }
-        }
-      } catch {}
-
-      points.push({
-        date: dateLabel || `P${i+1}`,
-        actual: kg,
-        predicted: null,
-        type: 'historical'
-      })
-    })
-
-    // ── TODAY BRIDGE POINT ──────────
-    const todayRaw =
-      forecastData?.today_mandi?.price_kg
-      || forecastData?.current_price
-      || forecastData?.today_price
-      || null
-
-    const todayKg = toKg(todayRaw)
-
-    if (todayKg) {
-      points.push({
-        date: '21 Mar',
-        actual: todayKg,
-        predicted: todayKg,
-        type: 'today',
-        isToday: true
+    // Historical 
+    if (Array.isArray(history) && history.length > 0) {
+      history.slice(-15).forEach(h => {
+        points.push({
+          date: h.date,
+          actual: toKg(h.modal),
+          predicted: null,
+          type: 'historical'
+        })
       })
     }
 
-    // ── ML PREDICTIONS ──────────────
-    // THIS IS WHERE NaN WAS HAPPENING
-    // predictions can be:
-    //   [1300, 1350, 1400] numbers
-    //   ["1300", "1350"] strings
-    //   [{price:1300}, ...] objects
-    //   null or undefined
-
-    const predSources = [
-      forecastData.predictions,
-      forecastData.forecast,
-      forecastData.predicted_prices,
-      forecastData.next_7_days
-    ]
-
-    const rawPredictions = predSources.find(
-      s => Array.isArray(s) && s.length > 0
-    )
-
-    console.log(
-      '[buildChartData] raw predictions:',
-      rawPredictions,
-      'length:',
-      rawPredictions?.length
-    )
-
-    if (!rawPredictions ||
-        rawPredictions.length === 0) {
-      console.warn(
-        '[buildChartData] NO predictions found!',
-        'forecastData keys:',
-        Object.keys(forecastData)
-      )
-    }
+    // Prediction
+    const rawPredictions = forecastData?.prediction_prices
+      || forecastData?.prices
+      || forecastData?.predicted_prices
 
     const baseDate = new Date('2026-03-21')
 
-    ;(rawPredictions || [])
-      .slice(0, 7)
-      .forEach((item, i) => {
-        // Safe extract price from
-        // whatever format it is
-        const kg = toKg(item)
+      ; (rawPredictions || [])
+        .slice(0, 7)
+        .forEach((item, i) => {
+          const kg = typeof item === 'number' ? item : (item?.price || 0)
+          // Ensure we convert to kg if the raw value looks like a quintal price
+          const finalKg = kg > 100 ? kg / 100 : kg
 
-        console.log(
-          `[buildChartData] pred[${i}]:`,
-          item,
-          '→ kg:',
-          kg
-        )
+          if (!finalKg) return
 
-        if (!kg) {
-          console.warn(
-            `[buildChartData] pred[${i}]`,
-            'converted to null/NaN,',
-            'raw value:', item
-          )
-          return
-        }
+          const d = new Date(baseDate)
+          d.setDate(baseDate.getDate() + i + 1)
 
-        const d = new Date(baseDate)
-        d.setDate(
-          baseDate.getDate() + i + 1
-        )
-
-        const dateLabel =
-          d.toLocaleDateString('en-IN', {
+          const dateLabel = d.toLocaleDateString('en-IN', {
             day: 'numeric',
             month: 'short'
           })
 
-        points.push({
-          date: dateLabel,
-          actual: null,
-          predicted: kg,
-          type: 'forecast'
+          points.push({
+            date: dateLabel,
+            actual: null,
+            predicted: Math.round(finalKg * 100) / 100,
+            type: 'forecast'
+          })
         })
-      })
-
-    console.log(
-      '[buildChartData] Total points:',
-      points.length,
-      'Historical:', points.filter(
-        p => p.type === 'historical'
-      ).length,
-      'Forecast:', points.filter(
-        p => p.type === 'forecast'
-      ).length
-    )
 
     return points
-  }
+  }, [history, forecastData, state, toKg])
 
-  const chartData = buildChartData()
+  // Memoize summary statistics
+  const summary = React.useMemo(() => {
+    if (!rates.length) return null
+    return {
+      avg_modal: parseFloat(
+        (rates.reduce((s, r) => s + (r.modalPrice || 0), 0) / rates.length).toFixed(2)
+      ),
+      min: Math.min(...rates.map(r => r.minPrice || Infinity).filter(p => !isNaN(p))),
+      max: Math.max(...rates.map(r => r.maxPrice || -Infinity).filter(p => !isNaN(p)))
+    }
+  }, [rates])
 
   const fixRecommendationMessage = (msg) => {
     if (!msg) return msg
@@ -1743,7 +1488,7 @@ const MandiRates = ({
       (match, price) => {
         const num = parseFloat(price)
         if (num > 100) {
-          return `₹${(num/100).toFixed(2)}`
+          return `₹${(num / 100).toFixed(2)}`
         }
         return match
       }
@@ -1783,39 +1528,19 @@ const MandiRates = ({
         'Max price:', Math.max(...prices),
         'First:', chartData[0],
         'Last:', chartData[
-          chartData.length - 1
-        ]
+      chartData.length - 1
+      ]
       )
     }
   }, [chartData])
 
-  const TABS = [
+  const TABS = React.useMemo(() => [
     { id: 'rates', label: '📋 Live Rates' },
     { id: 'prediction', label: '🔮 ML Forecast' },
     { id: 'history', label: '📈 Price History' }
-  ]
+  ], [])
 
-  const toKg = (qtlPrice) => {
-    if (!qtlPrice || qtlPrice <= 0)
-      return 0
-    // API gives ₹/quintal
-    // 1 quintal = 100 kg
-    const kg = qtlPrice / 100
-    // Round to 2 decimal places
-    return Math.round(kg * 100) / 100
-  }
 
-  const formatKg = (qtlPrice) => {
-    const kg = toKg(qtlPrice)
-    if (kg === 0) return '0'
-    // Show clean number
-    // 13.00 → 13
-    // 10.87 → 10.87
-    // 12.46 → 12.46
-    return kg % 1 === 0
-      ? String(kg)
-      : kg.toFixed(2)
-  }
 
   // Search commodity by any language
   const searchCommodity = (query) => {
@@ -1846,25 +1571,25 @@ const MandiRates = ({
           c.value.toLowerCase().includes(q)
           || c.label.toLowerCase().includes(q)
           || (c.hindi || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.marathi || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.tamil || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.telugu || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.kannada || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.bengali || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.gujarati || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.punjabi || '').toLowerCase()
-              .includes(q)
+            .includes(q)
           || (c.local || []).some(
-              l => l.toLowerCase()
-                .includes(q)
-            )
+            l => l.toLowerCase()
+              .includes(q)
+          )
         )
 
         return stateMatch || otherMatch
@@ -2006,6 +1731,41 @@ const MandiRates = ({
         '0 4px 16px rgba(45,79,30,0.08)'
     }}>
 
+      {/* ── ERROR & LOADING OVERLAYS ── */}
+      {error && (
+        <div style={{
+          padding: '12px 28px',
+          background: '#FFF5F5',
+          borderBottom: '1px solid #FED7D7',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          color: '#C53030',
+          fontSize: 13,
+          fontWeight: 600
+        }}>
+          <AlertTriangle size={16} />
+          {error}
+        </div>
+      )}
+
+      {(loading && rates.length === 0) && (
+        <div style={{
+          padding: '12px 28px',
+          background: '#E6FFFA',
+          borderBottom: '1px solid #B2F5EA',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          color: '#234E52',
+          fontSize: 13,
+          fontWeight: 600
+        }}>
+          <RefreshCw size={14} className="animate-spin" />
+          Updating mandi rates...
+        </div>
+      )}
+
       {/* ── HEADER ── */}
       <div style={{
         background:
@@ -2049,7 +1809,7 @@ const MandiRates = ({
           </div>
           <button
             type="button"
-            onClick={fetchAll}
+            onClick={() => fetchAll()}
             disabled={loading}
             style={{
               width: 38, height: 38,
@@ -2134,266 +1894,123 @@ const MandiRates = ({
         background: '#F5E6CC'
       }}>
 
-        {/* Commodity */}
-        <div style={{ flex: '1 1 150px' }}>
-          {/* Search Input JSX */}
-          <div style={{
-            position: 'relative',
-            marginBottom: 8
+        {/* Commodity Search with Headless UI Combobox */}
+        <div style={{ flex: '1 1 300px' }}>
+          <label style={{
+            display: 'block',
+            fontFamily: 'DM Sans',
+            fontWeight: 700,
+            fontSize: 10,
+            color: '#7A7A7A',
+            marginBottom: 8,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em'
           }}>
-            <input
-              type="text"
-              placeholder={`🔍 Search in ${
-                getLanguageLabel()
-              } — ${getSearchPlaceholder()}`}
-              value={commoditySearch}
-              onChange={handleSearchChange}
-              onFocus={() => {
-                if (commoditySearch.trim()) {
-                  setShowSearchDropdown(true)
-                }
-              }}
-              onBlur={() => {
-                // Delay to allow click
-                setTimeout(() => {
-                  setShowSearchDropdown(false)
-                }, 200)
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 14px 10px 36px',
-                borderRadius: 10,
-                border: '1.5px solid #EDD9B0',
-                background: '#FDFAF4',
-                fontFamily: 'DM Sans',
-                fontSize: 13,
-                color: '#4A4A4A',
-                boxSizing: 'border-box'
-              }}
-            />
-
-            {/* Search icon */}
-            <span style={{
-              position: 'absolute',
-              left: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              fontSize: 14,
-              pointerEvents: 'none'
-            }}>
-              🔍
-            </span>
-
-            {/* Show selected state language first */}
-            <div style={{
-              display: 'flex',
-              gap: 4,
-              flexWrap: 'wrap',
-              marginTop: 6
-            }}>
-              {/* Current state language badge */}
-              {state &&
-               STATE_LANGUAGE_MAP[state] && (
-                <span style={{
-                  fontFamily: 'DM Sans',
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: '#2D4F1E',
-                  background: 'rgba(45,79,30,0.10)',
-                  padding: '2px 8px',
-                  borderRadius: 999,
-                  border: '1px solid rgba(45,79,30,0.20)'
-                }}>
-                  ✓ {
-                    STATE_LANGUAGE_MAP[state]
-                      .label
-                  }
-                </span>
-              )}
-
-              {/* Other language tags */}
-              {[
-                { code: 'hi', label: 'हिंदी' },
-                { code: 'mr', label: 'मराठी' },
-                { code: 'ta', label: 'தமிழ்' },
-                { code: 'te', label: 'తెలుగు' },
-                { code: 'kn', label: 'ಕನ್ನಡ' },
-                { code: 'bn', label: 'বাংলা' },
-                { code: 'gu', label: 'ગુજરાતી' },
-                { code: 'pa', label: 'ਪੰਜਾਬੀ' },
-              ].filter(l => {
-                // Hide current state language
-                // from other tags
-                const stateConfig =
-                  STATE_LANGUAGE_MAP[state]
-                if (!stateConfig) return true
-                const currentLabel =
-                  stateConfig.label
-                return l.label !== currentLabel
-              }).map(l => (
-                <span key={l.code} style={{
-                  fontFamily: 'DM Sans',
-                  fontSize: 9,
-                  color: '#7A7A7A',
-                  background: '#F5E6CC',
-                  padding: '2px 6px',
-                  borderRadius: 999,
-                  border: '1px solid #EDD9B0'
-                }}>
-                  {l.label}
-                </span>
-              ))}
-            </div>
-
-            {/* Search results dropdown */}
-            {showSearchDropdown &&
-             searchResults.length > 0 && (
+            Commodity Analyzer
+          </label>
+          <Combobox
+            value={COMMODITIES.find(c => c.value === commodity) || COMMODITIES[0]}
+            onChange={(c) => {
+              setCommodity(c.value);
+              setCommoditySearch(c.label);
+              setCurrentPage(1);
+            }}
+          >
+            <div style={{ position: 'relative' }}>
               <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
+                position: 'relative',
+                width: '100%',
+                cursor: 'default',
+                overflow: 'hidden',
+                borderRadius: 12,
                 background: '#FDFAF4',
                 border: '1.5px solid #EDD9B0',
-                borderRadius: 10,
-                boxShadow:
-                  '0 8px 24px rgba(45,79,30,0.12)',
-                zIndex: 1000,
-                maxHeight: 200,
-                overflowY: 'auto',
-                marginTop: 4
               }}>
-                {searchResults.map((item, i) => (
-                  <div
-                    key={`${item.value}-${i}`}
-                    onClick={() =>
-                      handleSelectFromSearch(item)
-                    }
-                    style={{
-                      padding: '10px 14px',
-                      cursor: 'pointer',
-                      borderBottom:
-                        i < searchResults.length - 1
-                          ? '1px solid #EDD9B0'
-                          : 'none',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style
-                        .background = '#F5E6CC'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style
-                        .background = 'transparent'
-                    }}
-                  >
-                    <div>
-                      {/* English name */}
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontWeight: 700,
-                        fontSize: 13,
-                        color: '#2D4F1E'
-                      }}>
-                        {item.label}
-                      </div>
+                <ComboboxInput
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    padding: '12px 14px 12px 40px',
+                    fontSize: 14,
+                    lineHeight: '20px',
+                    color: '#2D4F1E',
+                    background: 'transparent',
+                    fontFamily: 'DM Sans',
+                    outline: 'none'
+                  }}
+                  displayValue={(c) => c?.label || ''}
+                  onChange={(event) => setCommoditySearch(event.target.value)}
+                  placeholder={`🔍 Search ${getLanguageLabel()}`}
+                />
+                <div style={{
+                  position: 'absolute',
+                  left: 14,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#B0A898'
+                }}>
+                  <Search size={16} />
+                </div>
+              </div>
 
-                      {/* Local name — highlighted */}
-                      {getLocalName(item) && (
-                        <div style={{
-                          fontFamily: 'DM Sans',
-                          fontSize: 12,
-                          color: '#2D4F1E',
-                          fontWeight: 600,
-                          marginTop: 2
+              <ComboboxOptions
+                transition
+                style={{
+                  position: 'absolute',
+                  zIndex: 2000,
+                  marginTop: 8,
+                  maxHeight: 300,
+                  width: '100%',
+                  overflow: 'auto',
+                  borderRadius: 12,
+                  background: '#FDFAF4',
+                  border: '1.5px solid #EDD9B0',
+                  boxShadow: '0 10px 25px rgba(45,79,30,0.15)',
+                  padding: '4px',
+                  transition: 'opacity 100ms ease-out, transform 100ms ease-out',
+                }}
+              >
+                {searchCommodity(commoditySearch).length === 0 ? (
+                  <div style={{ padding: '12px 14px', fontSize: 13, color: '#7A7A7A' }}>
+                    Nothing found.
+                  </div>
+                ) : (
+                  searchCommodity(commoditySearch).map((c) => (
+                    <ComboboxOption
+                      key={c.value}
+                      value={c}
+                      style={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        fontFamily: 'DM Sans',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      {({ selected, focus }) => (
+                        <div style={{ 
+                          background: focus ? 'rgba(45,79,30,0.08)' : 'transparent',
+                          padding: '4px 8px',
+                          borderRadius: 6
                         }}>
-                          {getLocalName(item)}
-                          {STATE_LANGUAGE_MAP[state] && (
-                            <span style={{
-                              fontSize: 9,
-                              color: '#7A7A7A',
-                              marginLeft: 4,
-                              fontWeight: 400
-                            }}>
-                              ({STATE_LANGUAGE_MAP[state].label})
-                            </span>
-                          )}
+                          <div style={{ fontWeight: selected ? 700 : 500, color: '#2D4F1E', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{c.label} {getLocalName(c) && <span style={{ opacity: 0.6, fontSize: 12 }}>({getLocalName(c)})</span>}</span>
+                            {selected && <CheckCircle size={14} color="#2D4F1E" />}
+                          </div>
+                          {c.hindi && <div style={{ fontSize: 11, color: '#7A7A7A' }}>{c.hindi} • {c.marathi || 'Local'}</div>}
                         </div>
                       )}
+                    </ComboboxOption>
+                  ))
+                )}
+              </ComboboxOptions>
+            </div>
+          </Combobox>
+        </div>
 
-                      {/* Other language names */}
-                      <div style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 10,
-                        color: '#B0A898',
-                        marginTop: 1
-                      }}>
-                        {[
-                          item.hindi,
-                          item.marathi,
-                          item.tamil
-                        ]
-                        .filter(Boolean)
-                        .filter(n => n !== getLocalName(item))
-                        .slice(0, 2)
-                        .join(' • ')}
-                      </div>
-                    </div>
-
-                    {/* Local name tag */}
-                    {item.local &&
-                     item.local.length > 0 && (
-                      <span style={{
-                        fontFamily: 'DM Sans',
-                        fontSize: 9,
-                        color: '#B0A898',
-                        background: '#F5E6CC',
-                        padding: '2px 6px',
-                        borderRadius: 999,
-                        flexShrink: 0,
-                        marginLeft: 8
-                      }}>
-                        {item.local[0]}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* No results message */}
-            {showSearchDropdown &&
-             commoditySearch.trim() &&
-             searchResults.length === 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#FDFAF4',
-                border: '1.5px solid #EDD9B0',
-                borderRadius: 10,
-                padding: '12px 14px',
-                zIndex: 1000,
-                marginTop: 4
-              }}>
-                <p style={{
-                  fontFamily: 'DM Sans',
-                  fontSize: 12,
-                  color: '#7A7A7A',
-                  margin: 0
-                }}>
-                  No match found for
-                  "{commoditySearch}".
-                  Try English name or
-                  select from dropdown below.
-                </p>
-              </div>
-            )}
-          </div>
-          
+        {/* Date */}
+        <div style={{ flex: '1 1 140px' }}>
           <label style={{
             display: 'block',
             fontFamily: 'DM Sans',
@@ -2404,39 +2021,27 @@ const MandiRates = ({
             textTransform: 'uppercase',
             letterSpacing: '0.08em'
           }}>
-            Commodity
+            Date Filter
           </label>
-          <select
-            value={commodity}
-            onChange={e => {
-              setCommodity(e.target.value)
-              setCommoditySearch(
-                e.target.value
-              )
-              setCurrentPage(1)
+          <DatePickerInput
+            placeholder="Select date"
+            value={date}
+            onChange={setDate}
+            clearable
+            maxDate={new Date()}
+            styles={{
+              input: {
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1.5px solid #EDD9B0',
+                background: '#FDFAF4',
+                fontFamily: 'DM Sans',
+                fontSize: 14,
+                color: '#4A4A4A',
+                height: 44
+              }
             }}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 10,
-              border: '1.5px solid #EDD9B0',
-              background: '#FDFAF4',
-              fontFamily: 'DM Sans',
-              fontSize: 14,
-              color: '#4A4A4A',
-              cursor: 'pointer',
-              appearance: 'none'
-            }}
-          >
-            {COMMODITIES.map((c, i) => (
-              <option
-                key={`${c.value}-${i}`}
-                value={c.value}
-              >
-                {getCommodityDisplayLabel(c)}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {/* State */}
@@ -2453,34 +2058,90 @@ const MandiRates = ({
           }}>
             State
           </label>
-          <select
+          <Listbox
             value={state}
-            onChange={e => {
-              setState(e.target.value)
+            onChange={(val) => {
+              setState(val)
               setCurrentPage(1)
             }}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 10,
-              border: '1.5px solid #EDD9B0',
-              background: '#FDFAF4',
-              fontFamily: 'DM Sans',
-              fontSize: 14,
-              color: '#4A4A4A',
-              cursor: 'pointer',
-              appearance: 'none'
-            }}
           >
-            {INDIAN_STATES.map(s => (
-              <option
-                key={s.value}
-                value={s.value}
+            <div style={{ position: 'relative' }}>
+              <ListboxButton
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: '1.5px solid #EDD9B0',
+                  background: '#FDFAF4',
+                  fontFamily: 'DM Sans',
+                  fontSize: 14,
+                  color: '#4A4A4A',
+                  textAlign: 'left',
+                  height: 44,
+                  cursor: 'pointer'
+                }}
               >
-                {s.label}
-              </option>
-            ))}
-          </select>
+                {INDIAN_STATES.find(
+                  s => s.value === state
+                )?.label || 'All States'}
+              </ListboxButton>
+
+              <ListboxOptions
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: 4,
+                  background: '#FDFAF4',
+                  border: '1.5px solid #EDD9B0',
+                  borderRadius: 10,
+                  zIndex: 1000,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  width: '100%',
+                  boxShadow:
+                    '0 8px 24px rgba(45,79,30,0.12)',
+                  padding: '4px 0',
+                  listStyle: 'none',
+                  margin: 0
+                }}
+              >
+                {INDIAN_STATES.map((s) => (
+                  <ListboxOption
+                    key={s.value}
+                    value={s.value}
+                  >
+                    {({ active, selected }) => (
+                      <div
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          fontFamily: 'DM Sans',
+                          fontSize: 13,
+                          background: active
+                            ? '#F5E6CC'
+                            : 'transparent',
+                          fontWeight: selected
+                            ? 700 : 400,
+                          color: '#2D4F1E'
+                        }}
+                      >
+                        {selected && (
+                          <span style={{
+                            marginRight: 6,
+                            fontSize: 11
+                          }}>
+                            ✓
+                          </span>
+                        )}
+                        {s.label}
+                      </div>
+                    )}
+                  </ListboxOption>
+                ))}
+              </ListboxOptions>
+            </div>
+          </Listbox>
         </div>
 
         {/* Your price + compare */}
@@ -2516,9 +2177,9 @@ const MandiRates = ({
               }}
               onKeyDown={(e) => {
                 if (e.key === '-' ||
-                    e.key === 'e' ||
-                    e.key === 'E' ||
-                    e.key === '+') {
+                  e.key === 'e' ||
+                  e.key === 'E' ||
+                  e.key === '+') {
                   e.preventDefault()
                 }
                 if (e.key === 'Enter') {
@@ -2584,29 +2245,29 @@ const MandiRates = ({
             </div>
           )}
           {farmerPrice &&
-           parseFloat(farmerPrice) <= 0 && (
-            <div style={{
-              marginTop: 4,
-              padding: '6px 10px',
-              background: 'rgba(255,82,82,0.08)',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}>
-              <span style={{ fontSize: 12 }}>
-                ⚠️
-              </span>
-              <span style={{
-                fontFamily: 'DM Sans',
-                fontSize: 12,
-                color: '#FF5252',
-                fontWeight: 600
+            parseFloat(farmerPrice) <= 0 && (
+              <div style={{
+                marginTop: 4,
+                padding: '6px 10px',
+                background: 'rgba(255,82,82,0.08)',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
               }}>
-                Price cannot be negative or zero
-              </span>
-            </div>
-          )}
+                <span style={{ fontSize: 12 }}>
+                  ⚠️
+                </span>
+                <span style={{
+                  fontFamily: 'DM Sans',
+                  fontSize: 12,
+                  color: '#FF5252',
+                  fontWeight: 600
+                }}>
+                  Price cannot be negative or zero
+                </span>
+              </div>
+            )}
         </div>
       </div>
 
@@ -2728,19 +2389,19 @@ const MandiRates = ({
               {comparison.status ===
                 'competitive'
                 ? <CheckCircle
-                    size={22}
-                    color={comparison.color}
-                  />
+                  size={22}
+                  color={comparison.color}
+                />
                 : comparison.status ===
                   'above_market'
                   ? <AlertTriangle
-                      size={22}
-                      color={comparison.color}
-                    />
+                    size={22}
+                    color={comparison.color}
+                  />
                   : <TrendingDown
-                      size={22}
-                      color={comparison.color}
-                    />
+                    size={22}
+                    color={comparison.color}
+                  />
               }
               <div style={{ flex: 1 }}>
                 <div style={{
@@ -2752,12 +2413,12 @@ const MandiRates = ({
                 }}>
                   {comparison.mandi_modal !== null && comparison.mandi_modal !== undefined
                     ? <>
-                        Your ₹{comparison.farmer_price}/{unit} vs Mandi ₹{(comparison.mandi_modal / 100).toFixed(2)}/{unit} (₹{Math.round(comparison.mandi_modal)}/qtl)
-                        {' '}({comparison.diff_percent > 0 ? '+' : ''}{comparison.diff_percent}%)
-                      </>
+                      Your ₹{comparison.farmer_price}/{unit} vs Mandi ₹{(comparison.mandi_modal / 100).toFixed(2)}/{unit} (₹{Math.round(comparison.mandi_modal)}/qtl)
+                      {' '}({comparison.diff_percent > 0 ? '+' : ''}{comparison.diff_percent}%)
+                    </>
                     : <>
-                        Your Price: ₹{comparison.farmer_price}/{unit}
-                      </>
+                      Your Price: ₹{comparison.farmer_price}/{unit}
+                    </>
                   }
                 </div>
                 <div style={{
@@ -2835,132 +2496,141 @@ const MandiRates = ({
         {/* RATES TAB */}
         {activeTab === 'rates' && (
           <div>
-  {/* ── MANDI RATES TABLE ─────── */}
-  <div style={{
-    background: '#FDFAF4',
-    borderRadius: 16,
-    border: '1.5px solid #EDD9B0',
-    overflow: 'hidden',
-    boxShadow:
-      '0 1px 4px rgba(45,79,30,0.06)'
-  }}>
+            {/* ── MANDI RATES TABLE ─────── */}
+            <div style={{
+              background: '#FDFAF4',
+              borderRadius: 16,
+              border: '1.5px solid #EDD9B0',
+              overflow: 'hidden',
+              boxShadow:
+                '0 1px 4px rgba(45,79,30,0.06)'
+            }}>
 
-    {/* Table header card */}
-    <div style={{
-      padding: '16px 20px',
-      borderBottom: '1px solid #EDD9B0',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      flexWrap: 'wrap',
-      gap: 12,
-      background: '#FDFAF4'
-    }}>
-      <div>
-        <h3 style={{
-          fontFamily: 'Playfair Display',
-          fontWeight: 700,
-          fontSize: 16,
-          color: '#2D4F1E',
-          margin: 0
-        }}>
-          Live Mandi Rates
-        </h3>
-        <p style={{
-          fontFamily: 'DM Sans',
-          fontSize: 12,
-          color: '#7A7A7A',
-          margin: '2px 0 0'
-        }}>
-          {filteredRecords.length} markets
-          found • Source: data.gov.in
-        </p>
-      </div>
+              {/* Table header card */}
+              <div style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #EDD9B0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 12,
+                background: '#FDFAF4'
+              }}>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'Playfair Display',
+                    fontWeight: 700,
+                    fontSize: 16,
+                    color: '#2D4F1E',
+                    margin: 0
+                  }}>
+                    Live Mandi Rates
+                  </h3>
+                  <p style={{
+                    fontFamily: 'DM Sans',
+                    fontSize: 12,
+                    color: '#7A7A7A',
+                    margin: '2px 0 0'
+                  }}>
+                    {filteredRecords.length} markets
+                    found • Source: data.gov.in
+                  </p>
+                </div>
 
-      {/* Search input */}
-      <div style={{
-        position: 'relative',
-        minWidth: 220
-      }}>
-        <span style={{
-          position: 'absolute',
-          left: 10,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          fontSize: 13,
-          pointerEvents: 'none'
-        }}>
-          🔍
-        </span>
-        <input
-          type="text"
-          placeholder="Search market, district..."
-          value={searchQuery}
-          onChange={e => {
-            setSearchQuery(e.target.value)
-            setCurrentPage(1)
-          }}
-          style={{
-            padding: '8px 12px 8px 30px',
-            borderRadius: 8,
-            border: '1.5px solid #EDD9B0',
-            background: '#F5E6CC',
-            fontFamily: 'DM Sans',
-            fontSize: 13,
-            color: '#4A4A4A',
-            outline: 'none',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}
-          onFocus={e => {
-            e.target.style.borderColor
-              = '#2D4F1E'
-          }}
-          onBlur={e => {
-            e.target.style.borderColor
-              = '#EDD9B0'
-          }}
-        />
-      </div>
-    </div>
+                {/* Search input */}
+                <div style={{
+                  position: 'relative',
+                  minWidth: 220
+                }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: 13,
+                    pointerEvents: 'none'
+                  }}>
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search market, district..."
+                    value={searchQuery}
+                    onChange={e => {
+                      setSearchQuery(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    style={{
+                      padding: '8px 12px 8px 30px',
+                      borderRadius: 8,
+                      border: '1.5px solid #EDD9B0',
+                      background: '#F5E6CC',
+                      fontFamily: 'DM Sans',
+                      fontSize: 13,
+                      color: '#4A4A4A',
+                      outline: 'none',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={e => {
+                      e.target.style.borderColor
+                        = '#2D4F1E'
+                    }}
+                    onBlur={e => {
+                      e.target.style.borderColor
+                        = '#EDD9B0'
+                    }}
+                  />
+                </div>
+              </div>
 
-    {/* Table */}
-    {/* Ant Design Table */}
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#2D4F1E',
-          borderRadius: 12,
-          fontFamily: 'DM Sans'
-        },
-        components: {
-          Table: {
-            headerBg: '#F5E6CC',
-            headerColor: '#2D4F1E',
-            rowHoverBg: '#F5E6CC50'
-          }
-        }
-      }}
-    >
-      <Table
-        dataSource={filteredRecords}
-        columns={columns}
-        rowKey={(record) => `${record.market}-${record.commodity}-${record.arrivalDate}`}
-        loading={loading}
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: false,
-          position: ['bottomCenter'],
-          style: { marginTop: 24 }
-        }}
-        rowClassName={(record, index) => index % 2 === 0 ? 'table-row-light' : 'table-row-dark'}
-        style={{ fontFamily: 'DM Sans' }}
-        scroll={{ x: 'max-content' }}
-      />
-    </ConfigProvider>
-  </div>
-</div>
-)}
+              {/* Table */}
+              {/* Ant Design Table */}
+              <ConfigProvider
+                theme={{
+                  token: {
+                    colorPrimary: '#2D4F1E',
+                    borderRadius: 12,
+                    fontFamily: 'DM Sans'
+                  },
+                  components: {
+                    Table: {
+                      headerBg: '#F5E6CC',
+                      headerColor: '#2D4F1E',
+                      rowHoverBg: '#F5E6CC50'
+                    }
+                  }
+                }}
+              >
+                <Table
+                  dataSource={filteredRecords}
+                  columns={columns}
+                  rowKey={(record) => record.id || record._id || `${record.market}-${record.commodity}-${record.arrivalDate}`}
+                  loading={loading}
+                  size="middle"
+                  sticky={{ offsetHeader: 0 }}
+                  pagination={{
+                    defaultPageSize: 10,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '25', '50', '100'],
+                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} markets`,
+                    placement: 'bottomCenter',
+                    style: { marginTop: 32, fontFamily: 'DM Sans', fontWeight: 500 }
+                  }}
+                  rowClassName={(record, index) => index % 2 === 0 ? 'table-row-light' : 'table-row-dark'}
+                  style={{ 
+                    fontFamily: 'DM Sans',
+                    border: '1px solid #EDD9B0',
+                    borderRadius: 12,
+                    overflow: 'hidden'
+                  }}
+                  scroll={{ x: 'max-content' }}
+                />
+              </ConfigProvider>
+            </div>
+          </div>
+        )}
 
         {/* PREDICTION TAB */}
         {activeTab === 'prediction' && (
@@ -2975,11 +2645,10 @@ const MandiRates = ({
                 background: (typeof prediction.model === 'object' && prediction.model?.is_arima)
                   ? 'rgba(45,79,30,0.10)'
                   : 'rgba(226,125,96,0.10)',
-                border: `1px solid ${
-                  (typeof prediction.model === 'object' && prediction.model?.is_arima)
+                border: `1px solid ${(typeof prediction.model === 'object' && prediction.model?.is_arima)
                     ? 'rgba(45,79,30,0.20)'
                     : 'rgba(226,125,96,0.20)'
-                }`,
+                  }`,
                 marginBottom: 12,
                 flexShrink: 0
               }}>
@@ -3228,8 +2897,8 @@ const MandiRates = ({
                           active, payload, label
                         }) => {
                           if (!active ||
-                              !payload ||
-                              !payload.length) {
+                            !payload ||
+                            !payload.length) {
                             return null
                           }
                           return (
@@ -3373,13 +3042,19 @@ const MandiRates = ({
                   justifyContent: 'center'
                 }}>
                   {[
-                    { color: '#2D4F1E',
-                      label: 'Actual/Current' },
-                    { color: '#E27D60',
-                      label: 'ML Predicted' },
-                    { color: '#E27D60',
+                    {
+                      color: '#2D4F1E',
+                      label: 'Actual/Current'
+                    },
+                    {
+                      color: '#E27D60',
+                      label: 'ML Predicted'
+                    },
+                    {
+                      color: '#E27D60',
                       style: 'dashed',
-                      label: 'Current Price' }
+                      label: 'Current Price'
+                    }
                   ].map(l => (
                     <div key={l.label} style={{
                       display: 'flex',

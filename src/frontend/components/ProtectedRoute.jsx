@@ -1,31 +1,16 @@
-// ✅ src/components/ProtectedRoute.jsx (Enhanced v2)
-import React, { useEffect, useState, useRef } from "react";
+// ✅ src/components/ProtectedRoute.jsx (Refactored for Stability)
+import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useToast } from "@/frontend/contexts/ToastContext";
 
 /**
- * 🔒 ProtectedRoute (v2)
+ * 🔒 ProtectedRoute (Simplified)
  * - Role-based + token-based protection
- * - Cross-tab session sync (isLoggedIn, userRole, token)
- * - Auto-expiry logout
- * - Silent redirect control
- * - Vite-compatible env logging
+ * - Directly checks localStorage to avoid state update warnings during render
  */
-
-const isLocalPath = (path) =>
-  typeof path === "string" && (path.startsWith("/") || path.startsWith("./"));
-
-const safeRedirectTo = (to, fallback = "/") => (isLocalPath(to) ? to : fallback);
-
 export default function ProtectedRoute({ children, allowedRoles = null, role = null }) {
-  const toast = useToast();
   const location = useLocation();
-  const [sessionValid, setSessionValid] = useState(true);
-  const [redirecting, setRedirecting] = useState(false);
-  const hasNotified = useRef(false);
 
-  const MODE = import.meta.env.MODE || "development";
-
+  // 🧠 Direct storage checks (synchronous to avoid state-update-during-render warning)
   const isLoggedIn =
     localStorage.getItem("isLoggedIn") === "true" ||
     !!localStorage.getItem("userEmail") ||
@@ -34,77 +19,21 @@ export default function ProtectedRoute({ children, allowedRoles = null, role = n
   const userRole = localStorage.getItem("userRole"); // "farmer" | "buyer"
   const tokenExpiry = localStorage.getItem("tokenExpiry");
 
-  /** 🕒 Auto-expire token-based session */
-  useEffect(() => {
-    if (!tokenExpiry) return;
+  // 🕒 Check expiry (pure check)
+  if (tokenExpiry) {
     const expiry = new Date(tokenExpiry);
     if (expiry <= new Date()) {
-      localStorage.removeItem("isLoggedIn");
-      localStorage.removeItem("token");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userRole");
-      toast.info("Your session has expired. Please log in again.");
-      setSessionValid(false);
+      return <Navigate to="/login" replace state={{ from: location }} />;
     }
-  }, [tokenExpiry]);
-
-  /** 🧩 Cross-tab session sync */
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      const keys = ["isLoggedIn", "userRole", "token"];
-      if (keys.includes(e.key) && e.newValue === null) {
-        setSessionValid(false);
-      }
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
-  /** 🧠 Helper to resolve redirect target */
-  const redirectTarget = (role) => {
-    if (role === "farmer") return "/farmer-dashboard";
-    if (role === "buyer") return "/buyer-dashboard";
-    return "/";
-  };
-
-  // 🚫 Session invalid (token expired / logged out)
-  if (!sessionValid) {
-    if (!hasNotified.current) {
-      toast.info("Session expired. Please log in again.");
-      hasNotified.current = true;
-    }
-    return <Navigate to="/login" replace />;
   }
 
   // 🚷 Not logged in
   if (!isLoggedIn) {
-    if (!hasNotified.current) {
-      toast.warning("Please log in to access this page.", 1500);
-      hasNotified.current = true;
-    }
-
-    const from = safeRedirectTo(location.pathname, "/");
-    if (MODE !== "production") console.warn(`[ProtectedRoute] Redirect → /login (from ${from})`);
-
-    useEffect(() => {
-      setRedirecting(true);
-    }, []);
-    return (
-      <>
-        {redirecting && (
-          <div aria-live="polite" className="sr-only">
-            Redirecting to login...
-          </div>
-        )}
-        <Navigate to="/login" replace state={{ from }} />
-      </>
-    );
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // 🧭 Missing role → choose role
+  // 🧭 Missing role
   if (!userRole) {
-    if (MODE !== "production")
-      console.warn("[ProtectedRoute] No role assigned. Redirecting to /choose-role");
     return <Navigate to="/choose-role" replace state={{ from: location }} />;
   }
 
@@ -113,30 +42,20 @@ export default function ProtectedRoute({ children, allowedRoles = null, role = n
 
   if (Array.isArray(rolesToCheck) && rolesToCheck.length > 0) {
     if (!rolesToCheck.includes(userRole)) {
-      if (MODE !== "production") {
-        console.warn(
-          `[ProtectedRoute] Role mismatch → Allowed: [${rolesToCheck.join(
-            ", "
-          )}] | Found: ${userRole}`
-        );
-      }
-      return <Navigate to={redirectTarget(userRole)} replace />;
+      const redirectTarget = userRole === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard";
+      return <Navigate to={redirectTarget} replace />;
     }
   } else {
-    // Default guardrails (auto-correct dashboards)
+    // Default dashboard guardrails
     if (location.pathname.startsWith("/farmer-dashboard") && userRole !== "farmer") {
-      if (MODE !== "production")
-        console.warn("[ProtectedRoute] Buyer tried accessing farmer dashboard.");
-      return <Navigate to={redirectTarget(userRole)} replace />;
+      return <Navigate to="/buyer-dashboard" replace />;
     }
-
     if (location.pathname.startsWith("/buyer-dashboard") && userRole !== "buyer") {
-      if (MODE !== "production")
-        console.warn("[ProtectedRoute] Farmer tried accessing buyer dashboard.");
-      return <Navigate to={redirectTarget(userRole)} replace />;
+      return <Navigate to="/farmer-dashboard" replace />;
     }
   }
 
   // ✅ Access granted
   return children;
 }
+

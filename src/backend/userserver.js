@@ -410,10 +410,7 @@ app.post('/api/users/sync', async (req, res) => {
 
   } catch (error) {
     console.error('Sync user error:', error);
-    res.status(500).json({
-      message: 'Failed to sync user',
-      error: error.message
-    });
+    return respondError(res, 500, 'Failed to sync user', 'SYNC_USER_ERROR', error.message);
   }
 });
 
@@ -599,9 +596,7 @@ app.get("/api/orders/user/:userId", async (req, res) => {
 
   } catch (error) {
     console.error('Orders fetch error:', error);
-    res.status(500).json({
-      message: 'Failed to fetch orders'
-    });
+    return respondError(res, 500, 'Failed to fetch orders', 'ORDERS_FETCH_ERROR', error.message);
   }
 });
 
@@ -643,14 +638,24 @@ app.post("/api/orders", async (req, res) => {
 
   } catch (error) {
     console.error('Order creation error:', error);
-    res.status(500).json({
-      message: 'Failed to place order'
-    });
+    return respondError(res, 500, 'Failed to place order', 'ORDER_CREATE_ERROR', error.message);
   }
 });
 
 /* Basic health */
 app.get("/", (_, res) => res.send("User server running"));
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("❌ [User Server] Global Error:", err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    success: false,
+    error: err.message || "Internal Server Error",
+    code: err.code || "INTERNAL_ERROR",
+    path: req.path
+  });
+});
 
 
 /* ---------- Graceful shutdown & uncaught handlers ---------- */

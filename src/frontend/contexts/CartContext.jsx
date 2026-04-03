@@ -6,7 +6,7 @@ import React, {
   useState,
   useRef
 } from "react";
-import { useToast } from "./ToastContext";
+import { notifications } from '@mantine/notifications';
 import * as hybridService from '../services/hybridService';
 import { useUser } from './UserContext';
 
@@ -15,12 +15,26 @@ export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }) => {
   const { user } = useUser();
-  const toast = useToast();
   const [items, setItems] = useState([]);
   const unsubscribeCartRef = useRef(null);
 
   const showToast = (product, quantity) => {
-    toast.success(`${quantity} x ${product.name} added to cart!`);
+    notifications.show({
+      title: '✅ Added to cart',
+      message: `${quantity} x ${product.name} added successfully`,
+      color: 'green',
+      autoClose: 3000,
+      styles: {
+        root: {
+          fontFamily: 'DM Sans',
+          borderLeft: '4px solid #2D4F1E'
+        },
+        title: {
+          fontWeight: 700,
+          color: '#2D4F1E'
+        }
+      }
+    });
   }
 
   // Realtime cart sync with User Isolation
@@ -55,7 +69,18 @@ export const CartProvider = ({ children }) => {
 
   const addToCart = async (product, quantity = 1) => {
     if (!user?.uid) {
-      toast.error("Please login to add items to cart");
+      notifications.show({
+        title: '❌ Error',
+        message: 'Please login to add items to cart',
+        color: 'red',
+        autoClose: 5000,
+        styles: {
+          root: {
+            fontFamily: 'DM Sans',
+            borderLeft: '4px solid #FF5252'
+          }
+        }
+      });
       return;
     }
 
@@ -100,6 +125,18 @@ export const CartProvider = ({ children }) => {
     )
     setItems(newItems)
     await hybridService.syncCart(user.uid, newItems)
+    notifications.show({
+      title: '🗑️ Item removed',
+      message: 'Item removed from cart',
+      color: 'orange',
+      autoClose: 3000,
+      styles: {
+        root: {
+          fontFamily: 'DM Sans',
+          borderLeft: '4px solid #E27D60'
+        }
+      }
+    });
   }
 
   const updateQuantity = async (id, quantity) => {
@@ -121,6 +158,18 @@ export const CartProvider = ({ children }) => {
     setItems([])
     await hybridService.syncCart(user.uid, [])
     localStorage.removeItem(`cart_${user.uid}`);
+    notifications.show({
+      title: '🧹 Cart cleared',
+      message: 'All items removed from cart',
+      color: 'gray',
+      autoClose: 3000,
+      styles: {
+        root: {
+          fontFamily: 'DM Sans',
+          borderLeft: '4px solid #7A7A7A'
+        }
+      }
+    });
   }
 
   const total = useMemo(() => 
