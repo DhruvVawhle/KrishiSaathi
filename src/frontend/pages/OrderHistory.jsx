@@ -14,6 +14,10 @@ import Button from '@/frontend/components/ui/Button'
 import Card from '@/frontend/components/ui/Card'
 
 // Backend URL — proxied via Vite to userserver on port 5002
+import { useUser } from '@/frontend/contexts/UserContext';
+import { notifications } from '@mantine/notifications';
+
+// Backend URL — proxied via Vite to userserver on port 5001
 const API_BASE = "";
 
 const OrderTimeline = ({ status = 'confirmed' }) => {
@@ -52,30 +56,23 @@ const OrderTimeline = ({ status = 'confirmed' }) => {
 
 const OrderHistory = () => {
   const navigate = useNavigate()
+  const { user, isLoggedIn } = useUser();
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('All')
 
-  // Safe user retrieval
-  const user = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('ks_user');
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      console.warn("Failed to parse ks_user", e);
-      return null;
-    }
-  }, []);
-
   useEffect(() => {
-    // Redirect if not logged in
-    if (!user) {
-      const timer = setTimeout(() => navigate('/login'), 2000);
+    // If we're explicitly not logged in, redirect
+    if (!loading && !user && !isLoggedIn) {
+      const timer = setTimeout(() => navigate('/login'), 1500);
       return () => clearTimeout(timer);
     }
-    fetchOrders()
-  }, [user, navigate])
+    
+    if (user) {
+      fetchOrders();
+    }
+  }, [user, isLoggedIn, loading, navigate])
 
   const fetchOrders = async () => {
     if (!user) return;
@@ -86,7 +83,7 @@ const OrderHistory = () => {
       if (!uid) throw new Error("User ID not found in session");
 
       const token = localStorage.getItem('idToken') || localStorage.getItem('ks_token');
-      const headers = {};
+      const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(
@@ -106,8 +103,7 @@ const OrderHistory = () => {
       const sorted = fetched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setOrders(sorted)
     } catch (err) {
-      console.error('Orders fetch error:', err)
-      setError(err.message || 'Could not load orders.')
+      console.warn('Orders fetch error (trying local fallback):', err.message)
       // Fallback to mock data so page is not empty during dev/offline
       setOrders(MOCK_ORDERS)
     } finally {

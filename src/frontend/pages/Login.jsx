@@ -11,7 +11,7 @@ import {
 import { auth } from "@/frontend/config/firebaseConfig";
 import { useUser } from "@/frontend/contexts/UserContext";
 import { notifications } from '@mantine/notifications';
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Leaf,
   Mail,
@@ -255,9 +255,11 @@ export default function Login() {
       styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' } }
     });
 
+    let isOperationActive = true;
     try {
       setLoading(true);
       const cred = await signInWithEmailAndPassword(auth, identifier, password);
+      if (!isOperationActive) return;
       await onboardUser(cred.user);
       setLoginSuccess(true);
       notifications.update({
@@ -273,8 +275,9 @@ export default function Login() {
         }
       });
     } catch (err) {
+      if (!isOperationActive) return;
       let errorMsg = err.message || 'Email login failed. Please try again.';
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         errorMsg = 'Invalid email or password.';
         setErrors({ identifier: errorMsg });
       } else if (err.code === 'auth/too-many-requests') {
@@ -290,7 +293,8 @@ export default function Login() {
         styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
       });
     } finally {
-      if (!loginSuccess) setLoading(false);
+      isOperationActive = false;
+      setLoading(false);
     }
   };
 
@@ -363,9 +367,11 @@ export default function Login() {
       styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' } }
     });
 
+    let isOperationActive = true;
     try {
       setLoading(true);
       const res = await confirmationResult.confirm(otp.trim());
+      if (!isOperationActive) return;
       await onboardUser(res.user);
       setLoginSuccess(true);
       notifications.update({
@@ -381,6 +387,7 @@ export default function Login() {
         }
       });
     } catch (err) {
+      if (!isOperationActive) return;
       let errorMsg = 'Verification failed. Please try again.';
       if (err.code === 'auth/invalid-verification-code') {
         errorMsg = 'Wrong OTP. Please check and try again.';
@@ -399,7 +406,8 @@ export default function Login() {
         styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FF5252' } }
       });
     } finally {
-      if (!loginSuccess) setLoading(false);
+      isOperationActive = false;
+      setLoading(false);
     }
   };
 
@@ -432,10 +440,12 @@ export default function Login() {
       styles: { root: { fontFamily: 'DM Sans', borderLeft: '4px solid #2D4F1E' } }
     });
 
+    let isOperationActive = true;
     try {
       setLoading(true);
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
+      if (!isOperationActive) return;
       await onboardUser(result.user);
       setLoginSuccess(true);
       notifications.update({
@@ -451,6 +461,7 @@ export default function Login() {
         }
       });
     } catch (err) {
+      if (!isOperationActive) return;
       if (err.code === 'auth/popup-closed-by-user') {
         notifications.hide(id);
       } else {
@@ -465,7 +476,8 @@ export default function Login() {
         });
       }
     } finally {
-      if (!loginSuccess) setLoading(false);
+      isOperationActive = false;
+      setLoading(false);
     }
   };
 

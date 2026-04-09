@@ -1,18 +1,62 @@
-# React + Vite
+# KrishiSaathi (कृषि साथी) 🌾
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Empowering Farmers with Technology and Intelligence**
 
-Currently, two official plugins are available:
+KrishiSaathi is a comprehensive platform designed to assist farmers in managing their crops, predicting market rates, and accessing a digital marketplace for agricultural products. Built with a modern tech stack, it provides real-time insights and a seamless user experience.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Key Features
 
-## React Compiler
+- **📊 Mandi Rate Intelligence**: Predicts future crop prices using historical data and Machine Learning models (Python-based).
+- **🛒 Agricultural Marketplace**: A curated store for high-quality seeds, fertilizers, and equipment.
+- **👨‍🌾 Farmer Dashboard**: Personalised overview of farm activities, orders, and market trends.
+- **📑 E-Invoice Generation**: Automated GST-compliant invoice generation for marketplace orders.
+- **🔐 Secure Authentication**: Integrated with Firebase for robust user management and security.
+- **📱 Responsive UI**: Beautifully crafted interface using React, Vite, and Tailwind CSS.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## 🛠 Tech Stack
 
-Note: This will impact Vite dev & build performances.
+- **Frontend**: React 19, Vite, Tailwind CSS, Shadcn UI, Framer Motion
+- **Backend**: Node.js, Express.js (MERN context)
+- **Database**: MongoDB (via Mongoose), Firebase (Auth & Storage)
+- **Machine Learning**: Python 3.10+, Pandas, Scikit-learn (Mandi Predictor)
+- **Payments**: Razorpay Integration (Test Mode)
 
-## Expanding the ESLint configuration
+## 🚀 Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js (v18+)
+- Python (v3.10+)
+- MongoDB (Running instance)
+- Firebase Project
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/DhruvVawhle/KrishiSaathi.git
+   cd KrishiSaathi
+   ```
+
+2. **Install Frontend Dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Install Backend Dependencies**:
+   ```cd src/backend && npm install```
+
+4. **Environment Setup**:
+   Create a `.env` file in the root directory and add your credentials.
+
+5. **Start the Application**:
+   ```bash
+   npm run start
+   ```
+
+## 📄 License
+
+This project is licensed under the ISC License.
+
+---
+*Built with ❤️ for the farming community.*

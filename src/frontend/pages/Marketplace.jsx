@@ -6,7 +6,7 @@ import EmptyState from "@/frontend/components/ui/EmptyState";
 import Skeleton from "@/frontend/components/ui/Skeleton";
 import Button from "@/frontend/components/ui/Button";
 import Card from "@/frontend/components/ui/Card";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search, LayoutGrid, LayoutList, SlidersHorizontal, X, ShoppingCart } from "lucide-react";
 import { updateSEO } from '@/frontend/utils/seo';
@@ -54,6 +54,14 @@ const Marketplace = () => {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loaderRef = useRef(null);
+  const timeoutRef = useRef(null);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const [editing, setEditing] = useState({});
   const [quickView, setQuickView] = useState(null);
@@ -233,7 +241,8 @@ const Marketplace = () => {
         autoClose: 3000,
         styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #F5A623', borderRadius: 12 } }
       });
-      setTimeout(() => navigate(`/login?redirect=${encodeURIComponent("/marketplace")}`), 2000);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => navigate(`/login?redirect=${encodeURIComponent("/marketplace")}`), 3000);
       return;
     }
 

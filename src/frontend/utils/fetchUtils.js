@@ -20,7 +20,11 @@ export async function fetchWithCache(url, options = {}, ttlMs = TTL.DEFAULT) {
       ok: true,
       status: 200,
       json: async () => cachedData,
-      text: async () => JSON.stringify(cachedData)
+      text: async () => JSON.stringify(cachedData),
+      headers: new Headers({
+        "content-type": "application/json"
+      }),
+      clone: function() { return this; }
     };
   }
 

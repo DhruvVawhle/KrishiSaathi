@@ -1,8 +1,11 @@
 import { 
   getUserProfile,
+  updateUserProfile,
+  saveCart,
   getNotificationsRealtime,
   saveNotificationsToFirestore,
   getFarmerProductsFromFirestore,
+  getProductsFromFirestore,
   getProductsRealtime
 } from './firestoreService';
 import axios from 'axios';

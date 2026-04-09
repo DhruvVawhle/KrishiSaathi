@@ -647,11 +647,16 @@ app.get("/", (_, res) => res.send("User server running"));
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
   console.error("❌ [User Server] Global Error:", err);
   const status = err.status || err.statusCode || 500;
+  
   res.status(status).json({
     success: false,
-    error: err.message || "Internal Server Error",
+    error: SHOW_ERROR_DETAILS ? (err.message || "Internal Server Error") : "Internal Server Error",
     code: err.code || "INTERNAL_ERROR",
     path: req.path
   });

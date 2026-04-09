@@ -15,9 +15,11 @@ import {
   Space
 } from 'antd'
 import { DatePickerInput } from '@mantine/dates';
+import { notifications } from '@mantine/notifications';
 import {
   Combobox,
   ComboboxInput,
+  ComboboxButton,
   ComboboxOption,
   ComboboxOptions,
   Listbox,
@@ -48,7 +50,7 @@ import {
   handleFetchError
 } from '@/frontend/utils/fetchUtils'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from "motion/react";
 
 const INDIAN_STATES = [
   { value: '', label: 'All States' },
@@ -440,15 +442,7 @@ const COMMODITIES = [
   },
 
   // ── FRUITS ──────────────────────
-  {
-    value: 'Tomato',
-    label: 'Tomato',
-    hindi: 'टमाटर',
-    marathi: 'टोमॅटो',
-    tamil: 'தக்காளி',
-    telugu: 'టమాటా',
-    local: ['tamatar', 'tamato']
-  },
+
   {
     value: 'Banana',
     label: 'Banana',
@@ -1059,13 +1053,8 @@ const MandiRates = ({
   const [currentPage, setCurrentPage]
     = useState(1)
 
-  // Add state for search
   const [commoditySearch, setCommoditySearch]
     = useState('')
-  const [searchResults, setSearchResults]
-    = useState([])
-  const [showSearchDropdown, setShowSearchDropdown]
-    = useState(false)
 
   const [isPending, startTransition] = useTransition()
 
@@ -1154,28 +1143,6 @@ const MandiRates = ({
     return { label: 'Premium', color: '#C96848' }
   }
 
-  // Handle search input change
-  const handleSearchChange = (e) => {
-    const val = e.target.value
-    setCommoditySearch(val)
-
-    startTransition(() => {
-      if (val.trim().length > 0) {
-        const results = searchCommodity(val)
-        setSearchResults(results)
-        setShowSearchDropdown(true)
-      } else {
-        setSearchResults([])
-        setShowSearchDropdown(false)
-      }
-    })
-  }
-
-  const handleSelectFromSearch = (item) => {
-    setCommodity(item.value)
-    setCommoditySearch(item.label)
-    setShowSearchDropdown(false)
-  }
 
   const isLiquid = (commodity || '').toLowerCase().includes('milk') || (commodity || '').toLowerCase().includes('oil')
   const unit = isLiquid ? 'L' : 'kg'
@@ -1262,28 +1229,38 @@ const MandiRates = ({
           setMaxPrice(runningMax === -Infinity ? 0 : runningMax)
 
           if (commodity) {
-            fetchPrediction(commodity, avgModal, outerSignal)
+            const firstMarket = parsed[0]?.market || ''
+            fetchPrediction(commodity, avgModal, firstMarket, outerSignal)
             fetchHistory(commodity, state, outerSignal)
           }
         }
       })
     } catch (err) {
-      const handled = handleFetchError(err)
-      if (!handled.aborted) setError(handled.error)
+      if (err.name === 'AbortError') return
+      console.error('Mandi data fetch error:', err)
+      setError('Could not load data. Please try again.')
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to fetch mandi data',
+        color: 'red'
+      })
     } finally {
-      setLoading(false)
+      if (!outerSignal.aborted) setLoading(false)
     }
   }
 
-  const fetchPrediction = async (comm, price, signal) => {
+  const fetchPrediction = async (comm, price, mkt, signal) => {
     if (!comm || !price) return
     setPredLoading(true)
     try {
-      const url = `/api/mandi/predict?commodity=${comm}&current_price=${price}&state=${state || ''}`
+      const url = `/api/mandi/predict?commodity=${comm}&current_price=${price}&state=${state || ''}&market=${mkt || ''}`
       const data = await fetchJSON(url, { signal })
       if (data.aborted) return
-      if (data.success && data.prediction) {
-        setPrediction(data.prediction)
+      if (data.success) {
+        console.log('[MandiRates] Prediction loaded, keys:', Object.keys(data))
+        setPrediction(data)
+      } else {
+        console.warn('[MandiRates] Prediction failed:', data.error || 'unknown')
       }
     } catch (err) {
       handleFetchError(err)
@@ -1299,10 +1276,35 @@ const MandiRates = ({
       const data = await fetchJSON(url, { signal })
       if (data.aborted) return
       if (data.success && Array.isArray(data.history)) {
+        const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        const formatHistDate = (raw) => {
+          if (!raw) return ''
+          const s = String(raw).trim()
+          // Try DD/MM/YYYY or DD-MM-YYYY
+          const dmy = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/)
+          if (dmy) {
+            const day = dmy[1].padStart(2, '0')
+            const mon = MONTHS[parseInt(dmy[2], 10) - 1] || dmy[2]
+            return `${day} ${mon}`
+          }
+          // Try YYYY-MM-DD or YYYY/MM/DD
+          const ymd = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/)
+          if (ymd) {
+            const day = ymd[3].padStart(2, '0')
+            const mon = MONTHS[parseInt(ymd[2], 10) - 1] || ymd[2]
+            return `${day} ${mon}`
+          }
+          // Try native Date parse as last resort
+          const d = new Date(s)
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+          }
+          return s.slice(0, 6)
+        }
         setHistory(data.history.map(h => ({
           ...h,
           modal: h.modal_price || h.modalPrice || 0,
-          date: (h.date || h.arrival_date || '').slice(0, 5)
+          date: formatHistDate(h.date || h.arrival_date)
         })))
       }
     } catch (err) {
@@ -1420,49 +1422,118 @@ const MandiRates = ({
   const chartData = React.useMemo(() => {
     const points = []
 
-    // Historical 
+    // Helper: normalize date labels to 'DD Mon' format
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const normalizeDate = (raw) => {
+      if (!raw) return ''
+      const s = String(raw).trim()
+      // Already in 'DD Mon' format (e.g., '06 Apr')?
+      if (/^\d{1,2}\s[A-Z][a-z]{2}$/.test(s)) return s
+      // DD/MM or DD/MM/YYYY
+      const dmy = s.match(/^(\d{1,2})[\/-](\d{1,2})(?:[\/-]\d{2,4})?$/)
+      if (dmy) {
+        return `${dmy[1].padStart(2, '0')} ${MONTHS_SHORT[parseInt(dmy[2], 10) - 1] || dmy[2]}`
+      }
+      // YYYY-MM-DD
+      const ymd = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/)
+      if (ymd) {
+        return `${ymd[3].padStart(2, '0')} ${MONTHS_SHORT[parseInt(ymd[2], 10) - 1] || ymd[2]}`
+      }
+      return s
+    }
+
+    // Helper: safe kg conversion handling both qtl and kg values
+    const safeKg = (val) => {
+      if (val === null || val === undefined) return null
+      const n = parseFloat(String(val))
+      if (isNaN(n) || !isFinite(n)) return null
+      // Auto-detect quintal vs kg: values > 100 are likely quintal
+      return n > 100 ? Math.round((n / 100) * 100) / 100 : Math.round(n * 100) / 100
+    }
+
+    // ── HISTORICAL DATA ──────────────────
+    // Priority 1: history state from /api/mandi/history
     if (Array.isArray(history) && history.length > 0) {
       history.slice(-15).forEach(h => {
+        const kg = toKg(h.modal)
+        if (!kg) return
         points.push({
-          date: h.date,
-          actual: toKg(h.modal),
+          date: normalizeDate(h.date),
+          actual: kg,
           predicted: null,
           type: 'historical'
         })
       })
     }
 
-    // Prediction
-    const rawPredictions = forecastData?.prediction_prices
-      || forecastData?.prices
-      || forecastData?.predicted_prices
-
-    const baseDate = new Date('2026-03-21')
-
-      ; (rawPredictions || [])
-        .slice(0, 7)
-        .forEach((item, i) => {
-          const kg = typeof item === 'number' ? item : (item?.price || 0)
-          // Ensure we convert to kg if the raw value looks like a quintal price
-          const finalKg = kg > 100 ? kg / 100 : kg
-
-          if (!finalKg) return
-
-          const d = new Date(baseDate)
-          d.setDate(baseDate.getDate() + i + 1)
-
-          const dateLabel = d.toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short'
-          })
-
-          points.push({
-            date: dateLabel,
-            actual: null,
-            predicted: Math.round(finalKg * 100) / 100,
-            type: 'forecast'
-          })
+    // Priority 2: historical_chart from prediction response (Python)
+    if (points.filter(p => p.type === 'historical').length === 0 && forecastData?.historical_chart) {
+      const histChart = forecastData.historical_chart.filter(d => d.type === 'actual')
+      histChart.forEach(h => {
+        const kg = safeKg(h.price)
+        if (!kg) return
+        points.push({
+          date: normalizeDate(h.date) || '',
+          actual: kg,
+          predicted: null,
+          type: 'historical'
         })
+      })
+      console.log('[Chart] Used historical_chart from prediction:', points.length, 'points')
+    }
+
+    // ── TODAY BRIDGE POINT ──────────────
+    const todayKg = safeKg(
+      forecastData?.today_mandi?.price_kg
+      || forecastData?.current_price
+    )
+    if (todayKg) {
+      const todayLabel = new Date().toLocaleDateString('en-IN', {
+        day: 'numeric', month: 'short'
+      })
+      points.push({
+        date: todayLabel,
+        actual: todayKg,
+        predicted: todayKg,
+        isToday: true,
+        type: 'today'
+      })
+    }
+
+    // ── ML PREDICTIONS ──────────────────
+    // Python returns 'predictions' as array of {date, price, day}
+    const rawPredictions = forecastData?.predictions
+
+    if (Array.isArray(rawPredictions) && rawPredictions.length > 0) {
+      rawPredictions.slice(0, 7).forEach((item, i) => {
+        // Handle both object {date, price} and plain number formats
+        const rawPrice = typeof item === 'number' ? item : (item?.price || 0)
+        const kg = safeKg(rawPrice)
+        if (!kg) return
+
+        const dateLabel = (typeof item === 'object' && item?.date)
+          ? item.date
+          : (() => {
+              const d = new Date()
+              d.setDate(d.getDate() + i + 1)
+              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+            })()
+
+        points.push({
+          date: dateLabel,
+          actual: null,
+          predicted: kg,
+          type: 'forecast'
+        })
+      })
+    }
+
+    console.log(
+      '[Chart] Total points:', points.length,
+      '| Historical:', points.filter(p => p.type === 'historical').length,
+      '| Today:', points.filter(p => p.type === 'today').length,
+      '| Forecast:', points.filter(p => p.type === 'forecast').length
+    )
 
     return points
   }, [history, forecastData, state, toKg])
@@ -1519,17 +1590,19 @@ const MandiRates = ({
   useEffect(() => {
     if (chartData.length > 0) {
       const prices = chartData
-        .map(p => p.actual || p.predicted)
-        .filter(Boolean)
+        .map(p => p.actual ?? p.predicted)
+        .filter(v => v !== null && v !== undefined && !isNaN(v))
+
+      const minPrice = prices.length > 0 ? Math.min(...prices) : 0
+      const maxPrice = prices.length > 0 ? Math.max(...prices) : 0
+
       console.log(
         '[Chart Debug]',
         'Points:', chartData.length,
-        'Min price:', Math.min(...prices),
-        'Max price:', Math.max(...prices),
+        'Min price:', minPrice,
+        'Max price:', maxPrice,
         'First:', chartData[0],
-        'Last:', chartData[
-      chartData.length - 1
-      ]
+        'Last:', chartData[chartData.length - 1]
       )
     }
   }, [chartData])
@@ -1542,13 +1615,14 @@ const MandiRates = ({
 
 
 
-  // Search commodity by any language
-  const searchCommodity = (query) => {
-    if (!query || query.trim() === '') {
-      return []
+  // Memoized search results for high performance
+  const filteredCommodities = React.useMemo(() => {
+    const query = (commoditySearch || '').toLowerCase().trim()
+    
+    // If query is empty, return top commodities or full list
+    if (!query) {
+      return COMMODITIES.slice(0, 100) // Show first 100 as default
     }
-
-    const q = query.toLowerCase().trim()
 
     // Get current state language
     const stateConfig =
@@ -1558,58 +1632,68 @@ const MandiRates = ({
 
     return COMMODITIES
       .filter(c => {
-        if (!c.value) return false
+        // Special case: "All Commodities" should always match if query is empty
+        // or if it explicitly matches "all" or the label
+        if (c.value === '') {
+          return query === '' || c.label.toLowerCase().includes(query)
+        }
 
         // Check state language FIRST
         const stateMatch =
           (c[stateLang] || '')
             .toLowerCase()
-            .includes(q)
+            .includes(query)
 
         // Check all other fields
         const otherMatch = (
-          c.value.toLowerCase().includes(q)
-          || c.label.toLowerCase().includes(q)
+          c.value.toLowerCase().includes(query)
+          || c.label.toLowerCase().includes(query)
           || (c.hindi || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.marathi || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.tamil || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.telugu || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.kannada || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.bengali || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.gujarati || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.punjabi || '').toLowerCase()
-            .includes(q)
+            .includes(query)
           || (c.local || []).some(
             l => l.toLowerCase()
-              .includes(q)
+              .includes(query)
           )
         )
 
         return stateMatch || otherMatch
       })
       .sort((a, b) => {
+        // Exact match on value or label first
+        const aExact = a.value.toLowerCase() === query || a.label.toLowerCase() === query
+        const bExact = b.value.toLowerCase() === query || b.label.toLowerCase() === query
+        if (aExact && !bExact) return -1
+        if (!aExact && bExact) return 1
+
         // Sort state language matches first
         const aMatch =
           (a[stateLang] || '')
             .toLowerCase()
-            .includes(q)
+            .includes(query)
         const bMatch =
           (b[stateLang] || '')
             .toLowerCase()
-            .includes(q)
+            .includes(query)
 
         if (aMatch && !bMatch) return -1
         if (!aMatch && bMatch) return 1
         return 0
       })
-  }
+  }, [commoditySearch, state])
 
   // Get English name from any language
   const getEnglishName = (localName) => {
@@ -1917,41 +2001,53 @@ const MandiRates = ({
             }}
           >
             <div style={{ position: 'relative' }}>
-              <div style={{
-                position: 'relative',
-                width: '100%',
-                cursor: 'default',
-                overflow: 'hidden',
-                borderRadius: 12,
-                background: '#FDFAF4',
-                border: '1.5px solid #EDD9B0',
-              }}>
-                <ComboboxInput
+                <ComboboxButton
+                  as="div"
                   style={{
+                    position: 'relative',
                     width: '100%',
-                    border: 'none',
-                    padding: '12px 14px 12px 40px',
-                    fontSize: 14,
-                    lineHeight: '20px',
-                    color: '#2D4F1E',
-                    background: 'transparent',
-                    fontFamily: 'DM Sans',
-                    outline: 'none'
+                    cursor: 'text',
+                    overflow: 'hidden',
+                    borderRadius: 12,
+                    background: '#FDFAF4',
+                    border: '1.5px solid #EDD9B0',
                   }}
-                  displayValue={(c) => c?.label || ''}
-                  onChange={(event) => setCommoditySearch(event.target.value)}
-                  placeholder={`🔍 Search ${getLanguageLabel()}`}
-                />
-                <div style={{
-                  position: 'absolute',
-                  left: 14,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#B0A898'
-                }}>
-                  <Search size={16} />
-                </div>
-              </div>
+                >
+                  <ComboboxInput
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      padding: '12px 14px 12px 40px',
+                      fontSize: 14,
+                      lineHeight: '20px',
+                      color: '#2D4F1E',
+                      background: 'transparent',
+                      fontFamily: 'DM Sans',
+                      outline: 'none'
+                    }}
+                    displayValue={(c) => c?.label || ''}
+                    onChange={(event) => setCommoditySearch(event.target.value)}
+                    onFocus={(e) => {
+                      // Auto-select text on focus to allow easy over-typing
+                      e.target.select();
+                      // Clear search query to show full list
+                      setCommoditySearch('');
+                    }}
+                    placeholder={`🔍 Search ${getLanguageLabel()}`}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    left: 14,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#B0A898',
+                    display: 'flex',
+                    alignItems: 'center',
+                    pointerEvents: 'none'
+                  }}>
+                    <Search size={16} />
+                  </div>
+                </ComboboxButton>
 
               <ComboboxOptions
                 transition
@@ -1970,12 +2066,12 @@ const MandiRates = ({
                   transition: 'opacity 100ms ease-out, transform 100ms ease-out',
                 }}
               >
-                {searchCommodity(commoditySearch).length === 0 ? (
+                {filteredCommodities.length === 0 ? (
                   <div style={{ padding: '12px 14px', fontSize: 13, color: '#7A7A7A' }}>
                     Nothing found.
                   </div>
                 ) : (
-                  searchCommodity(commoditySearch).map((c) => (
+                  filteredCommodities.map((c) => (
                     <ComboboxOption
                       key={c.value}
                       value={c}
@@ -2606,7 +2702,7 @@ const MandiRates = ({
                 <Table
                   dataSource={filteredRecords}
                   columns={columns}
-                  rowKey={(record) => record.id || record._id || `${record.market}-${record.commodity}-${record.arrivalDate}`}
+                  rowKey={(record) => record.id || record._id || `${record.market}-${record.commodity}-${record.variety}-${record.arrivalDate}`}
                   loading={loading}
                   size="middle"
                   sticky={{ offsetHeader: 0 }}
@@ -2964,20 +3060,22 @@ const MandiRates = ({
                         }}
                       />
 
-                      {/* Today reference line */}
-                      <ReferenceLine
-                        x="21 Mar"
-                        stroke="#EDD9B0"
-                        strokeDasharray="4 4"
-                        label={{
-                          value: 'Today',
-                          position:
-                            'insideTopLeft',
-                          fontFamily: 'DM Sans',
-                          fontSize: 9,
-                          fill: '#B0A898'
-                        }}
-                      />
+                      {/* Today reference line — dynamic */}
+                      {chartData.find(d => d.isToday) && (
+                        <ReferenceLine
+                          x={chartData.find(d => d.isToday)?.date}
+                          stroke="#E27D60"
+                          strokeDasharray="4 4"
+                          label={{
+                            value: 'Today',
+                            position:
+                              'insideTopLeft',
+                            fontFamily: 'DM Sans',
+                            fontSize: 9,
+                            fill: '#E27D60'
+                          }}
+                        />
+                      )}
 
                       {/* Historical area */}
                       <Area
@@ -3157,9 +3255,50 @@ const MandiRates = ({
                       }
                     />
                     <Tooltip
-                      content={
-                        <CustomChartTooltip />
-                      }
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null
+                        return (
+                          <div style={{
+                            background: '#1A2E12',
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            border: '1px solid #2D4F1E',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.25)'
+                          }}>
+                            <div style={{
+                              fontFamily: 'DM Sans',
+                              fontSize: 11,
+                              color: '#B0A898',
+                              marginBottom: 6
+                            }}>
+                              {label}
+                            </div>
+                            {payload.map((p, i) => {
+                              if (p.value == null || isNaN(p.value)) return null
+                              return (
+                                <div key={i}>
+                                  <span style={{
+                                    fontFamily: 'DM Sans',
+                                    fontWeight: 700,
+                                    fontSize: 14,
+                                    color: '#4CAF50'
+                                  }}>
+                                    ₹{Number(p.value).toFixed(2)}/kg
+                                  </span>
+                                  <span style={{
+                                    fontFamily: 'DM Sans',
+                                    fontSize: 10,
+                                    color: '#B0A898',
+                                    marginLeft: 6
+                                  }}>
+                                    ₹{Math.round(Number(p.value) * 100)}/qtl
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      }}
                     />
                     <Bar
                       dataKey="modal"

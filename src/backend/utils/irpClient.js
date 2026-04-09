@@ -114,7 +114,9 @@ export const generateIRN = async (payload) => {
           messageHi: mapErrorToHindi(e.ErrorCode),
         }))
       : [{ code: 'UNKNOWN', message: data.message || 'IRN generation failed' }];
-    throw { irpErrors: errors };
+    const err = new Error('IRN generation failed');
+    err.irpErrors = errors;
+    throw err;
   }
 
   const result = decryptAES(data.Data, appKey);
@@ -172,7 +174,7 @@ export const cancelIRN = async (irn, reason = 1, remark = '') => {
  * IRP Error Code → Hindi Translation mapping.
  */
 const ERROR_MAP = {
-  2150: 'خरीदार का GSTIN गलत है',
+  2150: 'खरीदार का GSTIN गलत है',
   2117: 'आपूर्तिकर्ता का GSTIN गलत है',
   2163: 'चालान संख्या पहले से मौजूद है',
   2265: 'HSN कोड अमान्य है',

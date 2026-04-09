@@ -29,6 +29,10 @@ serviceAccountKey.json
 *.pem
 *.key
 
+# Logs and temporary files
+server_error.txt
+eslint-out.json
+
 # Python junk
 __pycache__/
 *.py[cod]

@@ -3,7 +3,9 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
 import { notifications } from '@mantine/notifications';
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
+import { db } from "@/frontend/config/firebaseConfig";
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
   User, Mail, Phone, MapPin, Tag,
   ArrowRight, Check, CheckCircle,
@@ -14,6 +16,8 @@ import Input from "@/frontend/components/ui/Input";
 import Button from "@/frontend/components/ui/Button";
 import Card from "@/frontend/components/ui/Card";
 import "./Checkout.css";
+
+import { useUser } from "@/frontend/contexts/UserContext";
 
 /* ------------------------
    Constants & Config
@@ -28,8 +32,8 @@ const PROMO_CODES = {
 
 export default function Checkout() {
   const { cart = [], clearAllCart, saveOrderHistory } = useCart();
+  const { user } = useUser();
   const navigate = useNavigate();
-  // const toast = useToast();
 
   /* ------------------------
      State Management
@@ -53,29 +57,27 @@ export default function Checkout() {
 
   /* Load existing data only once */
   useEffect(() => {
-    const storedEmail = localStorage.getItem("userEmail");
-    const storedName = localStorage.getItem("userName");
     const savedData = JSON.parse(localStorage.getItem("checkoutData") || "null");
     const buyerProfile = JSON.parse(localStorage.getItem("buyerProfile") || "null");
 
     const profileSource = buyerProfile
       ? {
-          name: buyerProfile.fullName || storedName || (savedData && savedData.name),
+          name: buyerProfile.fullName || user?.name || (savedData && savedData.name),
           phone: buyerProfile.phone || (savedData && savedData.phone),
           address: buyerProfile.address || (savedData && savedData.address),
           city: buyerProfile.city || (savedData && savedData.city),
           pincode: buyerProfile.pincode || (savedData && savedData.pincode),
-          email: storedEmail || (savedData && savedData.email),
+          email: user?.email || (savedData && savedData.email),
         }
       : savedData || {};
 
     setCustomer((c) => ({
       ...c,
-      ...(storedEmail ? { email: storedEmail } : {}),
-      ...(storedName ? { name: storedName } : {}),
+      ...(user?.email ? { email: user.email } : {}),
+      ...(user?.name ? { name: user.name } : {}),
       ...profileSource,
     }));
-  }, []);
+  }, [user]);
 
   /* ------------------------
      Billing Logic
@@ -89,7 +91,39 @@ export default function Checkout() {
   }, [subtotal, appliedPromo]);
 
   const shipping = useMemo(() => (subtotal >= DELIVERY_THRESHOLD ? 0 : cart.length ? DELIVERY_FEE : 0), [subtotal, cart.length]);
-  const tax = useMemo(() => ((subtotal - promoDiscount + shipping) * TAX_PERCENT) / 100, [subtotal, promoDiscount, shipping]);
+
+  /**
+   * Calculate aggregated tax based on item categories
+   * Fresh Produce: 0%, Grains/Dairy: 5%, Seeds/Tools: 12%, Others: 18%
+   */
+  const calculateTotalTax = useCallback((items, discount) => {
+    if (!items.length) return 0;
+    
+    // Proportional discount factor to apply discount across items for tax base
+    const discountFactor = subtotal > 0 ? (subtotal - discount) / subtotal : 1;
+    
+    return items.reduce((acc, item) => {
+      const price = Number(item.price || 0);
+      const qty = Number(item.quantity || 1);
+      const itemSubtotal = price * qty * discountFactor;
+      
+      // Category based GST rates
+      let rate = 5; // Default 5%
+      const cat = (item.category || "").toLowerCase();
+      
+      if (cat.includes("vegetable") || cat.includes("fruit")) rate = 0;
+      else if (cat.includes("grain") || cat.includes("dairy")) rate = 5;
+      else if (cat.includes("tool") || cat.includes("seed")) rate = 12;
+      else rate = 5; // Fallback to 5% for general krishi items
+      
+      // Override if product explicitly defines its rate
+      if (item.gstRate !== undefined) rate = Number(item.gstRate);
+      
+      return acc + (itemSubtotal * rate / 100);
+    }, 0);
+  }, [subtotal]);
+
+  const tax = useMemo(() => calculateTotalTax(cart, promoDiscount), [cart, promoDiscount, calculateTotalTax]);
   const total = useMemo(() => Math.round(subtotal - promoDiscount + shipping + tax), [subtotal, promoDiscount, shipping, tax]);
 
   /* ------------------------
@@ -125,7 +159,18 @@ export default function Checkout() {
 
   const handleApplyPromo = () => {
     const code = (promo || "").trim().toUpperCase();
-    if (!code) return toast.info("Enter a promo code");
+    if (!code) {
+      notifications.show({
+        title: '⚠️ Promo Code',
+        message: 'Enter a promo code',
+        color: 'yellow',
+        autoClose: 3000,
+        styles: {
+          root: { fontFamily: 'DM Sans', borderLeft: '4px solid #FFC107' }
+        }
+      });
+      return;
+    }
     const found = PROMO_CODES[code];
     if (!found) {
       notifications.show({
@@ -187,7 +232,6 @@ export default function Checkout() {
     });
 
     try {
-      const user = JSON.parse(localStorage.getItem('ks_user') || 'null');
       const uid = user?.uid || user?.id || null;
 
       if (!uid) {
@@ -226,7 +270,7 @@ export default function Checkout() {
           productId: String(item.id || item._id || ''),
           name: String(item.name || ''),
           price: Number(item.price || 0),
-          qty: Number(item.qty || item.quantity || 1),
+          qty: Math.max(1, Math.floor(Number(item.quantity || 1))),
           image: String(item.image || ''),
           farmerId: String(item.farmerId || 'demo'),
           category: String(item.category || ''),
@@ -271,23 +315,50 @@ export default function Checkout() {
   };
 
   const saveOrder = async (orderPayload, notificationId) => {
-    let saved = false;
-    try {
-      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('../config/firebaseConfig');
+    let mongoSynced = false;
+    let firestoreSaved = false;
 
+    // 1. Save to MongoDB via Orders Server
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...orderPayload,
+          customer: {
+            name: orderPayload.deliveryAddress.name,
+            email: orderPayload.buyerEmail,
+            phone: orderPayload.buyerPhone,
+            address: orderPayload.deliveryAddress.fullAddress
+          },
+          items: orderPayload.items.map(it => ({ ...it, quantity: it.qty })),
+          payment_method: orderPayload.paymentMethod,
+          shipping: orderPayload.deliveryFee
+        })
+      });
+
+      if (res.ok) {
+        console.log('✅ Synchronized to MongoDB');
+        mongoSynced = true;
+      }
+    } catch (mongoErr) {
+      console.warn('⚠️ MongoDB sync failed:', mongoErr.message);
+    }
+
+    // 2. Save to Firestore
+    try {
       await addDoc(collection(db, 'orders'), {
         ...orderPayload,
         createdAt: serverTimestamp(),
         source: 'web'
       });
-      saved = true;
+      firestoreSaved = true;
     } catch (fsErr) {
       console.warn('⚠️ Firestore error:', fsErr.message);
     }
 
-    if (saved) {
-      await clearAllCart();
+    if (mongoSynced && firestoreSaved) {
+      await clearAllCart({ silent: true });
       notifications.update({
         id: notificationId,
         title: '🎉 Order Success!',
@@ -322,8 +393,11 @@ export default function Checkout() {
     if (!orderRes.ok) throw new Error('Payment server error');
     const orderData = await orderRes.json();
 
+    const rzpKey = import.meta.env.VITE_RAZORPAY_KEY;
+    if (!rzpKey) throw new Error('Razorpay API Key not found in environment');
+
     const options = {
-      key: import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_RXkiOg4W6ACRdc',
+      key: rzpKey,
       order_id: orderData.id,
       amount: total * 100,
       currency: 'INR',
@@ -347,6 +421,7 @@ export default function Checkout() {
             throw new Error('Payment verification failed');
           }
         } catch (err) {
+          setLoading(false);
           notifications.update({
             id: notificationId,
             title: '❌ Payment Error',

@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { X, ShieldCheck } from "lucide-react";
 import QuantityStepper from "./QuantityStepper";
 
@@ -7,6 +7,8 @@ const formatCurrency = (v) =>
     Number(v || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
 
 const QuickViewModal = ({ product, onClose, onAddToCart, quantity, onQuantityChange }) => {
+    const [imageError, setImageError] = useState(false);
+
     // Close on Escape key
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -92,25 +94,36 @@ const QuickViewModal = ({ product, onClose, onAddToCart, quantity, onQuantityCha
                     position: "relative",
                     minHeight: "300px" // For mobile stacking
                 }}>
-                    <img
-                        src={product.image}
-                        alt={product.name}
-                        style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
+                    {!imageError ? (
+                        <img
+                            src={product.image}
+                            alt={product.name}
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                position: "absolute",
+                                inset: 0
+                            }}
+                            onError={() => setImageError(true)}
+                        />
+                    ) : (
+                        <div style={{
                             position: "absolute",
-                            inset: 0
-                        }}
-                        onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.parentElement.innerHTML += `
-                                <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2D4F1E, #3D6B2A); color: white; font-family: Caveat, cursive; font-size: 24px;">
-                                    🌿 ${product.name}
-                                </div>
-                            `;
-                        }}
-                    />
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "linear-gradient(135deg, #2D4F1E, #3D6B2A)",
+                            color: "white",
+                            fontFamily: "Caveat, cursive",
+                            fontSize: "24px",
+                            padding: "20px",
+                            textAlign: "center"
+                        }}>
+                            🌿 {product.name}
+                        </div>
+                    )}
                     {product.badge === "Organic" && (
                         <span style={{
                             position: "absolute",

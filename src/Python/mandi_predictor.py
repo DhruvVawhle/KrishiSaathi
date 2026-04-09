@@ -252,101 +252,127 @@ def read_trend(commodity):
             commodity
           ):
             p = clean_price(
-              row.get('MandiWholeSalePrice')
+              row.get('Price', '0')
             )
-            if p:
-              results.append({
-                'date': row['CalendarDay'],
-                'price_kg': round(p/100, 2),
-                'price_qtl': p,
-                'timeframe': row.get(
-                  'TimeFrame', ''
-                )
-              })
-    except:
+            results.append({'price_kg': p})
+      if results:
+        _TREND_CACHE[key] = results
+        return results
+    except Exception:
       continue
-  results.sort(key=lambda x: x['date'])
-  _TREND_CACHE[key] = results
-  return results
+  return []
 
 def read_historical(
-  commodity, state='Maharashtra'
+  commodity, state='Maharashtra', market=''
 ):
-  """Read Dataset.csv for state prices"""
+  """Read Dataset.csv for state prices using pandas for speed"""
   global _HISTORICAL_CACHE
-  key_cache = f"{commodity}_{state}".lower()
+  key_cache = f"{commodity}_{state}_{market}".lower()
   if key_cache in _HISTORICAL_CACHE:
     return _HISTORICAL_CACHE[key_cache]
+  
   results = []
-  for fname in [
+  target_files = [
     'Dataset.csv',
     'Dataset (1).csv',
     'commodity_price.csv',
     'Agriculture_price_dataset.csv',
     'mandi_rates.csv'
-  ]:
+  ]
+
+  for fname in target_files:
     fp = BASE / fname
     if not fp.exists():
       continue
     try:
-      with open(
-        fp, 'r', encoding='utf-8-sig'
-      ) as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-          # Robust column mapping
-          r_state = str(row.get('State') or row.get('STATE') or '').strip()
-          r_comm  = str(row.get('Commodity') or '').strip()
-          
-          if state.lower() not in r_state.lower():
-            continue
-          if not matches(r_comm, commodity):
-            continue
-            
-          mod_p = clean_price(
-            row.get('Modal_Price') or 
-            row.get('Modal_x0020_Price') or 
-            row.get('Modal Price')
-          )
-          min_p = clean_price(
-            row.get('Min_Price') or 
-            row.get('Min_x0020_Price') or 
-            row.get('Min Price')
-          )
-          max_p = clean_price(
-            row.get('Max_Price') or 
-            row.get('Max_x0020_Price') or 
-            row.get('Max Price')
-          )
-          
-          r_date = (
-            row.get('Arrival_Date') or 
-            row.get('Price Date') or 
-            row.get('Price_Date') or 
-            row.get('Date') or 
-            ''
-          ).strip()
+      # Use pandas for much faster reading of large CSVs
+      if PANDAS_AVAILABLE:
+        # Define potential column names for filtering to keep memory low
+        col_maps = {
+          'State': ['State', 'STATE'],
+          'Commodity': ['Commodity'],
+          'Modal': ['Modal_Price', 'Modal_x0020_Price', 'Modal Price', 'modal_price'],
+          'Min': ['Min_Price', 'Min_x0020_Price', 'Min Price', 'min_price'],
+          'Max': ['Max_Price', 'Max_x0020_Price', 'Max Price', 'max_price'],
+          'Date': ['Arrival_Date', 'Price Date', 'Price_Date', 'Date', 'arrival_date'],
+          'District': ['District', 'District Name', 'district'],
+          'Market': ['Market', 'Market Name', 'market'],
+          'Variety': ['Variety', 'variety']
+        }
+        
+        # Read a small sample to find which columns exist
+        sample = pd.read_csv(fp, nrows=1)
+        actual_cols = []
+        for key, aliases in col_maps.items():
+            for alias in aliases:
+                if alias in sample.columns:
+                    actual_cols.append(alias)
+                    break
+        
+        # Read the full file with only necessary columns
+        df = pd.read_csv(fp, usecols=actual_cols)
+        
+        # Find the actual used columns in this specific file
+        f_state = next((c for c in col_maps['State'] if c in df.columns), None)
+        f_comm = next((c for c in col_maps['Commodity'] if c in df.columns), None)
+        f_modal = next((c for c in col_maps['Modal'] if c in df.columns), None)
+        f_min = next((c for c in col_maps['Min'] if c in df.columns), None)
+        f_max = next((c for c in col_maps['Max'] if c in df.columns), None)
+        f_date = next((c for c in col_maps['Date'] if c in df.columns), None)
+        f_dist = next((c for c in col_maps['District'] if c in df.columns), None)
+        f_mark = next((c for c in col_maps['Market'] if c in df.columns), None)
+        f_vars = next((c for c in col_maps['Variety'] if c in df.columns), None)
 
-          if mod_p and mod_p > 0:
-            results.append({
-              'state':     r_state,
-              'district':  str(row.get('District') or row.get('District Name') or '').strip(),
-              'market':    str(row.get('Market') or row.get('Market Name') or '').strip(),
-              'commodity': r_comm,
-              'variety':   str(row.get('Variety') or '').strip(),
-              'date':      r_date,
-              'min_price': round(min_p/100, 2) if min_p else 0,
-              'max_price': round(max_p/100, 2) if max_p else 0,
-              'modal_price': round(mod_p/100, 2)
-            })
-      if results:
-        # Keep searching other files to aggregate more data
-        pass
+        if f_state and f_comm:
+          # Faster filtering with pandas
+          mask = (df[f_state].astype(str).str.lower().str.contains(state.lower())) & \
+                 (df[f_comm].astype(str).apply(lambda x: matches(x, commodity)))
+          
+          filtered_df = df[mask]
+          
+          for _, row in filtered_df.iterrows():
+            mod_p = clean_price(row[f_modal]) if f_modal else 0
+            if mod_p and mod_p > 0:
+              min_p = clean_price(row[f_min]) if f_min else 0
+              max_p = clean_price(row[f_max]) if f_max else 0
+              
+              results.append({
+                'state':     str(row[f_state]).strip(),
+                'district':  str(row[f_dist]).strip() if f_dist else '',
+                'market':    str(row[f_mark]).strip() if f_mark else '',
+                'commodity': str(row[f_comm]).strip(),
+                'variety':   str(row[f_vars]).strip() if f_vars else '',
+                'date':      str(row[f_date]).strip() if f_date else '',
+                'min_price': round(min_p/100, 2) if min_p else 0,
+                'max_price': round(max_p/100, 2) if max_p else 0,
+                'modal_price': round(mod_p/100, 2)
+              })
+      else:
+        # Fallback to csv.DictReader if pandas is not available
+        with open(fp, 'r', encoding='utf-8-sig') as f:
+          reader = csv.DictReader(f)
+          for row in reader:
+            r_state = str(row.get('State') or row.get('STATE') or '').strip()
+            r_comm  = str(row.get('Commodity') or '').strip()
+            if state.lower() not in r_state.lower(): continue
+            if not matches(r_comm, commodity): continue
+            mod_p = clean_price(row.get('Modal_Price') or row.get('Modal_x0020_Price') or row.get('Modal Price'))
+            if mod_p and mod_p > 0:
+              min_p = clean_price(row.get('Min_Price') or row.get('Min_x0020_Price') or row.get('Min Price'))
+              max_p = clean_price(row.get('Max_Price') or row.get('Max_x0020_Price') or row.get('Max Price'))
+              results.append({
+                'state':     r_state,
+                'district':  str(row.get('District') or row.get('District Name') or '').strip(),
+                'market':    str(row.get('Market') or row.get('Market Name') or '').strip(),
+                'commodity': r_comm,
+                'variety':   str(row.get('Variety') or '').strip(),
+                'date':      (row.get('Arrival_Date') or row.get('Price Date') or row.get('Date') or '').strip(),
+                'min_price': round(min_p/100, 2) if min_p else 0,
+                'max_price': round(max_p/100, 2) if max_p else 0,
+                'modal_price': round(mod_p/100, 2)
+              })
     except Exception as e:
-      print(f"Historical error: {e}",
-            file=sys.stderr)
-  
-  # Deduplicate by date + market + price to avoid identical entries from multiple files
+      print(f"Historical error reading {fname}: {e}", file=sys.stderr)
   seen = set()
   unique_results = []
   for r in results:
@@ -354,6 +380,27 @@ def read_historical(
     if key not in seen:
       seen.add(key)
       unique_results.append(r)
+
+  # Normalize dates to 'DD Mon' format (e.g., '19 May')
+  for r in unique_results:
+    raw = r.get('date', '')
+    if raw:
+      try:
+        # Try DD/MM/YYYY
+        dt = datetime.strptime(raw, '%d/%m/%Y')
+        r['date'] = dt.strftime('%d %b')
+      except ValueError:
+        try:
+          # Try YYYY-MM-DD
+          dt = datetime.strptime(raw, '%Y-%m-%d')
+          r['date'] = dt.strftime('%d %b')
+        except ValueError:
+          try:
+            # Try DD-MM-YYYY
+            dt = datetime.strptime(raw, '%d-%m-%Y')
+            r['date'] = dt.strftime('%d %b')
+          except ValueError:
+            pass  # Keep original if no format matches
 
   _HISTORICAL_CACHE[key_cache] = unique_results
   return unique_results
@@ -611,14 +658,18 @@ def smart_predict(prices, steps=7):
 # MAIN PREDICT FUNCTION
 # ════════════════════════════════════════
 
-def predict(commodity, current_price_kg):
+def predict(commodity, current_price_kg, state='Maharashtra', market='Delhi'):
   """
   Complete prediction pipeline:
   1. Load real data from CSV files
   2. Try ARIMA → fallback to LR
   3. Return forecast + recommendation
   """
-  price = float(current_price_kg)
+  try:
+    price = float(current_price_kg)
+  except ValueError:
+    # If price is missing or invalid, try to find it from today's data or fallback to 0
+    price = 0
 
   # Get data sources
   trend_data  = read_trend(commodity)
@@ -648,7 +699,7 @@ def predict(commodity, current_price_kg):
   # ── NEW: Historical Augmentation ─────
   # If still sparse (< 3 pts), pull from Dataset.csv
   if len(series) < 3:
-    hist = read_historical(commodity)
+    hist = read_historical(commodity, state, market)
     if hist:
       # Group by date and average
       by_date = {}
@@ -741,25 +792,40 @@ def predict(commodity, current_price_kg):
     }
 
   # ── Historical chart data ─────────────
+  # Build from the price series used for prediction (with computed date labels)
   chart = []
-  for d in trend_data[-6:]:
+  hist_len = min(len(series), 30)
+  hist_prices = series[-hist_len:]
+  for i, hp in enumerate(hist_prices):
+    days_ago = hist_len - i
+    hist_date = (base - timedelta(days=days_ago)).strftime('%d %b')
     chart.append({
-      'date':  d['date'][:7],
-      'price': d['price_kg'],
+      'date':  hist_date,
+      'price': round(float(hp), 2),
       'type':  'actual'
     })
+
+  # Add today's market price if available
   if today_data and today_data.get('p14_kg'):
     chart.append({
-      'date':  today_data.get('date', datetime.now().strftime('%d %b')),
+      'date':  datetime.now().strftime('%d %b'),
       'price': today_data['p14_kg'],
       'type':  'actual'
     })
+
+  # Add ML predictions
   for p in predictions:
     chart.append({
       'date':  p['date'],
       'price': p['price'],
       'type':  'predicted'
     })
+
+  print(
+    f"[Python] Returning: {len([c for c in chart if c['type']=='actual'])} historical, "
+    f"{len([c for c in chart if c['type']=='predicted'])} predicted",
+    file=sys.stderr
+  )
 
   return {
     'success':          True,
@@ -854,9 +920,15 @@ def get_rates(
 # ════════════════════════════════════════
 
 def get_all_today(commodity_filter=None, state_filter=None):
-  # Normalize filters
-  c_filt = str(commodity_filter).strip().lower() if commodity_filter and str(commodity_filter).lower() not in ['all', 'none', 'null', 'undefined'] else None
-  s_filt = str(state_filter).strip().lower() if state_filter and str(state_filter).lower() not in ['all', 'none', 'null', 'undefined'] else None
+  # Normalize filters - handle 'all', empty strings, etc.
+  def normalize(val):
+    v = str(val).strip().lower() if val else None
+    if not v or v in ['all', 'none', 'null', 'undefined', '']:
+      return None
+    return v
+
+  c_filt = normalize(commodity_filter)
+  s_filt = normalize(state_filter)
 
   # Start with commodity-level summary
   today = read_today()
@@ -876,14 +948,19 @@ def get_all_today(commodity_filter=None, state_filter=None):
       change = round(p14 - p12, 2)
       change_pct = round((change / p12) * 100, 1)
     
+    prices = [val.get(f) for f in ['p12_qtl', 'p13_qtl', 'p14_qtl'] if val.get(f) is not None]
+    modal_price = float(val.get('p14_qtl') or (prices[0] if prices else 0))
+    min_price = float(min(prices) if prices else modal_price)
+    max_price = float(max(prices) if prices else modal_price)
+    
     result.append({
       'commodity':  val['commodity'],
       'group':      val['group'],
       'price_kg':   p14,
       'price_qtl':  val.get('p14_qtl'),
-      'modal_price': val.get('p14_qtl'),
-      'min_price':   val.get('p14_qtl'),
-      'max_price':   val.get('p14_qtl'),
+      'modal_price': modal_price,
+      'min_price':   min_price,
+      'max_price':   max_price,
       'msp_kg':     val.get('msp_kg'),
       'change_2d':  change,
       'change_pct': change_pct,
@@ -930,16 +1007,14 @@ def get_all_today(commodity_filter=None, state_filter=None):
               continue
             
             # Filter by state
-            if s_filt:
-              st = detailed_record['state'].lower()
-              if s_filt not in st and st not in s_filt:
-                continue
+            if s_filt and not matches(detailed_record['state'], s_filt):
+              continue
 
             detailed_results.append(detailed_record)
             count += 1
     result.extend(detailed_results)
-  except:
-    pass
+  except Exception as e:
+    print(f"Detailed overview error: {e}", file=sys.stderr)
 
   result.sort(key=lambda x: (x.get('group', ''), x.get('commodity', '')))
   return result
@@ -1089,11 +1164,20 @@ def warmup_cache():
   for c in COMMON_COMMODITIES:
     read_trend(c)
 
-# Unconditional warmup
+# Targeted warmup — only load what's actually needed for this request.
+# Full warmup is too slow (~25s) when called fresh on every Node spawn.
 try:
-  warmup_cache()
+  cmd = sys.argv[1] if len(sys.argv) > 1 else ''
+  # For status/rates we don't need trend data
+  if cmd not in ('status',):
+    read_today()  # Always load today's market data (fast)
+    # Only pre-warm the requested commodity, not all 6
+    req_commodity = sys.argv[2] if len(sys.argv) > 2 else None
+    if req_commodity:
+      read_trend(req_commodity)
 except:
   pass
+
 
 if __name__ == '__main__':
   if len(sys.argv) < 2:
@@ -1108,15 +1192,17 @@ if __name__ == '__main__':
   try:
     if cmd == 'predict':
       c = sys.argv[2] if len(sys.argv) > 2 else 'Tomato'
-      p = sys.argv[3] if len(sys.argv) > 3 else '45'
+      p = sys.argv[3] if len(sys.argv) > 3 else '0'
+      s = sys.argv[4] if len(sys.argv) > 4 else 'Maharashtra'
+      m = sys.argv[5] if len(sys.argv) > 5 else 'Delhi'
       
-      # Check for live data JSON in 4th arg
-      if len(sys.argv) > 4:
+      # Check for live data JSON in 6th arg
+      if len(sys.argv) > 6:
         try:
-          LIVE_DATA = json.loads(sys.argv[4])
+          LIVE_DATA = json.loads(sys.argv[6])
         except: pass
 
-      print(json.dumps(predict(c, p)))
+      print(json.dumps(predict(c, p, s, m)))
 
     elif cmd in ('rates', 'csv'):
       c = sys.argv[2] if len(sys.argv) > 2 else 'Tomato'

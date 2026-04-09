@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
+import QRCode from 'react-qr-code';
 
 /**
  * Professional Printable GST e-Invoice Template with IRN & QR Code.
@@ -48,7 +49,14 @@ const EInvoiceTemplate = ({ result, payload, onBack }) => {
 
   const handlePrint = () => {
     const printContent = printRef.current;
+    if (!printContent) return;
+
     const win = window.open('', '_blank');
+    if (!win) {
+      alert('Popup blocked! Please allow popups to print the invoice.');
+      return;
+    }
+
     win.document.write(`
       <html><head><title>GST e-Invoice</title>
       <style>
@@ -58,13 +66,25 @@ const EInvoiceTemplate = ({ result, payload, onBack }) => {
         td { padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; }
         .header { border-bottom: 3px solid #2D4F1E; padding-bottom: 16px; margin-bottom: 20px; }
         .irn-box { background: #f5f5f5; padding: 12px; border-radius: 4px; margin: 16px 0; font-family: monospace; }
+        .qr-placeholder { display: flex; justify-content: center; margin: 20px 0; }
         @media print { body { padding: 0; } }
       </style></head><body>
       ${printContent.innerHTML}
       </body></html>
     `);
     win.document.close();
-    win.print();
+    win.focus();
+    
+    // Brief delay to ensure styles/images load before print dialog
+    setTimeout(() => {
+      win.print();
+      win.onafterprint = () => win.close();
+    }, 250);
+  };
+
+  const formatAmount = (num) => {
+    const n = parseFloat(num);
+    return isNaN(n) ? "0.00" : n.toFixed(2);
   };
 
   const sel = payload?.SellerDtls || {};
@@ -72,7 +92,7 @@ const EInvoiceTemplate = ({ result, payload, onBack }) => {
   const doc = payload?.DocDtls || {};
   const val = payload?.ValDtls || {};
   const items = payload?.ItemList || [];
-  const isInterState = sel.Stcd !== buy.Stcd;
+  const isInterState = String(sel.Stcd || '').padStart(2, '0') !== String(buy.Stcd || '').padStart(2, '0');
 
   return (
     <div style={T.page}>
@@ -202,17 +222,17 @@ const EInvoiceTemplate = ({ result, payload, onBack }) => {
                   <td style={T.td}>{item.HsnCd}</td>
                   <td style={T.tdRight}>{item.Qty}</td>
                   <td style={T.td}>{item.Unit}</td>
-                  <td style={T.tdRight}>{Number(item.UnitPrice).toFixed(2)}</td>
-                  <td style={T.tdRight}>{Number(item.AssAmt).toFixed(2)}</td>
+                  <td style={T.tdRight}>{formatAmount(item.UnitPrice)}</td>
+                  <td style={T.tdRight}>{formatAmount(item.AssAmt)}</td>
                   {isInterState ? (
-                    <td style={T.tdRight}>{Number(item.IgstAmt).toFixed(2)}</td>
+                    <td style={T.tdRight}>{formatAmount(item.IgstAmt)}</td>
                   ) : (
                     <>
-                      <td style={T.tdRight}>{Number(item.CgstAmt).toFixed(2)}</td>
-                      <td style={T.tdRight}>{Number(item.SgstAmt).toFixed(2)}</td>
+                      <td style={T.tdRight}>{formatAmount(item.CgstAmt)}</td>
+                      <td style={T.tdRight}>{formatAmount(item.SgstAmt)}</td>
                     </>
                   )}
-                  <td style={{ ...T.tdRight, fontWeight: 700 }}>{Number(item.TotItemVal).toFixed(2)}</td>
+                  <td style={{ ...T.tdRight, fontWeight: 700 }}>{formatAmount(item.TotItemVal)}</td>
                 </tr>
               ))}
             </tbody>
@@ -223,43 +243,45 @@ const EInvoiceTemplate = ({ result, payload, onBack }) => {
             <div style={{ width: 300 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #eee' }}>
                 <span>Taxable Amount</span>
-                <span style={{ fontWeight: 600 }}>₹{Number(val.AssVal).toFixed(2)}</span>
+                <span style={{ fontWeight: 600 }}>₹{formatAmount(val.AssVal)}</span>
               </div>
               {isInterState ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #eee' }}>
                   <span>IGST</span>
-                  <span style={{ fontWeight: 600 }}>₹{Number(val.IgstVal).toFixed(2)}</span>
+                  <span style={{ fontWeight: 600 }}>₹{formatAmount(val.IgstVal)}</span>
                 </div>
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #eee' }}>
                     <span>CGST</span>
-                    <span style={{ fontWeight: 600 }}>₹{Number(val.CgstVal).toFixed(2)}</span>
+                    <span style={{ fontWeight: 600 }}>₹{formatAmount(val.CgstVal)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #eee' }}>
                     <span>SGST</span>
-                    <span style={{ fontWeight: 600 }}>₹{Number(val.SgstVal).toFixed(2)}</span>
+                    <span style={{ fontWeight: 600 }}>₹{formatAmount(val.SgstVal)}</span>
                   </div>
                 </>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 16, fontWeight: 800, color: '#2D4F1E', borderTop: '2px solid #2D4F1E', marginTop: 6 }}>
                 <span>Total Invoice Value</span>
-                <span>₹{Number(val.TotInvVal).toFixed(2)}</span>
+                <span>₹{formatAmount(val.TotInvVal)}</span>
               </div>
             </div>
           </div>
 
           {/* QR Code */}
           {result?.signedQRCode && (
-            <div style={{ display: 'flex', justifyContent: 'center', margin: '32px 0 16px', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="qr-placeholder" style={{ display: 'flex', justifyContent: 'center', margin: '32px 0 16px', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#7A7A7A', letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>
                 Scan QR Code to Verify
               </div>
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(result.signedQRCode)}`}
-                alt="e-Invoice QR Code"
-                style={{ width: 150, height: 150, border: '2px solid #EDD9B0', borderRadius: 8 }}
-              />
+              <div style={{ padding: 8, background: 'white', border: '1.5px solid #EDD9B0', borderRadius: 8 }}>
+                <QRCode
+                  value={result.signedQRCode}
+                  size={140}
+                  level="M"
+                />
+              </div>
             </div>
           )}
 

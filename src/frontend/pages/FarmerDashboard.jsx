@@ -27,24 +27,10 @@ import {
 } from 'recharts'
 
 // Framer Motion
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from "motion/react";
 
 // Lucide icons
 import {
-  TrendingUp,
-  TrendingDown,
-  Package,
-  ShoppingBag,
-  BarChart3,
-  Leaf,
-  Plus,
-  RefreshCw,
-  AlertTriangle,
-  Eye,
-  EyeOff,
-  Trash2,
-  Edit,
-  Edit2,
   ChevronDown,
   ChevronUp,
   Star,
@@ -63,7 +49,11 @@ import {
   Check,
   X,
   Menu,
-  PackageOpen
+  PackageOpen,
+  Edit2,
+  Eye,
+  Trash2,
+  Plus
 } from 'lucide-react'
 
 import { useUser } from "@/frontend/contexts/UserContext";
@@ -93,24 +83,30 @@ const Counter = ({ value, duration = 1.5 }) => {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    let start = 0;
+    let startTimestamp = null;
+    let requestID;
     const end = parseInt(value) || 0;
-    if (start === end) return;
+    if (end === 0) {
+      setCount(0); // Reset if value is 0
+      return;
+    }
 
-    let totalMiliseconds = duration * 1000;
-    let incrementTime = totalMiliseconds / end;
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / (duration * 1000), 1);
+      setCount(Math.floor(progress * end));
+      if (progress < 1) {
+        requestID = window.requestAnimationFrame(step);
+      }
+    };
 
-    let timer = setInterval(() => {
-      start += 1;
-      setCount(start);
-      if (start === end) clearInterval(timer);
-    }, incrementTime);
-
-    return () => clearInterval(timer);
+    requestID = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(requestID);
   }, [value, duration]);
 
-  return <span>{count.toLocaleString()}</span>;
+  return <span>{(count || 0).toLocaleString()}</span>;
 };
+
 
 // Indian farmer avatar component
 const FarmerAvatar = ({
@@ -360,7 +356,15 @@ const FarmerDashboard = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
   const [tableSearchTerm, setTableSearchTerm] = useState("");
+  const [debouncedTableSearchTerm, setDebouncedTableSearchTerm] = useState("");
   const [tableFilter, setTableFilter] = useState("all");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTableSearchTerm(tableSearchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [tableSearchTerm]);
 
   // Profile Dropdown
   const [profileOpen, setProfileOpen] = useState(false);
@@ -587,7 +591,7 @@ const FarmerDashboard = () => {
   const farmerId = getFarmerId()
 
   const filteredProducts = useMemo(() => {
-    const term = tableSearchTerm.toLowerCase()
+    const term = debouncedTableSearchTerm.toLowerCase()
     return (localProducts || []).filter(p => {
       const matchesTab = tableFilter === 'all' ||
         (tableFilter === 'published' && (p.isPublished || p.published)) ||
@@ -598,7 +602,7 @@ const FarmerDashboard = () => {
 
       return matchesTab && matchesSearch
     })
-  }, [localProducts, tableFilter, tableSearchTerm])
+  }, [localProducts, tableFilter, debouncedTableSearchTerm])
 
   const TABS = [
     { id: 'overview', label: 'Overview', icon: '📊' },
@@ -1245,12 +1249,6 @@ const FarmerDashboard = () => {
 
       // SAVE TO FIRESTORE
       try {
-        const {
-          collection,
-          addDoc,
-          serverTimestamp
-        } = await import('firebase/firestore')
-        const { db } = await import('../config/firebaseConfig')
         const docRef = await addDoc(
           collection(db, 'products'),
           {
@@ -3009,7 +3007,7 @@ const FarmerDashboard = () => {
                   </div>
                   <div>
                     <label style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 700, color: '#4A4A4A', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Account Number</label>
-                    <input type="password" placeholder="XXXXXXXXXXXX" {...register('accountNumber', { minLength: { value: 9, message: 'Too short' } })} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.accountNumber ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
+                    <input type="password" autoComplete="off" placeholder="XXXXXXXXXXXX" {...register('accountNumber', { minLength: { value: 9, message: 'Too short' } })} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${profileErrors.accountNumber ? '#FF5252' : '#EDD9B0'}`, background: '#F5E6CC', fontFamily: 'DM Sans', fontSize: 13, color: '#4A4A4A', boxSizing: 'border-box', outline: 'none' }} />
                     {profileErrors.accountNumber && <span style={{ fontSize: 10, color: '#FF5252', marginTop: 4, display: 'block', fontWeight: 600 }}>{profileErrors.accountNumber.message}</span>}
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>

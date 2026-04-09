@@ -1,4 +1,5 @@
 import React from "react"
+import { motion } from "motion/react"
 import { 
   FarmerAvatar, 
   ExpertAvatar, 
@@ -98,11 +99,11 @@ export default function AvatarDemo() {
           </CardHeader>
           <CardContent className="flex flex-col gap-8">
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Small Size (Default)</p>
+              <p className="text-sm font-semibold">Small Size (FPO Default - sm)</p>
               <FPOMemberGroup members={demoMembers} maxVisible={4} />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Default Size</p>
+              <p className="text-sm font-semibold">Regular Size (Avatar Default)</p>
               <FPOMemberGroup members={demoMembers} maxVisible={3} size="default" />
             </div>
           </CardContent>

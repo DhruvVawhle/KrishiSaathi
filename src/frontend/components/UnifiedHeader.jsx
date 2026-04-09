@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { getAuth, signOut } from "firebase/auth";
 import { useCart } from "@/frontend/contexts/CartContext";
+import { useUser } from "@/frontend/contexts/UserContext";
 import {
   getNotificationsRealtime,
   saveNotificationsToFirestore
@@ -262,8 +263,8 @@ const Navbar = ({ onOpenCart }) => {
     ? cart.reduce((s, i) => s + (Number(i.quantity) || 0), 0)
     : 0;
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  // Auth Context (Source of Truth)
+  const { user, isLoggedIn, handleLogout } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -275,33 +276,8 @@ const Navbar = ({ onOpenCart }) => {
   const [scrolled, setScrolled] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
 
-  // Auth State Setup (Simulated Auth Context)
-  const storedUserRaw = localStorage.getItem("krishisaathi_user");
-  const storedRole = localStorage.getItem("userRole");
-  const [user, setUser] = useState(
-    storedUserRaw ? JSON.parse(storedUserRaw) : (isLoggedIn ? {
-      id: "user_" + (userEmail || "anonymous"),
-      name: userEmail ? userEmail.split("@")[0] : "Demo",
-      email: userEmail || "demo@example.com",
-      role: storedRole || "buyer",
-    } : null)
-  );
-
-  // Re-sync user on prop/storage changes
-  useEffect(() => {
-    if (isLoggedIn) {
-      if (!user || user.email !== userEmail) {
-        setUser({
-          id: "user_" + (userEmail || "anonymous"),
-          name: userEmail ? userEmail.split("@")[0] : "Demo",
-          email: userEmail || "demo@example.com",
-          role: localStorage.getItem("userRole") || "buyer",
-        });
-      }
-    } else {
-      setUser(null);
-    }
-  }, [isLoggedIn, userEmail]);
+  // Derive email
+  const userEmail = user?.email || "";
 
   const mobileRef = useRef(null);
   const profileRef = useRef(null);
@@ -392,12 +368,12 @@ const Navbar = ({ onOpenCart }) => {
         const lastStatusKey = `ks_last_order_status_${userId}`;
         const prevStatus = localStorage.getItem(lastStatusKey);
 
-        if (prevStatus && prevStatus.toLowerCase() !== latestOrder.status?.toLowerCase()) {
+        if (latestOrder && prevStatus && prevStatus.toLowerCase() !== latestOrder.status?.toLowerCase()) {
           // Status changed! Notify user.
           toast.info(
             <div>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>Order Update! 📦</div>
-              <div style={{ fontSize: 13 }}>Order #{latestOrder.orderId || latestOrder._id.slice(-6).toUpperCase()} is now <span style={{ color: '#E27D60', fontWeight: 800 }}>{latestOrder.status.toUpperCase()}</span></div>
+              <div style={{ fontSize: 13 }}>Order #{latestOrder.orderId || latestOrder._id?.slice(-6).toUpperCase() || 'RECENT'} is now <span style={{ color: '#E27D60', fontWeight: 800 }}>{(latestOrder.status || 'UPDATED').toUpperCase()}</span></div>
             </div>, 
             {
               icon: '📦',
@@ -526,6 +502,7 @@ const Navbar = ({ onOpenCart }) => {
       const diff = now - date;
       const mins = Math.floor(diff / 60000);
       const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(hours / 24);
       if (mins < 1) return 'Just now';
       if (mins < 60) return `${mins}m ago`;
       if (hours < 24) return `${hours}h ago`;
@@ -610,23 +587,13 @@ const Navbar = ({ onOpenCart }) => {
     return getHeaderName();
   };
 
-  const checkIsLoggedIn = () => {
-    if (isLoggedIn && user?.uid) return true;
-    try {
-      const stored = JSON.parse(localStorage.getItem('ks_user') || 'null');
-      return !!(stored?.uid || stored?.id);
-    } catch {
-      return false;
-    }
-  };
-
-  const actuallyLoggedIn = checkIsLoggedIn();
+  const actuallyLoggedIn = isLoggedIn;
 
   // ─── Derive current role for nav/UI rendering ───
   const currentRole = (() => {
     try {
       const ksUser = JSON.parse(localStorage.getItem('ks_user') || 'null');
-      return ksUser?.role || user?.role || storedRole || 'guest';
+      return ksUser?.role || user?.role || 'guest';
     } catch { return 'guest'; }
   })();
   const navLinks = getRoleNavLinks(actuallyLoggedIn ? currentRole : 'guest');
@@ -782,41 +749,9 @@ const Navbar = ({ onOpenCart }) => {
     }
   }, []);
 
-  /* ─── Auth state ─── */
+  /* ─── Global Keyboard Listeners ─── */
   useEffect(() => {
-    const logged = localStorage.getItem("isLoggedIn") === "true";
-    const email = localStorage.getItem("userEmail") || "";
-    setIsLoggedIn(logged);
-    setUserEmail(email);
-    const onStorage = (e) => {
-      if (["isLoggedIn", "userEmail"].includes(e.key)) {
-        setIsLoggedIn(localStorage.getItem("isLoggedIn") === "true");
-        setUserEmail(localStorage.getItem("userEmail") || "");
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  /* ─── Close on outside click / Esc ─── */
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (mobileRef.current && !mobileRef.current.contains(e.target))
-        setMobileOpen(false);
-      if (profileRef.current && !profileRef.current.contains(e.target))
-        setProfileOpen(false);
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(e.target) &&
-        e.target !== inputRef.current
-      )
-        setShowSuggestions(false);
-
-      if (notifOpen && notifPanelRef.current && !notifPanelRef.current.contains(e.target) && bellRef.current && !bellRef.current.contains(e.target)) {
-        setNotifOpen(false);
-      }
-    };
-    const onKey = (e) => {
+    const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         setMobileOpen(false);
         setProfileOpen(false);
@@ -824,13 +759,9 @@ const Navbar = ({ onOpenCart }) => {
         setNotifOpen(false);
       }
     };
-    document.addEventListener("mousedown", onDocClick);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [notifOpen]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   /* ─── Search ─── */
   useEffect(() => {
@@ -903,47 +834,6 @@ const Navbar = ({ onOpenCart }) => {
     const t = setTimeout(() => setMessage(null), 2500);
     return () => clearTimeout(t);
   }, [message]);
-
-  /* ─── Logout ─── */
-  const handleLogout = () => {
-    (async () => {
-      setNotifOpen(false);
-      try {
-        const a = getAuth();
-        await signOut(a);
-      } catch { }
-      localStorage.removeItem("isLoggedIn");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("ks_user");
-      setIsLoggedIn(false);
-      setUserEmail("");
-      try { window.dispatchEvent(new CustomEvent("ks:user-logout")); } catch { }
-      toast.success("You've been logged out. See you soon! 👋", {
-        toastId: 'logout',
-        icon: '👋',
-        style: {
-          background: '#1a3a1a',
-          color: '#ffffff',
-          borderRadius: '12px',
-          border: '1px solid rgba(255,255,255,0.15)',
-          fontFamily: 'inherit',
-          fontSize: '14px',
-          fontWeight: '500',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(8px)',
-          minWidth: '280px',
-        },
-        progressStyle: { background: '#c17a4a' },
-        position: 'top-right',
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-      });
-      navigate("/login");
-    })();
-  };
 
   useEffect(() => {
     if (!actuallyLoggedIn) {
@@ -2136,8 +2026,8 @@ const Navbar = ({ onOpenCart }) => {
                           { to: "/add-product",      label: "Add Product",     icon: <Package size={15} /> },
                           { to: "/dashboard/farmer", label: "Profile Settings", icon: <Settings size={15} /> },
                         ] : [
-                          { to: "/buyerprofile",  label: "My Profile",  icon: <User size={15} /> },
-                          { to: "/orderhistory",  label: "My Orders",   icon: <ShoppingCart size={15} /> },
+                          { to: "/buyerprofile",     label: "My Profile",  icon: <User size={15} /> },
+                          { to: "/buyer-dashboard",  label: "My Orders",   icon: <ShoppingCart size={15} /> },
                       ]).map((item) => (
                         <Link
                           key={item.label}
@@ -2238,6 +2128,8 @@ const Navbar = ({ onOpenCart }) => {
             <div className="md:hidden">
               <button
                 onClick={() => setMobileOpen((s) => !s)}
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileOpen}
                 style={{
                   padding: "10px",
                   borderRadius: "12px",

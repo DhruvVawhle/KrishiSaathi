@@ -1,6 +1,6 @@
 // src/frontend/pages/About.jsx
 import React, { useEffect, useState, useRef } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Leaf,
   Users,

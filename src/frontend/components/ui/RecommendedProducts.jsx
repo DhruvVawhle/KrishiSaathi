@@ -1,6 +1,6 @@
 import React from 'react'
 import { useState } from 'react'
-import { m, AnimatePresence } from 'framer-motion'
+import { motion as m, AnimatePresence } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShoppingCart, Check,
@@ -81,13 +81,16 @@ const RecommendedProducts = () => {
     </section>
   )
 
-  if (error) return (
-    <section style={{ padding: '40px', background: '#FFF5F5', textAlign: 'center' }}>
-      <div style={{ color: '#C53030', fontWeight: 600 }}>
-        ⚠️ Could not load recommendations: {error}
-      </div>
-    </section>
-  )
+  if (error) {
+    console.error('❌ RecommendedProducts Error:', error);
+    return (
+      <section style={{ padding: '40px', background: '#FFF5F5', textAlign: 'center' }}>
+        <div style={{ color: '#C53030', fontWeight: 600 }}>
+          ⚠️ Unable to load recommendations at this time.
+        </div>
+      </section>
+    );
+  }
 
   if (!recommendations?.length) return null
 

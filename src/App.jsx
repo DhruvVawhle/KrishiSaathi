@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { LazyMotion, domAnimation } from "framer-motion";
+import { LazyMotion, domAnimation } from "motion/react";
 
 import { ProductProvider } from "./frontend/contexts/ProductContext";
 import { CartProvider } from "./frontend/contexts/CartContext";
@@ -44,11 +44,11 @@ import ProtectedRoute from "./frontend/components/ProtectedRoute";
 import { NotificationProvider } from "./frontend/contexts/NotificationContext";
 
 const LoadingFallback = () => (
-  <div style={{ 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    height: '100vh', 
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
     backgroundColor: '#F5E6CC',
     flexDirection: 'column',
     gap: '20px'
@@ -60,8 +60,8 @@ const LoadingFallback = () => (
       borderTop: '4px solid #2D4F1E',
       borderRadius: '50%',
     }} className="animate-spin" />
-    <span style={{ 
-      fontWeight: 600, 
+    <span style={{
+      fontWeight: 600,
       color: '#2D4F1E',
       fontFamily: 'DM Sans, sans-serif'
     }}>
@@ -115,7 +115,16 @@ function App() {
         <ProductProvider>
           <NotificationProvider>
             <CartProvider>
-              <ToastContainer position="top-right" />
+              <ToastContainer 
+                position="top-right" 
+                autoClose={3000} 
+                pauseOnHover={true}
+                hideProgressBar={false}
+                newestOnTop={true}
+                closeOnClick
+                rtl={false}
+                draggable
+              />
               <LazyMotion features={domAnimation}>
                 <Suspense fallback={<LoadingFallback />}>
                   <Routes>

@@ -1,6 +1,6 @@
 // src/pages/Home.jsx
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import {
   Truck,
@@ -21,6 +21,7 @@ import {
 import { useProducts } from "@/frontend/contexts/ProductContext";
 import { useUser } from "@/frontend/contexts/UserContext";
 import RecommendedProducts from "@/frontend/components/ui/RecommendedProducts";
+
 import { updateSEO } from '@/frontend/utils/seo';
 import { imagePresets } from '@/frontend/utils/imageHelper';
 import appStoreBadge from '../../assets/app-store-badge.png';
@@ -146,9 +147,72 @@ const PRODUCTS = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Priya S.", city: "Pune", initials: "PS", quote: "Vegetables arrive so fresh! My family has never eaten better." },
-  { name: "Rahul M.", city: "Mumbai", initials: "RM", quote: "Love that I'm supporting local farmers directly. Best decision!" },
-  { name: "Anita K.", city: "Delhi", initials: "AK", quote: "The terracotta packaging is beautiful and produce is always seasonal." },
+  {
+    id: 1,
+    quote: "Real-time mandi rates and direct-to-consumer reach have boosted my monthly income by 30%. Very easy to use.",
+    name: "Amit Patel",
+    role: "Dairy Farmer",
+    location: "Anand, Gujarat",
+    avatar: "AP",
+    color: "#2D4F1E",
+    rating: 5,
+    crop: "🥛 Dairy"
+  },
+  {
+    id: 2,
+    quote: "As a woman in agriculture, this platform gave me the digital tools to scale my herbal farm globally.",
+    name: "Priyanka Sharma",
+    role: "Agri-Entrepreneur",
+    location: "Bhopal, MP",
+    avatar: "PS",
+    color: "#E27D60",
+    rating: 5,
+    crop: "🌿 Herbs"
+  },
+  {
+    id: 3,
+    quote: "The logistics support is seamless. My coffee beans reach cafes in Bangalore within 24 hours of harvest.",
+    name: "Suresh Hegde",
+    role: "Coffee Farmer",
+    location: "Coorg, Karnataka",
+    avatar: "SH",
+    color: "#1A2E12",
+    rating: 5,
+    crop: "☕ Coffee"
+  },
+  {
+    id: 4,
+    quote: "KrishiSaathi has revolutionized how I sell my grapes. No more middleman headaches, and I get paid instantly!",
+    name: "Rajesh Kumar",
+    role: "Grape Farmer",
+    location: "Nashik, Maharashtra",
+    avatar: "RK",
+    color: "#2D4F1E",
+    rating: 5,
+    crop: "🍇 Grapes"
+  },
+  {
+    id: 5,
+    quote: "The platform's focus on quality helps me get the premium my organic produce deserves. Truly a blessing for us.",
+    name: "Sunita Deshmukh",
+    role: "Organic Farmer",
+    location: "Pune, Maharashtra",
+    avatar: "SD",
+    color: "#C96848",
+    rating: 5,
+    crop: "🥬 Organic"
+  },
+  {
+    id: 6,
+    quote: "KrishiSaathi's price intelligence told me the right time to sell. I made 40% more profit than last season.",
+    name: "Vikram Singh",
+    role: "Wheat Farmer",
+    location: "Ludhiana, Punjab",
+    avatar: "VS",
+    color: "#2D4F1E",
+    rating: 5,
+    crop: "🌾 Wheat"
+  }
 ];
 
 const SLIDES = [
@@ -234,6 +298,9 @@ const Home = () => {
     updateSEO('/');
   }, []);
 
+  // Testimonials hover
+  const [activeCard, setActiveCard] = useState(null);
+
   // Search
   const [query, setQuery] = useState("");
   const [openSuggestions, setOpenSuggestions] = useState(false);
@@ -290,6 +357,13 @@ const Home = () => {
       return [nextIdx, newDirection];
     });
   }, [slideCount]);
+
+  const handleKeyDown = (e, id) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setActiveCard(id);
+    }
+  };
 
   useEffect(() => {
     if (isFarmer || isPaused) return;
@@ -679,7 +753,13 @@ const Home = () => {
           viewport={{ once: true, amount: 0.3 }}
         >
           {FEATURES.map((f, i) => (
-            <motion.div className="feature-card" key={f.title} variants={fadeUp} custom={i}>
+            <motion.div 
+              className="feature-card" 
+              key={f.title} 
+              variants={fadeUp} 
+              custom={i}
+              tabIndex={0}
+            >
               <div className="feature-card__icon">
                 <f.icon size={24} />
               </div>
@@ -731,6 +811,512 @@ const Home = () => {
             </motion.div>
           ))}
         </motion.div>
+      </section>
+
+
+      {/* ═══════ 6. FEATURED PRODUCTS ═══════ */}
+      <section className="products">
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
+          variants={stagger}
+        >
+          <motion.div className="section-tag" variants={fadeUp}>Just Picked</motion.div>
+          <h2 className="section-heading" variants={fadeUp}>
+            Featured Products
+          </h2>
+          <motion.p className="section-subtitle" variants={fadeUp}>
+            Freshest produce available right now
+          </motion.p>
+        </motion.div>
+
+        <div className="products__grid">
+          {(products.length > 0 ? products.slice(0, 6) : PRODUCTS).map((p, i) => (
+            <ProductCard key={p.id || p.name} product={p} index={i} />
+          ))}
+        </div>
+
+        <motion.button
+          className="products__view-all"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => navigate("/marketplace")}
+        >
+          View All Products <ArrowRight size={18} />
+        </motion.button>
+      </section>
+
+      <RecommendedProducts />
+
+      {/* ═══════ 7. TESTIMONIALS ═══════ */}
+      <section style={{
+        background:
+          'linear-gradient(180deg,' +
+          '#F5E6CC 0%,' +
+          '#FAF0DC 50%,' +
+          '#F5E6CC 100%)',
+        padding: '88px 0',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Subtle bg pattern */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          opacity: 0.025,
+          backgroundImage:
+            'radial-gradient(' +
+            '#2D4F1E 1px,' +
+            'transparent 1px)',
+          backgroundSize: '40px 40px',
+          pointerEvents: 'none'
+        }} />
+        {/* Top wave decoration */}
+        <div style={{
+          position: 'absolute',
+          top: -1,
+          left: 0,
+          right: 0,
+          height: 60,
+          background:
+            'linear-gradient(180deg,' +
+            '#F5E6CC,transparent)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* ── Section Header ── */}
+          <div style={{
+            textAlign: 'center',
+            marginBottom: 56,
+            padding: '0 24px'
+          }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 14
+            }}>
+              <div style={{
+                width: 32,
+                height: 1.5,
+                background:
+                  'linear-gradient(90deg,' +
+                  'transparent,#E27D60)',
+                borderRadius: 999
+              }} />
+              <span style={{
+                fontFamily: 'Caveat',
+                fontSize: 18,
+                color: '#E27D60',
+                fontWeight: 600,
+                letterSpacing: '0.02em'
+              }}>
+                Success Stories
+              </span>
+              <div style={{
+                width: 32,
+                height: 1.5,
+                background:
+                  'linear-gradient(90deg,' +
+                  '#E27D60,transparent)',
+                borderRadius: 999
+              }} />
+            </div>
+
+            <h2 style={{
+              fontFamily: 'Playfair Display',
+              fontWeight: 700,
+              fontSize: 'clamp(28px,4vw,44px)',
+              color: '#2D4F1E',
+              margin: '0 0 14px',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.2
+            }}>
+              Trusted by Thousands of
+              <br />
+              <span style={{
+                color: '#E27D60',
+                fontStyle: 'italic'
+              }}>
+                Farming Families
+              </span>
+            </h2>
+
+            <p style={{
+              fontFamily: 'DM Sans',
+              fontSize: 16,
+              color: '#7A7A7A',
+              maxWidth: 520,
+              margin: '0 auto',
+              lineHeight: 1.7
+            }}>
+              Hear directly from the farmers
+              transforming Indian agriculture
+              with KrishiSaathi.
+            </p>
+
+            {/* Stats row */}
+            <div style={{
+              display: 'flex',
+              gap: 32,
+              justifyContent: 'center',
+              marginTop: 28,
+              flexWrap: 'wrap'
+            }}>
+              {[
+                { num: '500+', label: 'Farmers' },
+                { num: '4.9★', label: 'Rating' },
+                { num: '₹2Cr+', label: 'Revenue' },
+                { num: '18', label: 'States' }
+              ].map(s => (
+                <div key={s.label}
+                  style={{ textAlign: 'center' }}
+                >
+                  <div style={{
+                    fontFamily: 'Playfair Display',
+                    fontWeight: 700,
+                    fontSize: 22,
+                    color: '#2D4F1E',
+                    lineHeight: 1
+                  }}>
+                    {s.num}
+                  </div>
+                  <div style={{
+                    fontFamily: 'DM Sans',
+                    fontSize: 11,
+                    color: '#7A7A7A',
+                    marginTop: 3,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em'
+                  }}>
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Cards Grid ── */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(auto-fit,minmax(320px,1fr))',
+            gap: 24,
+            maxWidth: 1100,
+            margin: '0 auto',
+            padding: '0 24px'
+          }}>
+            {TESTIMONIALS.map((t, i) => (
+              <motion.div
+                key={t.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{
+                  opacity: 1, y: 0
+                }}
+                viewport={{
+                  once: true,
+                  margin: '-50px'
+                }}
+                transition={{
+                  duration: 0.5,
+                  delay: i * 0.1,
+                  ease: 'easeOut'
+                }}
+                onMouseEnter={() =>
+                  setActiveCard(t.id)
+                }
+                onMouseLeave={() =>
+                  setActiveCard(null)
+                }
+                tabIndex={0}
+                onKeyDown={(e) => handleKeyDown(e, t.id)}
+                style={{
+                  background: activeCard === t.id
+                    ? '#FDFAF4'
+                    : 'white',
+                  borderRadius: 20,
+                  border: activeCard === t.id
+                    ? `1.5px solid ${t.color}40`
+                    : '1.5px solid #EDD9B0',
+                  padding: '28px 28px 24px',
+                  cursor: 'default',
+                  transition: 'all 280ms ease',
+                  transform:
+                    activeCard === t.id
+                      ? 'translateY(-6px)'
+                      : 'none',
+                  boxShadow:
+                    activeCard === t.id
+                      ? '0 16px 40px rgba(45,79,30,0.12)'
+                      : '0 2px 12px rgba(45,79,30,0.06)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16
+                }}
+              >
+                {/* Decorative quote mark */}
+                <div style={{
+                  position: 'absolute',
+                  top: 16,
+                  right: 20,
+                  fontFamily: 'Georgia',
+                  fontSize: 72,
+                  color: t.color,
+                  opacity: activeCard === t.id
+                    ? 0.08 : 0.04,
+                  lineHeight: 1,
+                  transition: 'opacity 280ms',
+                  userSelect: 'none',
+                  pointerEvents: 'none'
+                }}>
+                  &ldquo;
+                </div>
+
+                {/* Top row: crop tag + stars */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '4px 12px',
+                    borderRadius: 999,
+                    background: `${t.color}12`,
+                    border: `1px solid ${t.color}25`,
+                    fontFamily: 'DM Sans',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: t.color
+                  }}>
+                    {t.crop}
+                  </span>
+                  <div style={{
+                    display: 'flex',
+                    gap: 2
+                  }}>
+                    {Array(t.rating).fill(0)
+                      .map((_, si) => (
+                      <span key={si} style={{
+                        fontSize: 12,
+                        color: '#FFB800'
+                      }}>
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Quote text */}
+                <blockquote style={{
+                  fontFamily: 'DM Sans',
+                  fontSize: 15,
+                  lineHeight: 1.75,
+                  color: '#4A4A4A',
+                  margin: 0,
+                  fontStyle: 'italic',
+                  flex: 1,
+                  position: 'relative',
+                  zIndex: 1
+                }}>
+                  &ldquo;{t.quote}&rdquo;
+                </blockquote>
+
+                {/* Divider */}
+                <div style={{
+                  height: 1,
+                  background:
+                    activeCard === t.id
+                      ? `linear-gradient(90deg,${t.color}30,transparent)`
+                      : '#EDD9B0',
+                  transition: 'background 280ms'
+                }} />
+
+                {/* Author row */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12
+                }}>
+                  <div style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: '50%',
+                    background:
+                      `linear-gradient(135deg,${t.color},${t.color}CC)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: 'DM Sans',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: 'white',
+                    flexShrink: 0,
+                    border:
+                      activeCard === t.id
+                        ? `2.5px solid ${t.color}60`
+                        : '2px solid #EDD9B0',
+                    transition: 'border 280ms',
+                    boxShadow:
+                      activeCard === t.id
+                        ? `0 4px 12px ${t.color}30`
+                        : 'none'
+                  }}>
+                    {t.avatar}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontFamily: 'DM Sans',
+                      fontWeight: 700,
+                      fontSize: 14,
+                      color: '#2D4F1E',
+                      lineHeight: 1.3
+                    }}>
+                      {t.name}
+                    </div>
+                    <div style={{
+                      fontFamily: 'DM Sans',
+                      fontSize: 12,
+                      color: '#7A7A7A',
+                      marginTop: 1
+                    }}>
+                      {t.role}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontFamily: 'DM Sans',
+                    fontSize: 11,
+                    color: '#B0A898',
+                    textAlign: 'right',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}>
+                    <span style={{ fontSize: 10 }}>
+                      📍
+                    </span>
+                    {t.location}
+                  </div>
+                </div>
+
+                {/* Bottom accent line on hover */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  height: 3,
+                  width: activeCard === t.id
+                    ? '100%' : '0%',
+                  background:
+                    `linear-gradient(90deg,${t.color},transparent)`,
+                  borderRadius: '0 0 20px 20px',
+                  transition: 'width 350ms ease'
+                }} />
+              </motion.div>
+            ))}
+          </div>
+
+          {/* ── Bottom CTA ── */}
+          <div style={{
+            textAlign: 'center',
+            marginTop: 52,
+            padding: '0 24px'
+          }}>
+            <p style={{
+              fontFamily: 'DM Sans',
+              fontSize: 15,
+              color: '#7A7A7A',
+              marginBottom: 20
+            }}>
+              Join 500+ farmers already earning
+              more with KrishiSaathi
+            </p>
+            <div style={{
+              display: 'flex',
+              gap: 12,
+              justifyContent: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <button
+                onClick={() =>
+                  navigate('/register')
+                }
+                style={{
+                  padding: '13px 28px',
+                  background:
+                    'linear-gradient(135deg,' +
+                    '#2D4F1E,#3D6B2A)',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: 'white',
+                  fontFamily: 'DM Sans',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  boxShadow:
+                    '0 4px 16px rgba(45,79,30,0.30)',
+                  transition: 'all 200ms ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform
+                    = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow
+                    = '0 8px 24px rgba(45,79,30,0.40)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform
+                    = 'none'
+                  e.currentTarget.style.boxShadow
+                    = '0 4px 16px rgba(45,79,30,0.30)'
+                }}
+              >
+                🌾 Start Selling Today
+              </button>
+              <button
+                onClick={() =>
+                  navigate('/marketplace')
+                }
+                style={{
+                  padding: '13px 28px',
+                  background: 'transparent',
+                  border: '1.5px solid #EDD9B0',
+                  borderRadius: 12,
+                  color: '#4A4A4A',
+                  fontFamily: 'DM Sans',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  transition: 'all 200ms ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor
+                    = '#2D4F1E'
+                  e.currentTarget.style.color
+                    = '#2D4F1E'
+                  e.currentTarget.style.background
+                    = 'rgba(45,79,30,0.04)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor
+                    = '#EDD9B0'
+                  e.currentTarget.style.color
+                    = '#4A4A4A'
+                  e.currentTarget.style.background
+                    = 'transparent'
+                }}
+              >
+                🛒 Browse Products
+              </button>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ═══════ 5. FARMER STORY ═══════ */}
@@ -795,76 +1381,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ═══════ 6. FEATURED PRODUCTS ═══════ */}
-      <section className="products">
-        <motion.div
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
-          variants={stagger}
-        >
-          <motion.div className="section-tag" variants={fadeUp}>Just Picked</motion.div>
-          <h2 className="section-heading" variants={fadeUp}>
-            Featured Products
-          </h2>
-          <motion.p className="section-subtitle" variants={fadeUp}>
-            Freshest produce available right now
-          </motion.p>
-        </motion.div>
-
-        <div className="products__grid">
-          {(products.length > 0 ? products.slice(0, 6) : PRODUCTS).map((p, i) => (
-            <ProductCard key={p.id || p.name} product={p} index={i} />
-          ))}
-        </div>
-
-        <motion.button
-          className="products__view-all"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => navigate("/marketplace")}
-        >
-          View All Products <ArrowRight size={18} />
-        </motion.button>
-      </section>
-
-      <RecommendedProducts />
-
-      {/* ═══════ 7. TESTIMONIALS ═══════ */}
-      <section className="testimonials">
-        <motion.div
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}
-          variants={stagger}
-        >
-          <motion.div className="section-tag" variants={fadeUp}>Happy Customers</motion.div>
-          <h2 className="section-heading section-heading--white" variants={fadeUp}>
-            What Farmers Say
-          </h2>
-        </motion.div>
-
-        <motion.div
-          className="testimonials__grid"
-          variants={stagger}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
-        >
-          {TESTIMONIALS.map((t, i) => (
-            <motion.div className="testimonial-card" key={t.name} variants={fadeUp} custom={i}>
-              <div className="testimonial-card__quote-mark">"</div>
-              <p className="testimonial-card__text">{t.quote}</p>
-              <div className="testimonial-card__footer">
-                <div className="testimonial-card__avatar">{t.initials}</div>
-                <div>
-                  <div className="testimonial-card__name">{t.name}</div>
-                  <div className="testimonial-card__city">{t.city}</div>
-                </div>
-                <div className="testimonial-card__stars" style={{ marginLeft: "auto" }}>
-                  ★★★★★
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      </section>
 
       {/* ═══════ 8. APP DOWNLOAD BANNER ═══════ */}
       <section className="app-banner" ref={bannerRef}>

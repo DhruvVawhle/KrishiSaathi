@@ -110,7 +110,7 @@ export const CartProvider = ({ children }) => {
       }]
     }
 
-    setItems(newItems)
+    setItems(structuredClone(newItems))
     await hybridService.syncCart(user.uid, newItems)
     showToast(product, quantity);
     
@@ -123,7 +123,7 @@ export const CartProvider = ({ children }) => {
     const newItems = items.filter(
       i => (i.id || i._id) !== id
     )
-    setItems(newItems)
+    setItems(structuredClone(newItems))
     await hybridService.syncCart(user.uid, newItems)
     notifications.show({
       title: '🗑️ Item removed',
@@ -149,27 +149,30 @@ export const CartProvider = ({ children }) => {
         ? { ...i, quantity }
         : i
     )
-    setItems(newItems)
+    setItems(structuredClone(newItems))
     await hybridService.syncCart(user.uid, newItems)
   }
 
-  const clearCart = async () => {
+  const clearCart = async ({ silent = false } = {}) => {
     if (!user?.uid) return;
     setItems([])
     await hybridService.syncCart(user.uid, [])
     localStorage.removeItem(`cart_${user.uid}`);
-    notifications.show({
-      title: '🧹 Cart cleared',
-      message: 'All items removed from cart',
-      color: 'gray',
-      autoClose: 3000,
-      styles: {
-        root: {
-          fontFamily: 'DM Sans',
-          borderLeft: '4px solid #7A7A7A'
+    
+    if (!silent) {
+      notifications.show({
+        title: '🧹 Cart cleared',
+        message: 'All items removed from cart',
+        color: 'gray',
+        autoClose: 3000,
+        styles: {
+          root: {
+            fontFamily: 'DM Sans',
+            borderLeft: '4px solid #7A7A7A'
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   const total = useMemo(() => 

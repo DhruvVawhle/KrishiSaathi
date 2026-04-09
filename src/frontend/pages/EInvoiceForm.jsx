@@ -31,15 +31,16 @@ const S = {
   title: { fontFamily: 'Playfair Display', fontWeight: 700, fontSize: 28, color: '#2D4F1E', margin: '0 0 4px' },
   subtitle: { fontFamily: 'Caveat', fontSize: 18, color: '#E27D60', fontWeight: 700 },
   label: { fontSize: 12, fontWeight: 700, color: '#4A4A4A', marginBottom: 6, display: 'block', letterSpacing: '0.03em' },
-  input: {
-    width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid #EDD9B0',
+  input: (focused) => ({
+    width: '100%', padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${focused ? '#2D4F1E' : '#EDD9B0'}`,
     background: '#FDFAF4', fontSize: 14, color: '#2D4F1E', outline: 'none', fontFamily: 'DM Sans',
-    transition: 'border 0.2s',
-  },
-  select: {
-    width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid #EDD9B0',
+    transition: 'all 0.2s', boxShadow: focused ? '0 0 0 3px rgba(45,79,30,0.1)' : 'none',
+  }),
+  select: (focused) => ({
+    width: '100%', padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${focused ? '#2D4F1E' : '#EDD9B0'}`,
     background: '#FDFAF4', fontSize: 14, color: '#2D4F1E', outline: 'none', fontFamily: 'DM Sans',
-  },
+    transition: 'all 0.2s', boxShadow: focused ? '0 0 0 3px rgba(45,79,30,0.1)' : 'none',
+  }),
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
   grid3: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 },
   btn: (primary) => ({
@@ -51,12 +52,14 @@ const S = {
   error: { fontSize: 12, color: '#FF5252', marginTop: 4 },
   badge: (active) => ({
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flex: 1,
+    outline: 'none',
   }),
   badgeCircle: (active, done) => ({
     width: 36, height: 36, borderRadius: '50%',
     background: done ? '#4CAF50' : active ? '#2D4F1E' : '#FDFAF4',
     border: `2px solid ${done ? '#4CAF50' : active ? '#2D4F1E' : '#EDD9B0'}`,
     display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s',
+    boxShadow: active ? '0 0 0 3px rgba(45,79,30,0.2)' : 'none',
   }),
 };
 
@@ -70,9 +73,20 @@ const EInvoiceForm = () => {
   const [irpResult, setIrpResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
-
+  const [focusedField, setFocusedField] = useState(null);
+  
   // Form State
-  const [doc, setDoc] = useState({ type: 'INV', number: '', date: new Date().toLocaleDateString('en-GB') });
+  const [doc, setDoc] = useState({
+    type: 'INV',
+    number: '',
+    date: '' // Set in useEffect to avoid hydration mismatch
+  });
+
+  useEffect(() => {
+    // Set date only on client side
+    setDoc(p => ({ ...p, date: new Date().toLocaleDateString('en-GB') }));
+  }, []);
+
   const [supplyType, setSupplyType] = useState('B2B');
   const [seller, setSeller] = useState({
     gstin: '', legalName: '', tradeName: '', addr1: '', addr2: '',
@@ -98,6 +112,36 @@ const EInvoiceForm = () => {
 
   const addItem = () => setItems(prev => [...prev, { ...EMPTY_ITEM }]);
   const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
+
+  // GSTIN Lookup with AbortController to prevent race conditions
+  useEffect(() => {
+    if (!seller.gstin || seller.gstin.length < 15) return;
+    const controller = new AbortController();
+    
+    const verifyGSTIN = async () => {
+      try {
+        const res = await fetch(`/api/einvoice/verify-gstin?gstin=${seller.gstin}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const data = await res.json();
+        if (data.success && data.taxpayer) {
+          setSeller(p => ({
+            ...p,
+            legalName: data.taxpayer.lgnm || p.legalName,
+            tradeName: data.taxpayer.trdn || p.tradeName,
+            addr1: data.taxpayer.addr?.bno || p.addr1,
+            city: data.taxpayer.addr?.loc || p.city,
+            pin: data.taxpayer.addr?.pncd || p.pin,
+            stateCode: data.taxpayer.addr?.stcd || p.stateCode,
+          }));
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error('GSTIN Verify Error:', err);
+      }
+    };
+
+    verifyGSTIN();
+    return () => controller.abort();
+  }, [seller.gstin]);
 
   // Auto-populate GST rate from HSN lookup
   const applyHSN = (idx, hsn) => {
@@ -184,7 +228,21 @@ const EInvoiceForm = () => {
         <div style={{ ...S.card, padding: '16px 24px', display: 'flex', alignItems: 'center', position: 'relative' }}>
           <div style={{ position: 'absolute', top: '50%', left: '14%', right: '14%', height: 2, background: '#EDD9B0', zIndex: 0 }} />
           {STEPS.map(s => (
-            <div key={s.id} style={S.badge(step === s.id)} onClick={() => s.id <= step && setStep(s.id)}>
+            <div
+              key={s.id}
+              role="button"
+              tabIndex={s.id <= step ? 0 : -1}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && s.id <= step) {
+                  e.preventDefault();
+                  setStep(s.id);
+                }
+              }}
+              style={S.badge(step === s.id)}
+              onClick={() => s.id <= step && setStep(s.id)}
+              aria-current={step === s.id ? 'step' : undefined}
+              aria-label={`Step ${s.id}: ${s.label}`}
+            >
               <div style={S.badgeCircle(step === s.id, step > s.id)}>
                 {step > s.id ? <Check size={14} color="white" /> : <s.icon size={14} color={step === s.id ? 'white' : '#B0A898'} />}
               </div>
@@ -195,7 +253,11 @@ const EInvoiceForm = () => {
 
         {/* Validation Errors */}
         {validationErrors.length > 0 && (
-          <div style={{ ...S.card, borderColor: 'rgba(255,82,82,0.3)', background: 'rgba(255,82,82,0.04)' }}>
+          <div
+            style={{ ...S.card, borderColor: 'rgba(255,82,82,0.3)', background: 'rgba(255,82,82,0.04)' }}
+            role="alert"
+            aria-live="assertive"
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <AlertCircle size={18} color="#FF5252" />
               <span style={{ fontWeight: 700, color: '#FF5252', fontSize: 14 }}>Validation Errors</span>
@@ -217,7 +279,13 @@ const EInvoiceForm = () => {
               <div style={S.grid3}>
                 <div>
                   <label style={S.label}>Document Type *</label>
-                  <select style={S.select} value={doc.type} onChange={e => setDoc(p => ({ ...p, type: e.target.value }))}>
+                  <select 
+                    style={S.select(focusedField === 'docType')} 
+                    onFocus={() => setFocusedField('docType')}
+                    onBlur={() => setFocusedField(null)}
+                    value={doc.type} 
+                    onChange={e => setDoc(p => ({ ...p, type: e.target.value }))}
+                  >
                     {(constants?.docTypes || [{ code: 'INV', label: 'Invoice' }, { code: 'CRN', label: 'Credit Note' }, { code: 'DBN', label: 'Debit Note' }]).map(d => (
                       <option key={d.code} value={d.code}>{d.label}</option>
                     ))}
@@ -225,11 +293,26 @@ const EInvoiceForm = () => {
                 </div>
                 <div>
                   <label style={S.label}>Invoice Number * (max 16 chars)</label>
-                  <input style={S.input} maxLength={16} placeholder="e.g. KS/2025/001" value={doc.number} onChange={e => setDoc(p => ({ ...p, number: e.target.value }))} />
+                  <input 
+                    style={S.input(focusedField === 'docNo')} 
+                    onFocus={() => setFocusedField('docNo')}
+                    onBlur={() => setFocusedField(null)}
+                    maxLength={16} 
+                    placeholder="e.g. KS/2025/001" 
+                    value={doc.number} 
+                    onChange={e => setDoc(p => ({ ...p, number: e.target.value }))} 
+                  />
                 </div>
                 <div>
                   <label style={S.label}>Invoice Date * (DD/MM/YYYY)</label>
-                  <input style={S.input} placeholder="27/03/2026" value={doc.date} onChange={e => setDoc(p => ({ ...p, date: e.target.value }))} />
+                  <input 
+                    style={S.input(focusedField === 'docDate')} 
+                    onFocus={() => setFocusedField('docDate')}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="27/03/2026" 
+                    value={doc.date} 
+                    onChange={e => setDoc(p => ({ ...p, date: e.target.value }))} 
+                  />
                 </div>
               </div>
               <div style={{ marginTop: 16 }}>

@@ -33,19 +33,41 @@ export const ProductProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Combined products: DB products + static products (deduplicated by name)
+  // Combined products: Local products + DB products + static products (deduplicated by name)
   const combinedProducts = React.useMemo(() => {
+    // Start with Firestore/DB products
     const combined = [...dbProducts];
-    const seenNames = new Set(dbProducts.map(p => p.name.toLowerCase()));
+    
+    // Add local products (offline/newly added) that aren't in DB yet
+    // Defensive check: Only add if p and p.id/_id exists
+    const dbIds = new Set(dbProducts.map(p => (p && (p.id || p._id)) ? String(p.id || p._id) : null).filter(Boolean));
+    
+    products.forEach(p => {
+      if (p && (p.id || p._id)) {
+        const idStr = String(p.id || p._id);
+        if (!dbIds.has(idStr)) {
+          combined.push(p);
+        }
+      }
+    });
 
+    // Add static products that aren't in either
+    // Defensive check: Ensure p.name is a string before calling toLowerCase
+    const seenNames = new Set(combined.map(p => 
+      (p && typeof p.name === "string") ? p.name.toLowerCase() : ""
+    ).filter(Boolean));
+    
     allProducts.forEach(p => {
-      if (!seenNames.has(p.name.toLowerCase())) {
-        combined.push(p);
+      if (p && typeof p.name === "string") {
+        const nameLower = p.name.toLowerCase();
+        if (!seenNames.has(nameLower)) {
+          combined.push(p);
+        }
       }
     });
 
     return combined;
-  }, [dbProducts]);
+  }, [dbProducts, products]);
 
   /* ---------------------- SALES LOGS ---------------------- */
   const [salesLogs, setSalesLogs] = useState(() => {
@@ -114,15 +136,16 @@ export const ProductProvider = ({ children }) => {
       farmerId: product.farmerId || "demo",
     };
 
-    setProducts((prev) => [newProduct, ...prev]);
+    // Update dbProducts instead of local products to maintain consistency with the Provider's 'products'
+    setDbProducts((prev) => [newProduct, ...prev]);
     return newProduct;
   }, []);
 
   /* ---------------------- UPDATE PRODUCT ---------------------- */
   const updateProduct = useCallback((id, updates) => {
-    setProducts((prev) =>
+    setDbProducts((prev) =>
       prev.map((p) => {
-        if (p.id === id) {
+        if (String(p.id || p._id) === String(id)) {
           const updated = { ...p, ...updates };
           if (typeof updated.price !== "number" || updated.price < 0)
             updated.price = 0;
@@ -137,37 +160,48 @@ export const ProductProvider = ({ children }) => {
 
   /* ---------------------- REMOVE PRODUCT ---------------------- */
   const removeProduct = useCallback((id) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setDbProducts((prev) => prev.filter((p) => String(p.id || p._id) !== String(id)));
   }, []);
 
   /* ---------------------- RECORD SALE ---------------------- */
   const recordSale = useCallback(
     (productId, qty = 1) => {
-      const API_BASE = "/api/payment";
-      const product = products.find((p) => p.id === productId);
-      if (!product) return null;
-
       const sellQty = Number(qty);
-      if (sellQty <= 0 || product.quantity < sellQty) return null;
+      if (sellQty <= 0) return null;
 
-      // Update stock
-      updateProduct(productId, { quantity: product.quantity - sellQty });
+      // Find the product in the current dbProducts state (which is exposed as 'products')
+      const targetProduct = dbProducts.find(p => String(p.id || p._id) === String(productId));
+      
+      if (!targetProduct || targetProduct.quantity < sellQty) {
+        console.warn(`Cannot record sale: Product ${productId} not found or insufficient quantity.`);
+        return null;
+      }
 
-      // Create sale record
-      const sale = {
+      // Create sale record outside the state updater to avoid side effects in Strict Mode
+      const saleRecord = {
         id: Date.now(),
         productId,
-        name: product.name,
+        name: targetProduct.name,
         qty: sellQty,
-        total: Number(product.price) * sellQty,
+        total: Number(targetProduct.price) * sellQty,
         date: new Date().toISOString(),
-        unit: product.unit,
+        unit: targetProduct.unit,
       };
 
-      setSalesLogs((prev) => [sale, ...prev]);
-      return sale;
+      // Set state in separate calls. Updaters are now pure.
+      setDbProducts((prev) => 
+        prev.map(p => 
+          String(p.id || p._id) === String(productId) 
+            ? { ...p, quantity: p.quantity - sellQty } 
+            : p
+        )
+      );
+      
+      setSalesLogs((prevLogs) => [saleRecord, ...prevLogs]);
+
+      return saleRecord;
     },
-    [products, updateProduct]
+    [dbProducts, setDbProducts, setSalesLogs]
   );
 
   /* ---------------------- CLEAR SALES ---------------------- */
@@ -177,10 +211,10 @@ export const ProductProvider = ({ children }) => {
 
   /* ---------------------- BULK UPDATE AFTER CHECKOUT ---------------------- */
   const updateStockAfterCheckout = useCallback((cartItems) => {
-    // Reduce product quantities for each purchased item
-    setProducts((prev) =>
+    // Reduce product quantities in dbProducts to maintain consistency
+    setDbProducts((prev) =>
       prev.map((p) => {
-        const cartItem = cartItems.find((c) => String(c.id) === String(p.id));
+        const cartItem = cartItems.find((c) => String(c.id || c._id) === String(p.id || p._id));
         if (cartItem) {
           const remaining = Math.max(0, p.quantity - cartItem.quantity);
           return { ...p, quantity: remaining };
@@ -192,7 +226,7 @@ export const ProductProvider = ({ children }) => {
 
   /* ---------------------- CLEAR ALL PRODUCTS (Admin Only) ---------------------- */
   const clearProducts = useCallback(() => {
-    setProducts([]);
+    setDbProducts([]);
   }, []);
 
   /* ---------------------- OPTIONAL BACKEND SYNC ---------------------- */
@@ -235,3 +269,5 @@ export const ProductProvider = ({ children }) => {
     </ProductContext.Provider>
   );
 };
+
+export default ProductContext;

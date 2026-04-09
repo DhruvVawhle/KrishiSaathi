@@ -10,7 +10,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/frontend/config/firebaseConfig";
 import { notifications } from "@mantine/notifications";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   IndianRupee, ShieldCheck, Package, Users,
   Leaf, Tag, Truck, Heart, User, Mail, Lock,
@@ -159,6 +159,8 @@ export default function Register() {
 
   const errorRef = useRef(null);
   const recaptchaRef = useRef(null);
+  const isProcessingRef = useRef(false);
+  const navigationTimerRef = useRef(null);
 
   // helpers for phone formatting
   const phoneDigitsOnly = useCallback((s) => (s || "").replace(/\D/g, ""), []);
@@ -260,6 +262,7 @@ export default function Register() {
         try { window.__krishiRecaptcha.clear(); } catch (e) { }
         window.__krishiRecaptcha = null;
       }
+      if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
     };
   }, []);
 
@@ -293,51 +296,74 @@ export default function Register() {
   /* --- Success Flow --- */
   const handleSuccess = (user) => {
     setIsSuccess(true);
-    setTimeout(() => {
-      onboardUser(user);
-    }, 3000);
+    // Start onboarding immediately (animation is handled in parallel)
+    onboardUser(user);
   };
 
   /* --- API Onboarding --- */
   const onboardUser = useCallback(async (user) => {
+    if (isProcessingRef.current) return; 
+    isProcessingRef.current = true;
     try {
+      setLoading(true);
       if (!user) throw new Error("No user");
+      
       let idToken = null;
       try { idToken = await user.getIdToken(true); } catch (e) {
         if (auth.currentUser) idToken = await auth.currentUser.getIdToken(true);
       }
+      
+      const payload = { uid: user.uid, name, email: user.email || "", phone: user.phoneNumber || "", role };
       const res = await fetch("/api/users/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: idToken ? `Bearer ${idToken}` : "" },
-        body: JSON.stringify({ uid: user.uid, name, email: user.email || "", phone: user.phoneNumber || "", role }),
+        body: JSON.stringify(payload),
       });
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch (e) { }
 
       if (!res.ok) {
-        const msg = (data && data.message) || `HTTP ${res.status}`;
-        notifications.show({
-          title: '❌ Onboarding failed',
-          message: msg,
-          color: 'red',
-          styles: { root: { fontFamily: 'DM Sans', background: '#FDFAF4', border: '1.5px solid #EDD9B0', borderLeft: '4px solid #FF5252', borderRadius: 12 } }
-        });
-        return;
+        throw new Error((data && data.message) || (data && data.detail) || `HTTP ${res.status}`);
       }
 
+      // 1. Set individual flags for backward compatibility
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("userRole", role);
-      if (data?.isNewUser) {
-        navigate("/onboarding");
-      } else {
-        navigate(role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard");
-      }
+      
+      // 2. Set the unified user object for UserContext reactivity
+      localStorage.setItem("ks_user", JSON.stringify({
+        uid: user.uid,
+        name,
+        email: user.email || "",
+        role,
+        photoURL: user.photoURL || ""
+      }));
+      
+      // 3. Navigate after a brief delay to allow the success animation to be seen
+      if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+      navigationTimerRef.current = setTimeout(() => {
+        if (data?.isNewUser) {
+          navigate("/onboarding");
+        } else {
+          navigate(role === "farmer" ? "/farmer-dashboard" : "/buyer-dashboard");
+        }
+      }, 3000); // 3s to match progress bar
+
     } catch (err) {
       console.error("onboard error", err);
-      notifications.show({ title: '❌ Connection Error', message: 'Could not reach server for onboarding. Please try again.', color: 'red' });
+      // Keep isSuccess(true) so the user doesn't jump back to the form, but show the error for retry
+      notifications.show({ 
+        title: '❌ Onboarding failed', 
+        message: err.message || 'Could not reach server. Please try again.', 
+        color: 'red' 
+      });
+      setInlineError(err.message || "Registration failed. Please click 'Complete Registration' to retry.");
+    } finally {
+      setLoading(false);
+      isProcessingRef.current = false;
     }
-  }, [name, role, navigate]);
+  }, [name, role, navigate, loading]);
 
   /* --- Handlers --- */
   const handleEmailRegister = async () => {
@@ -520,6 +546,14 @@ export default function Register() {
                     className="register-progress-fill"
                   />
                 </div>
+                {inlineError && (
+                  <div className="mt-6 text-center">
+                    <p className="text-red-600 mb-4">{inlineError}</p>
+                    <Button onClick={() => onboardUser(auth.currentUser)} variant="primary">
+                      Complete Registration
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             ) : (
               <motion.div

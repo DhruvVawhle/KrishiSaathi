@@ -1,6 +1,6 @@
 // src/frontend/pages/Contact.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Mail, Phone, MapPin, User, MessageSquare, Send,
   ChevronDown, Instagram, Twitter, Facebook, MessageCircle,
@@ -89,6 +89,7 @@ const Contact = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [openFaq, setOpenFaq] = useState(null);
+  const timerRef = useRef(null);
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -106,7 +107,10 @@ const Contact = () => {
 
     setIsOpen(checkOpen());
     const interval = setInterval(() => setIsOpen(checkOpen()), 60000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   const handleChange = (e) => {
@@ -161,8 +165,11 @@ const Contact = () => {
   };
 
   const resetForm = () => {
-    handleClear();
     setIsSuccess(false);
+    // Clear any existing timer before starting a new one
+    if (timerRef.current) clearTimeout(timerRef.current);
+    // Delay clearing data so AnimatePresence exit animation has the data
+    timerRef.current = setTimeout(handleClear, 500); 
   };
 
   const getCharCountColor = () => {

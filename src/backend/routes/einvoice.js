@@ -2,8 +2,15 @@ import express from 'express';
 import { buildInvoicePayload, validatePayload } from '../utils/gstPayloadBuilder.js';
 import { generateIRN, cancelIRN } from '../utils/irpClient.js';
 import { HSN_CODES, STATE_CODES, UNIT_CODES, SUPPLY_TYPES, DOC_TYPES, CANCEL_REASONS } from '../utils/gstConstants.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
+
+/**
+ * Apply authentication middleware to all e-invoice routes.
+ * Enforces authentication and provides a hook for role-based checks.
+ */
+router.use(authMiddleware);
 
 /**
  * GET /api/einvoice/constants
@@ -36,7 +43,7 @@ router.post('/build', (req, res) => {
     return res.json({ status: 'valid', payload });
   } catch (err) {
     console.error('❌ Payload Build Error:', err);
-    return res.status(500).json({ status: 'error', message: err.message });
+    return res.status(500).json({ status: 'error', message: 'Internal server error while building payload' });
   }
 });
 
@@ -78,7 +85,7 @@ router.post('/generate', async (req, res) => {
         errors: err.irpErrors,
       });
     }
-    return res.status(500).json({ status: 'error', message: err.message });
+    return res.status(500).json({ status: 'error', message: 'Internal server error while generating e-Invoice' });
   }
 });
 
@@ -92,11 +99,20 @@ router.post('/cancel', async (req, res) => {
     const { irn, reason, remark } = req.body;
     if (!irn) return res.status(400).json({ status: 'error', message: 'IRN is required' });
 
-    const result = await cancelIRN(irn, reason, remark);
+    // Validate Cancellation Reason (1-4 as per IRP schema)
+    if (reason === undefined || reason === null) {
+      return res.status(400).json({ status: 'error', message: 'Cancellation reason is required' });
+    }
+    const reasonCode = Number(reason);
+    if (isNaN(reasonCode) || ![1, 2, 3, 4].includes(reasonCode)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid cancellation reason. Allowed codes: 1 (Duplicate), 2 (Data Entry Mistake), 3 (Order Cancelled), 4 (Others)' });
+    }
+
+    const result = await cancelIRN(irn, reasonCode, remark);
     return res.json(result);
   } catch (err) {
     console.error('❌ IRN Cancel Error:', err);
-    return res.status(500).json({ status: 'error', message: err.message });
+    return res.status(500).json({ status: 'error', message: 'Internal server error while canceling IRN' });
   }
 });
 

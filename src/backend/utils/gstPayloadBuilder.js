@@ -14,12 +14,17 @@ const isInterState = (sellerStateCode, buyerStateCode) =>
 
 /**
  * Calculates tax for a single line item.
+ * Ensures CGST + SGST = total tax amount by deriving the second half via subtraction.
  */
 const calculateItemTax = (preTaxVal, gstRate, interState) => {
   const taxAmt = +(preTaxVal * (gstRate / 100)).toFixed(2);
-  return interState
-    ? { IgstAmt: taxAmt, CgstAmt: 0, SgstAmt: 0 }
-    : { IgstAmt: 0, CgstAmt: +(taxAmt / 2).toFixed(2), SgstAmt: +(taxAmt / 2).toFixed(2) };
+  if (interState) {
+    return { IgstAmt: taxAmt, CgstAmt: 0, SgstAmt: 0 };
+  } else {
+    const cgst = +(taxAmt / 2).toFixed(2);
+    const sgst = +(taxAmt - cgst).toFixed(2); // Derive second half by subtraction to avoid precision errors
+    return { IgstAmt: 0, CgstAmt: cgst, SgstAmt: sgst };
+  }
 };
 
 /**
@@ -115,7 +120,7 @@ export const buildInvoicePayload = (input) => {
       Addr1: seller.addr1,
       Addr2: seller.addr2 || '',
       Loc: seller.city,
-      Pin: Number(seller.pin),
+      Pin: Number(seller.pin || 0),
       Stcd: String(seller.stateCode),
       Ph: seller.phone || '',
       Em: seller.email || '',
@@ -129,7 +134,7 @@ export const buildInvoicePayload = (input) => {
       Addr1: buyer.addr1,
       Addr2: buyer.addr2 || '',
       Loc: buyer.city,
-      Pin: Number(buyer.pin),
+      Pin: Number(buyer.pin || 0),
       Stcd: String(buyer.stateCode),
       Ph: buyer.phone || '',
       Em: buyer.email || '',
@@ -230,8 +235,17 @@ export const validatePayload = (payload) => {
     const parts = payload.DocDtls.Dt.split('/');
     if (parts.length === 3) {
       const invDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-      const daysDiff = (Date.now() - invDate.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysDiff > 30) add('DocDtls.Dt', 'Invoice date cannot be older than 30 days', 'चालान तिथि 30 दिन से अधिक पुरानी नहीं हो सकती');
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      invDate.setHours(0, 0, 0, 0);
+      
+      const daysDiff = (now.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (daysDiff < 0) {
+        add('DocDtls.Dt', 'Invoice date cannot be in the future', 'चालान तिथि भविष्य की नहीं हो सकती');
+      } else if (daysDiff > 30) {
+        add('DocDtls.Dt', 'Invoice date cannot be older than 30 days', 'चालान तिथि 30 दिन से अधिक पुरानी नहीं हो सकती');
+      }
     }
   }
 

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { allProducts } from "@/data/products";
 import { fetchWithCache } from '../utils/fetchUtils';
 import { TTL } from '../utils/apiCache';
+
+import { useUser } from '@/frontend/contexts/UserContext';
 
 const useRecommendations = () => {
   const [recommendations, setRecommendations] = useState([])
@@ -10,21 +12,28 @@ const useRecommendations = () => {
   const [type, setType] = useState('popular')
   const [label, setLabel] = useState('Popular This Week 🔥')
 
-  // Get user
-  const user = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('ks_user')) || null
-    } catch { return null }
-  })()
-
+  // Get user dynamically from context to update on login/logout
+  const { user } = useUser() || { user: null }
   const uid = user?.uid || null
 
-  // Get browsing history fallback
-  const browsedCategories = (() => {
+  // Get popular products
+  const getPopularProducts = useCallback(() => {
+    const categories = ['Vegetables', 'Fruits', 'Dairy', 'Grains']
+    const mixed = []
+    categories.forEach(cat => {
+      const catProducts = allProducts
+        .filter(p => p.category === cat)
+        .slice(0, 2)
+      mixed.push(...catProducts)
+    })
+    return mixed.slice(0, 8)
+  }, []);
+
+  const getBrowsedCategories = useCallback(() => {
     try {
       return JSON.parse(localStorage.getItem(`ks_browsed_${uid}`) || '[]')
     } catch { return [] }
-  })()
+  }, [uid]);
 
   useEffect(() => {
     const controller = new AbortController()
@@ -86,9 +95,10 @@ const useRecommendations = () => {
 
         } else {
           // New user or fallback - use browsing history if available
-          if (!data.totalOrders && browsedCategories.length) {
+          const browsed = getBrowsedCategories();
+          if (!data.totalOrders && browsed.length) {
             const browsingBased = allProducts
-              .filter(p => browsedCategories.includes(p.category))
+              .filter(p => browsed.includes(p.category))
               .slice(0, 8)
             
             if (browsingBased.length > 0) {
@@ -123,20 +133,7 @@ const useRecommendations = () => {
     return () => {
       controller.abort()
     }
-  }, [uid])
-
-  // Get popular products
-  const getPopularProducts = () => {
-    const categories = ['Vegetables', 'Fruits', 'Dairy', 'Grains']
-    const mixed = []
-    categories.forEach(cat => {
-      const catProducts = allProducts
-        .filter(p => p.category === cat)
-        .slice(0, 2)
-      mixed.push(...catProducts)
-    })
-    return mixed.slice(0, 8)
-  }
+  }, [uid, getPopularProducts, getBrowsedCategories])
 
   return {
     recommendations,

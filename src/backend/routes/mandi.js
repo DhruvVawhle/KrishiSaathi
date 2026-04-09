@@ -1,4 +1,5 @@
 import express from 'express'
+import { LRUCache } from 'lru-cache'
 import { spawn } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -11,29 +12,17 @@ const __dirname = path.dirname(
   fileURLToPath(import.meta.url)
 )
 
-// Simple In-Memory Cache
-const CACHE = new Map();
-const TTL_HOUR = 60 * 60 * 1000;
+// Advanced LRU Cache
+const CACHE = new LRUCache({
+  max: 500, // Maximum items in cache
+  ttl: 60 * 60 * 1000, // 1 hour TTL
+});
 
-const getCache = (key) => {
-  const cached = CACHE.get(key);
-  if (!cached) return null;
-  if (Date.now() > cached.expiry) {
-    CACHE.delete(key);
-    return null;
-  }
-  return cached.data;
-};
-
-const setCache = (key, data, ttl = TTL_HOUR) => {
-  CACHE.set(key, {
-    data,
-    expiry: Date.now() + ttl
-  });
-};
+const getCache = (key) => CACHE.get(key);
+const setCache = (key, data) => CACHE.set(key, data);
 
 // Run Python script helper
-const runPython = (args, timeout = 20000) => {
+const runPython = (args, timeout = 45000) => {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(
       __dirname,
@@ -150,13 +139,20 @@ const formatCommodityForApi = (name) => {
 const fetchLiveMandiData = async (
   commodity = null,
   limit = 100,
-  state = null
+  state = null,
+  date = null
 ) => {
-  const API_KEY =
-    '579b464db66ec23bdd000001' +
-    '8b0c1dfe712d4a6946c232e17f9666dc'
+  const API_KEY = process.env.DATA_GOV_API_KEY;
+
+  if (!API_KEY) {
+    const error = new Error('MANDI_API_KEY is not configured on the server');
+    error.code = 'MISSING_API_KEY';
+    error.status = 503;
+    throw error;
+  }
 
   const RESOURCE_ID =
+    process.env.DATA_GOV_RESOURCE_ID ||
     '5921640d-851d-4de9-9c31-c4d7195a7953'
 
   try {
@@ -182,6 +178,13 @@ const fetchLiveMandiData = async (
     if (state && state !== 'all') {
       url += `&filters[state]=` +
         encodeURIComponent(state)
+    }
+
+    // Add date filter (arrival_date format from frontend: DD/MM/YYYY)
+    if (date) {
+      url += `&filters[arrival_date]=` +
+        encodeURIComponent(date)
+      console.log(`[API] Date filter applied: ${date}`)
     }
 
     console.log(
@@ -232,10 +235,8 @@ const fetchLiveMandiData = async (
         )
       }
 
-      console.warn(
-        '[API] No records returned'
-      )
-      return []
+      // If no records, throw error to trigger fallback
+      throw new Error(`No records returned from API for commodity: ${apiCommodity || 'all'}`);
     }
 
     // Parse records
@@ -286,18 +287,7 @@ const fetchLiveMandiData = async (
 
     return validRecords
 
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      console.warn(
-        '[API] ⏱️ Request timed out'
-      )
-    } else {
-      console.warn(
-        '[API] ❌ Error:',
-        err.message
-      )
-    }
-    return []
+    throw err;
   }
 }
 
@@ -383,10 +373,11 @@ router.get('/predict', async (req, res) => {
     const {
       commodity = 'Tomato',
       current_price = '45',
-      state = ''
+      state = '',
+      market = 'Delhi'
     } = req.query
 
-    const cacheKey = `predict:${commodity}:${current_price}:${state}`;
+    const cacheKey = `predict:${commodity}:${current_price}:${state}:${market}`;
     const cached = getCache(cacheKey);
     if (cached) {
       console.log(`[api/predict] ⚡ Cache Hit: ${cacheKey}`);
@@ -396,21 +387,23 @@ router.get('/predict', async (req, res) => {
     // Try to get live data to pass to predictor
     let liveDataArg = ""
     try {
-      const live = await fetchLiveMandiData(commodity, 10, state)
-      if (live.length > 0) {
-        liveDataArg = JSON.stringify(live)
+      const live = await fetchLiveMandiData(commodity, 20, state)
+      if (live && live.length > 0) {
+        // Only pass if it's manageable size
+        liveDataArg = JSON.stringify(live.slice(0, 50))
       }
     } catch (e) {
       console.log("No live data for prediction augmentation")
     }
 
+    // New Arg Order: predict, commodity, price, state, market, liveData
     const prediction = await runPython([
-      'predict', commodity, current_price, liveDataArg
+      'predict', commodity, current_price, state || 'Maharashtra', market || 'Delhi', liveDataArg
     ])
 
-    if (!prediction.success) {
+    if (!prediction || (prediction.success === false)) {
       throw new Error(
-        prediction.error || 'Prediction failed'
+        prediction.error || 'Prediction calculation failed'
       )
     }
 
@@ -668,8 +661,11 @@ router.get('/today', async (req, res) => {
   try {
     const state = req.query.state || ''
     const commodity = req.query.commodity || ''
+    const date = req.query.date || ''
+
+    console.log(`[${requestId}] 📅 Date filter: ${date || 'none (latest)'}`)
     
-    const cacheKey = `today:${state}:${commodity}:${req.query.date || 'now'}`;
+    const cacheKey = `today:${state}:${commodity}`;
     const cached = getCache(cacheKey);
     if (cached) {
       console.log(`[api/today] ⚡ Cache Hit: ${cacheKey}`);
@@ -680,7 +676,7 @@ router.get('/today', async (req, res) => {
     let livePrices = []
     try {
       console.log(`[${requestId}] 📡 Fetching live data for state: ${state}, commodity: ${commodity}`);
-      const live = await fetchLiveMandiData(commodity, 200, state)
+      const live = await fetchLiveMandiData(commodity, 200, state, date || null)
       
       if (Array.isArray(live) && live.length > 0) {
         console.log(`[${requestId}] ✅ Found ${live.length} live records for ${state}`);

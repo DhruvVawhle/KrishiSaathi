@@ -19,10 +19,18 @@ export default function ProtectedRoute({ children, allowedRoles = null, role = n
   const userRole = localStorage.getItem("userRole"); // "farmer" | "buyer"
   const tokenExpiry = localStorage.getItem("tokenExpiry");
 
-  // 🕒 Check expiry (pure check)
+  // 🕒 Check expiry (pure check with validation)
   if (tokenExpiry) {
     const expiry = new Date(tokenExpiry);
-    if (expiry <= new Date()) {
+    const isInvalid = isNaN(expiry.getTime());
+
+    if (isInvalid || expiry <= new Date()) {
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("token");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("tokenExpiry");
+      localStorage.removeItem("ks_user");
       return <Navigate to="/login" replace state={{ from: location }} />;
     }
   }

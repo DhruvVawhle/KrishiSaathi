@@ -42,7 +42,7 @@ const Input = ({
         : 'none'
 
   return (
-    <div style={{ width: '100%', ...style }}>
+    <div style={{ width: '100%', marginBottom: noMargin ? 0 : 20, ...style }}>
 
       {/* Label */}
       {label && (

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { CheckCircle, Home, Package, Truck, Clock, FileText } from 'lucide-react'
+import { motion } from 'motion/react'
+import { CheckCircle, Home, Package, Truck, Clock, FileText, Loader2 } from 'lucide-react'
 import { generateInvoice } from '../utils/invoiceGenerator'
 
 const OrderTimeline = ({ status = 'confirmed' }) => {
@@ -41,7 +41,9 @@ const ThankYou = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { id } = useParams()
-  const [countdown, setCountdown] = useState(5)
+  const [countdown, setCountdown] = useState(10)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
 
   // Get orderId from state OR params
   const orderId = location.state?.orderId
@@ -56,6 +58,8 @@ const ThankYou = () => {
 
   // Auto redirect countdown
   useEffect(() => {
+    if (isPaused) return
+
     if (countdown <= 0) {
       navigate('/orderhistory')
       return
@@ -64,7 +68,22 @@ const ThankYou = () => {
       setCountdown(prev => prev - 1)
     }, 1000)
     return () => clearInterval(timer)
-  }, [countdown, navigate])
+  }, [countdown, navigate, isPaused])
+
+  const handleDownloadInvoice = async () => {
+    if (!location.state?.orderData) return
+    setIsGenerating(true)
+    setIsPaused(true)
+    try {
+      await generateInvoice(location.state.orderData)
+    } catch (err) {
+      console.error('Invoice generation failed:', err)
+    } finally {
+      setIsGenerating(false)
+      // Stay paused for a bit so they can see the file download
+      setTimeout(() => setIsPaused(false), 3000)
+    }
+  }
 
   return (
     <div style={{
@@ -196,10 +215,11 @@ const ThankYou = () => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => generateInvoice(location.state.orderData)}
+              onClick={handleDownloadInvoice}
+              disabled={isGenerating}
               style={{
                 marginTop: 18,
-                background: '#2D4F1E',
+                background: isGenerating ? '#B0A898' : '#2D4F1E',
                 color: 'white',
                 border: 'none',
                 borderRadius: 10,
@@ -207,14 +227,23 @@ const ThankYou = () => {
                 fontFamily: 'DM Sans',
                 fontSize: 13,
                 fontWeight: 700,
-                cursor: 'pointer',
+                cursor: isGenerating ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                boxShadow: '0 4px 12px rgba(45,79,30,0.15)'
+                boxShadow: '0 4px 12px rgba(45,79,30,0.15)',
+                opacity: isGenerating ? 0.8 : 1
               }}
             >
-              <FileText size={16} /> Download Real Invoice
+              {isGenerating ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Preparing...
+                </>
+              ) : (
+                <>
+                  <FileText size={16} /> Download Invoice
+                </>
+              )}
             </motion.button>
           )}
         </motion.div>
@@ -276,7 +305,9 @@ const ThankYou = () => {
           borderRadius: 8,
           display: 'inline-block'
         }}>
-          Auto-redirecting to <strong>My Orders</strong> in <span style={{ color: '#E27D60', fontWeight: 800 }}>{countdown}s</span>
+          <div style={{ color: '#B0A898', fontSize: 12, fontWeight: 500 }}>
+            {isPaused ? 'Redirect paused while downloading...' : `Redirecting in ${countdown}s...`}
+          </div>
         </div>
       </motion.div>
     </div>

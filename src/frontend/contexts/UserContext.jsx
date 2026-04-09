@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "@/frontend/config/firebaseConfig";
+import { auth, db } from "@/frontend/config/firebaseConfig";
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import * as hybridService from "../services/hybridService";
 
 const UserContext = createContext({
@@ -8,6 +9,9 @@ const UserContext = createContext({
   setUser: () => {},
   clearUser: () => {},
   isLoggedIn: false,
+  handleLogout: async () => {},
+  orderHistory: [],
+  setOrderHistory: () => {}
 });
 
 export const UserProvider = ({ children }) => {
@@ -15,7 +19,32 @@ export const UserProvider = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [orderHistory, setOrderHistory] = useState([]);
 
-  const saveUserToBothDatabases = async (firebaseUser, role = 'buyer') => {
+  const saveUserToBothDatabases = async (firebaseUser, role) => {
+    // Preserve existing role if not explicitly provided
+    const stored = localStorage.getItem('ks_user');
+    let currentRole = role;
+    
+    if (!currentRole && stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const ALLOWED_ROLES = ['buyer', 'farmer', 'seller', 'admin'];
+        
+        // Validate UID match and Role whitelist
+        if (parsed && parsed.uid === firebaseUser.uid && ALLOWED_ROLES.includes(parsed.role)) {
+          currentRole = parsed.role;
+        } else {
+          console.warn("Invalid user data in storage:", { 
+            uidMatch: parsed?.uid === firebaseUser.uid, 
+            roleValid: ALLOWED_ROLES.includes(parsed?.role) 
+          });
+        }
+      } catch (e) {
+        console.error("Error parsing stored user data:", e, "Stored value:", stored);
+      }
+    }
+    
+    if (!currentRole) currentRole = 'buyer';
+
     const userData = {
       uid: firebaseUser.uid,
       name: firebaseUser.displayName
@@ -23,7 +52,7 @@ export const UserProvider = ({ children }) => {
         || 'User',
       email: firebaseUser.email || '',
       phone: firebaseUser.phoneNumber || '',
-      role: role,
+      role: currentRole,
       photoURL: firebaseUser.photoURL || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -34,8 +63,6 @@ export const UserProvider = ({ children }) => {
 
     // Save to Firestore
     try {
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
-      const { db } = await import('../config/firebaseConfig')
       await setDoc(
         doc(db, 'users', firebaseUser.uid),
         {
@@ -98,17 +125,25 @@ export const UserProvider = ({ children }) => {
     try {
       await signOut(auth);
       
-      // 🔥 CLEAR ALL CACHES & STORAGE
-      localStorage.clear();
-      sessionStorage.clear();
+      // 🔥 TARGETED STORAGE CLEANUP
+      localStorage.removeItem('ks_user');
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userEmail');
+      sessionStorage.removeItem('ks_cart_draft');
       
       // Clear state
       setUser(null);
       setIsLoggedIn(false);
       setOrderHistory([]);
 
-      console.log("Logout successful, navigating to login...");
-      window.location.href = "/login";
+      console.log("Logout successful, handling redirection...");
+      const path = window.location.pathname;
+      if (path.includes('dashboard') || path.includes('profile') || path.includes('checkout')) {
+        window.location.href = "/";
+      } else {
+        window.location.reload();
+      }
     } catch (err) {
       console.error("Logout error:", err);
     }
@@ -116,9 +151,10 @@ export const UserProvider = ({ children }) => {
 
   const clearUser = () => {
     setUser(null);
+    setIsLoggedIn(false);
     setOrderHistory([]);
-    localStorage.clear();
-    sessionStorage.clear();
+    localStorage.removeItem('ks_user');
+    localStorage.removeItem('isLoggedIn');
   };
 
   return (
