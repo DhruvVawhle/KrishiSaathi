@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Check,
   Star,
-  Smartphone,
   ChevronLeft,
 } from "lucide-react";
 
@@ -24,7 +23,7 @@ import RecommendedProducts from "@/frontend/components/ui/RecommendedProducts";
 
 import { updateSEO } from '@/frontend/utils/seo';
 import { imagePresets } from '@/frontend/utils/imageHelper';
-import appStoreBadge from '../../assets/app-store-badge.png';
+
 
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";

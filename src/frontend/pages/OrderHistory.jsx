@@ -15,7 +15,7 @@ import Card from '@/frontend/components/ui/Card'
 
 // Backend URL — proxied via Vite to userserver on port 5002
 import { useUser } from '@/frontend/contexts/UserContext';
-import { notifications } from '@mantine/notifications';
+
 
 // Backend URL — proxied via Vite to userserver on port 5001
 const API_BASE = "";
@@ -72,9 +72,9 @@ const OrderHistory = () => {
     if (user) {
       fetchOrders();
     }
-  }, [user, isLoggedIn, loading, navigate])
+  }, [user, isLoggedIn, loading, navigate, fetchOrders])
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     if (!user) return;
     setLoading(true)
     setError(null)
@@ -109,7 +109,7 @@ const OrderHistory = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user]);
 
   // STATUS CONFIG
   const STATUS = {

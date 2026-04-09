@@ -28,6 +28,8 @@ import {
 
 // Framer Motion
 import { motion, AnimatePresence } from "motion/react";
+import { auth, db } from "../config/firebaseConfig";
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 // Lucide icons
 import {
@@ -37,23 +39,11 @@ import {
   Bell,
   Settings,
   LogOut,
-  Upload,
-  Download,
-  Search,
-  Filter,
-  Grid,
-  List,
-  ArrowUp,
-  ArrowDown,
-  Minus,
-  Check,
-  X,
   Menu,
-  PackageOpen,
-  Edit2,
-  Eye,
-  Trash2,
-  Plus
+  Search,
+  ChevronRight,
+  TrendingUp,
+  Package
 } from 'lucide-react'
 
 import { useUser } from "@/frontend/contexts/UserContext";
@@ -415,7 +405,7 @@ const FarmerDashboard = () => {
     }
   });
 
-  // const [profileSuccess, setProfileSuccess] = useState('')
+  const [profileSuccess, setProfileSuccess] = useState('');
   // const [profileError, setProfileError] = useState('')
 
   const calculateProfit = (
@@ -843,18 +833,8 @@ const FarmerDashboard = () => {
       let firebaseSaved = false
       let mongoSaved = false
 
-      // ── SAVE TO FIRESTORE ──────────
+        // ── SAVE TO FIRESTORE ──────────
       try {
-        const {
-          doc,
-          setDoc,
-          serverTimestamp
-        } = await import(
-          'firebase/firestore'
-        )
-        const { db } = await import(
-          '../config/firebaseConfig'
-        )
 
         await setDoc(
           doc(db, 'users', uid),
