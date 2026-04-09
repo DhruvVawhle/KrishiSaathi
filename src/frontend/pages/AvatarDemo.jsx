@@ -8,7 +8,7 @@ import {
   DealerAvatar,
   AdminAvatar 
 } from "@/frontend/components/AvatarWrappers"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/frontend/components/ui/Card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/frontend/components/ui/Card.jsx"
 
 const demoMembers = [
   { name: "Ramesh Sharma", photoUrl: "https://i.pravatar.cc/150?u=ramesh" },
