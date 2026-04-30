@@ -1,6 +1,6 @@
 // src/components/HeroSlider.jsx
 import React, { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
 /**
  * Combined Hero Styles:

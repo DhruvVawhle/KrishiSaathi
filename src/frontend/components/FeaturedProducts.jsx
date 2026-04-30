@@ -1,7 +1,7 @@
 // ✅ src/components/FeaturedProducts.jsx (Enhanced v2)
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   MapPin,
   User,

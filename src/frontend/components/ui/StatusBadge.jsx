@@ -7,17 +7,35 @@ const STATUS_CONFIG = {
     bg: 'rgba(45,79,30,0.10)',
     icon: '✓'
   },
+  placed: {
+    label: 'Order Placed',
+    color: '#3B82F6',
+    bg: 'rgba(59, 130, 246, 0.10)',
+    icon: '🛒'
+  },
   processing: {
     label: 'Processing',
     color: '#E27D60',
     bg: 'rgba(226,125,96,0.10)',
     icon: '⟳'
   },
+  packed: {
+    label: 'Packed',
+    color: '#8B5CF6',
+    bg: 'rgba(139, 92, 246, 0.10)',
+    icon: '📦'
+  },
   shipped: {
     label: 'Shipped',
     color: '#F0A080',
     bg: 'rgba(240,160,128,0.10)',
     icon: '🚚'
+  },
+  out_for_delivery: {
+    label: 'Out for Delivery',
+    color: '#14B8A6',
+    bg: 'rgba(20, 184, 166, 0.10)',
+    icon: '🛵'
   },
   delivered: {
     label: 'Delivered',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "@/frontend/contexts/ToastContext";
 import Button from "@/frontend/components/ui/Button";
 import Input from "@/frontend/components/ui/Input";
@@ -8,11 +8,11 @@ import Card from "@/frontend/components/ui/Card";
 import EmptyState from "@/frontend/components/ui/EmptyState";
 import { auth, db } from "@/frontend/config/firebaseConfig";
 import { onAuthStateChanged, updateProfile as updateAuthProfile } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import axios from "axios";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+
 import {
   Edit2, Mail, Phone, MapPin, Building2, Hash,
-  ShoppingBag, Heart, Truck, HelpCircle,
+  ShoppingBag, Heart, Truck, CircleHelp,
   Search, Package, Settings, ChevronRight
 } from "lucide-react";
 import "./BuyerProfile.css";
@@ -42,7 +42,7 @@ export default function BuyerProfile() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [_loadingOrders, setLoadingOrders] = useState(true);
   const [orderFilter, setOrderFilter] = useState('All');
   const [orderSearch, setOrderSearch] = useState('');
   const [notifSettings, setNotifSettings] = useState({
@@ -75,7 +75,7 @@ export default function BuyerProfile() {
   // 3. Effect Hooks
   useEffect(() => {
     const cached = localStorage.getItem("buyerProfile");
-    if (cached) { try { setProfileData(JSON.parse(cached)); } catch (e) { } }
+    if (cached) { try { setProfileData(JSON.parse(cached)); } catch { } }
 
     const fetchOrders = async (uid) => {
       setLoadingOrders(true);
@@ -122,7 +122,7 @@ export default function BuyerProfile() {
       toast.success("Profile saved successfully");
       localStorage.setItem("buyerProfile", JSON.stringify({ ...profileData }));
       setIsEditMode(false);
-    } catch (err) { toast.error("Failed to save profile"); }
+    } catch { toast.error("Failed to save profile"); }
     finally { setIsSaving(false); }
   };
 
@@ -358,7 +358,7 @@ export default function BuyerProfile() {
               <ChevronRight className="bp-q-arrow" size={14} />
             </div>
             <Link to="/support" className="bp-q-action">
-              <HelpCircle className="bp-q-icon" size={16} />
+              <CircleHelp className="bp-q-icon" size={16} />
               <span className="bp-q-text">Get Support</span>
               <ChevronRight className="bp-q-arrow" size={14} />
             </Link>

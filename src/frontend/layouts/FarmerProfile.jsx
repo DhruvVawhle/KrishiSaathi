@@ -28,7 +28,7 @@ function readProfileFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (e) {
+  } catch {
     // ignore parse errors
   }
 
@@ -88,7 +88,7 @@ export default function FarmerProfile() {
       setStatusMsg("Profile saved.");
       statusTimeoutRef.current = setTimeout(() => setStatusMsg(""), 3500);
       setEditing(false);
-    } catch (err) {
+    } catch {
       setStatusMsg("Failed to save profile — localStorage error.");
       statusTimeoutRef.current = setTimeout(() => setStatusMsg(""), 3500);
     }
@@ -179,7 +179,7 @@ export default function FarmerProfile() {
             <div className="relative">
               <div className="w-28 h-28 rounded-full bg-gray-100 overflow-hidden border">
                 {profile.avatarBase64 ? (
-                  // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                  
                   <img src={profile.avatarBase64} alt="Profile avatar" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-3xl text-green-700">

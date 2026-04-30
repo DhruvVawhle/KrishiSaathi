@@ -11,15 +11,28 @@ import Product from './models/Product.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '../../.env') });
+dotenv.config({ path: join(__dirname, '.env') });
+dotenv.config({ path: join(__dirname, '../../.env') }); // Fallback for root vars
 
-const serviceAccountPath = join(__dirname, '../../serviceAccountKey.json');
+const serviceAccountPath = join(__dirname, './serviceAccountKey.json');
 
 async function migrate() {
-  if (!fs.existsSync(serviceAccountPath)) {
-    console.error('\n❌ ERROR: Service account key not found at:', serviceAccountPath);
+  let sa;
+
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+    sa = {
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    };
+    console.log('✅ Initializing Firebase Admin from env variables');
+  } else if (fs.existsSync(serviceAccountPath)) {
+    sa = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    console.log('✅ Initializing Firebase Admin from file:', serviceAccountPath);
+  } else {
+    console.error('\n❌ ERROR: Firebase credentials not found (no env variables or serviceAccountKey.json)');
     console.log('------------------------------------------------------------------');
-    console.log('To run this migration, you need a Firebase Service Account JSON:');
+    console.log('To run this migration, either set environment variables or:');
     console.log('1. Go to Firebase Console > Project Settings > Service Accounts.');
     console.log('2. Click "Generate new private key".');
     console.log('3. Save the file as "serviceAccountKey.json" in the project root.');
@@ -27,10 +40,8 @@ async function migrate() {
     process.exit(1);
   }
 
-  const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(sa)
   });
 
   const db = admin.firestore();

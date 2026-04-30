@@ -1,4 +1,4 @@
-import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { motion, useInView, useReducedMotion } from 'motion/react'
 import React, { useRef } from 'react'
 
 export const FadeIn = ({ children, delay = 0, y = 24 }) => {

@@ -17,7 +17,11 @@ export function initFirebaseFromEnv() {
       initialized = true;
       console.log("✅ Firebase Admin initialized from env JSON");
     } else if (p) {
-      const keyPath = path.resolve(process.cwd(), p);
+      let keyPath = path.resolve(process.cwd(), p);
+      if (!fs.existsSync(keyPath)) {
+        const fb = path.resolve(__dirname, "../", p);
+        if (fs.existsSync(fb)) keyPath = fb;
+      }
       if (fs.existsSync(keyPath)) {
         const saRaw = fs.readFileSync(keyPath, "utf8");
         const sa = JSON.parse(saRaw);

@@ -25,7 +25,7 @@ import {
   Sparkles,
   ChevronLeft,
   CreditCard,
-  AlertCircle,
+  CircleAlert,
 } from "lucide-react";
 
 import "./Login.css";
@@ -674,7 +674,7 @@ export default function Login() {
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
               >
-                <AlertCircle size={16} /> {inlineError}
+                <CircleAlert size={16} /> {inlineError}
               </motion.div>
             )}
           </AnimatePresence>

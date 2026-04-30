@@ -31,6 +31,9 @@ export const getCartRealtime = (uid, callback) => {
     } else {
       callback([]);
     }
+  }, (err) => {
+    console.warn('Cart realtime (Firestore):', err.message);
+    callback([]);
   });
 };
 

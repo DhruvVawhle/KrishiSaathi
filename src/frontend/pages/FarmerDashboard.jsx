@@ -43,7 +43,12 @@ import {
   Search,
   ChevronRight,
   TrendingUp,
-  Package
+  Package,
+  PackageOpen,
+  Edit2,
+  Eye,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react'
 
 import { useUser } from "@/frontend/contexts/UserContext";
@@ -998,6 +1003,17 @@ const FarmerDashboard = () => {
     }));
   };
 
+  const startEditRow = (product) => {
+    setEditingRows(prev => ({
+      ...prev,
+      [product._id || product.id]: {
+        price: product.price,
+        quantity: product.quantity,
+        isPublished: product.isPublished
+      }
+    }));
+  };
+
   const cancelEditRow = (id) => {
     setEditingRows(prev => {
       const copy = { ...prev };
@@ -1046,6 +1062,7 @@ const FarmerDashboard = () => {
     navigate("/login");
   }, [navigate]);
 
+  /*
   const debouncedUpdate = (id, changes, delay = 800) => {
     if (updateTimersRef.current[id]) clearTimeout(updateTimersRef.current[id]);
     updateTimersRef.current[id] = setTimeout(() => {
@@ -1059,6 +1076,7 @@ const FarmerDashboard = () => {
       delete updateTimersRef.current[id];
     }, delay);
   };
+  */
 
   const handleTogglePublish = async (productId, currentStatus) => {
     try {

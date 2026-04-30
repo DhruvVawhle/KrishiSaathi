@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence }
-  from 'framer-motion'
+  from 'motion/react'
 import {
   CheckCircle, XCircle,
   AlertTriangle, Info, X

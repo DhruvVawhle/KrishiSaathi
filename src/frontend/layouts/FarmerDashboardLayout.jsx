@@ -9,9 +9,8 @@ import {
   PlusSquare,
   Home,
   Search,
-  X,
 } from "lucide-react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 
 /**
  * FarmerDashboardLayout (profile-integrated)
@@ -92,7 +91,7 @@ export default function FarmerDashboardLayout() {
           avatarBase64: "",
         });
       }
-    } catch (e) {
+    } catch {
       // fallback
       setProfile({
         displayName: (localStorage.getItem("userEmail") || "").split("@")[0] || "",

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   X,
   Trash2,
@@ -225,7 +225,7 @@ export default function CartSidebar({ open, onClose }) {
               ) : (
                 <motion.div layout className="cs-items-list">
                   <AnimatePresence mode="popLayout">
-                  {cartItems.map((item, index) => {
+                  {cartItems.map((item) => {
                     const qty = Number(item.quantity) || 0;
                     const price = Number(item.price) || 0;
                     const lineTotal = price * qty;

@@ -15,7 +15,7 @@ const OrderTimeline = ({ status = 'confirmed' }) => {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', margin: '30px 0', position: 'relative' }}>
       <div style={{ position: 'absolute', top: '20px', left: '10%', right: '10%', height: '2px', background: '#EDD9B0', zIndex: 0 }} />
-      {steps.map((step, idx) => (
+      {steps.map((step, _) => (
         <div key={step.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, zIndex: 1, width: '25%' }}>
           <div style={{
             width: 40,

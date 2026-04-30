@@ -2,7 +2,7 @@ import {
   doc, getDoc, setDoc,
   updateDoc, deleteDoc,
   collection, query, where,
-  orderBy, limit, getDocs,
+  limit, getDocs,
   onSnapshot, addDoc,
   serverTimestamp
 } from 'firebase/firestore'
@@ -178,7 +178,7 @@ export const getProductsFromFirestore = async (
       ...d.data()
     }))
   } catch (err) {
-    console.error('getProducts:', err)
+    console.warn('getProducts (Firestore):', err.message)
     return []
   }
 }
@@ -199,7 +199,7 @@ export const getFarmerProductsFromFirestore = async (
       ...d.data()
     }))
   } catch (err) {
-    console.error('getFarmerProducts:', err)
+    console.warn('getFarmerProducts (Firestore):', err.message)
     return []
   }
 }
@@ -223,7 +223,7 @@ export const getProductsRealtime = (
       callback(products)
     },
     (err) => {
-      console.error('Products realtime:', err)
+      console.warn('Products realtime:', err.message)
       callback([])
     }
   )
@@ -325,7 +325,7 @@ export const getNotificationsRealtime = (uid, callback) => {
       callback([])
     }
   }, (err) => {
-    console.error('Notifications realtime:', err)
+    console.warn('Notifications realtime:', err.message)
     callback([])
   })
 }

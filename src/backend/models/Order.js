@@ -59,12 +59,19 @@ const OrderSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      'confirmed', 'preparing',
-      'dispatched', 'delivered',
-      'cancelled'
+      'placed', 'processing', 'packed',
+      'shipped', 'out_for_delivery', 'delivered',
+      'cancelled', 'returned', 'failed_delivery'
     ],
-    default: 'confirmed'
+    default: 'placed'
   },
+  statusHistory: [
+    {
+      status: String,
+      timestamp: { type: Date, default: Date.now },
+      message: String
+    }
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

@@ -1,0 +1,17 @@
+# Don't upload to Vercel
+node_modules
+src/backend
+src/Python
+src/backend/data/*.csv
+*.py
+*.joblib
+tmp/
+tmp_output.json
+tmp_stderr.txt
+test_order.json
+start-backend.bat
+start-backend.sh
+scripts/
+.env
+.env.local
+.venv

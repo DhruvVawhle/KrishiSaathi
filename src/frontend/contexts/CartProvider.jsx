@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useState,
 } from "react";
-import { toast } from "react-toastify";
+// toast available for cart notifications
 import { auth } from "@/frontend/config/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import debounce from "lodash.debounce";
@@ -81,7 +81,7 @@ export const CartProvider = ({ children }) => {
     ...initialState,
     cart: JSON.parse(localStorage.getItem("cart") || "[]"),
   });
-  const [uid, setUid] = useState(null);
+  const [_uid, setUid] = useState(null);
 
   // 🧮 Total calculation
   const total = useMemo(
@@ -100,7 +100,7 @@ export const CartProvider = ({ children }) => {
     try {
       const stored = JSON.parse(localStorage.getItem("cart") || "[]");
       dispatch({ type: "LOAD_CART_SUCCESS", payload: stored });
-    } catch (err) {
+    } catch {
       dispatch({ type: "LOAD_CART_ERROR", payload: "Failed to load cart" });
     }
   }, []);

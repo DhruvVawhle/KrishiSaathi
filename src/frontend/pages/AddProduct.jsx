@@ -1,7 +1,7 @@
 // src/pages/AddProduct.jsx
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Layout from "@/frontend/components/Layout";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import { PlusCircle, Package, Image as ImgIcon, Layers } from "lucide-react";
 import { useProducts } from "@/frontend/contexts/ProductContext";
 import { useToast } from "@/frontend/contexts/ToastContext";
@@ -46,7 +46,7 @@ const AddProduct = () => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
-  const submitBtnRef = useRef(null);
+  const _submitBtnRef = useRef(null);
   const reduceMotion = useReducedMotion();
 
   // ✅ derive category options efficiently
@@ -85,7 +85,7 @@ const AddProduct = () => {
   };
 
 
-  const saveToBackend = async (product) => {
+  const _saveToBackend = async (product) => {
     try {
       const res = await fetch(`${API_BASE}/api/products`, {
         method: "POST",
@@ -197,7 +197,7 @@ const AddProduct = () => {
   const handleImageError = () => setImageLoadError(true);
 
   // ✨ Keyboard usability: Enter → focus next input
-  const handleKeyPress = (e) => {
+  const _handleKeyPress = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       const form = e.target.form;

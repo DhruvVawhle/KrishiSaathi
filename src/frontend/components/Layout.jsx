@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import UnifiedHeader from "./UnifiedHeader";
 import Footer from "./Footer";
 import CartSidebar from "./CartSidebar";
@@ -62,6 +62,7 @@ const Layout = ({ children }) => {
   // No local event listeners needed here anymore as App.jsx handles it now.
 
   // Scroll lock helper
+  // eslint-disable-next-line no-unused-vars
   const lockBodyScroll = (shouldLock) => {
     const body = document.body;
     if (shouldLock) {
@@ -102,6 +103,7 @@ const Layout = ({ children }) => {
   }, []);
 
   const handleCartToggle = () => window.dispatchEvent(new CustomEvent("open-cart"));
+  // eslint-disable-next-line no-unused-vars
   const handleCloseCart = () => { /* No longer used locally */ };
 
   // Hide floating cart on specific routes

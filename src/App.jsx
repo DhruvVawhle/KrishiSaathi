@@ -26,8 +26,9 @@ const Checkout = lazy(() => import("./frontend/components/Checkout"));
 const PaymentForm = lazy(() => import("./frontend/components/PaymentForm"));
 const ServerStatus = lazy(() => import("./frontend/pages/ServerStatus"));
 const EInvoiceForm = lazy(() => import("./frontend/pages/EInvoiceForm"));
-const AvatarDemo = lazy(() => import("./frontend/pages/AvatarDemo"));
 const NotFound = lazy(() => import("./frontend/pages/NotFound"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const TrackOrder = lazy(() => import("./pages/TrackOrder"));
 
 // Lazy load remaining components used in routes
 const FarmerDashboardLayout = lazy(() => import("./frontend/layouts/FarmerDashboardLayout"));
@@ -96,7 +97,7 @@ function App() {
           const prev = lastShown.get(key) || 0;
           if (now - prev < 800) return;
           lastShown.set(key, now);
-        } catch (e) {
+        } catch {
           // ignore
         }
         return orig(message, opts);
@@ -136,7 +137,6 @@ function App() {
                       <Route path="/about" element={<About />} />
                       <Route path="/contact" element={<Contact />} />
                       <Route path="/support" element={<Support />} />
-                      <Route path="/avatar-demo" element={<AvatarDemo />} />
                     </Route>
                     {/* Standalone routes (own layout) */}
                     <Route path="/login" element={<Login />} />
@@ -269,6 +269,8 @@ function App() {
                       }
                     />
                     <Route path="/status" element={<ServerStatus />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/track/:orderId" element={<TrackOrder />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>

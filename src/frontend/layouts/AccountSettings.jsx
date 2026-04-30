@@ -1,4 +1,4 @@
-// src/frontend/pages/AccountSettings.jsx
+// src/frontend/layouts/AccountSettings.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Save, Trash2, Download, Lock, Bell, Mail } from "lucide-react";
@@ -19,7 +19,7 @@ function readProfile() {
   try {
     const raw = localStorage.getItem(PROFILE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (e) {
+  } catch {
     // ignore
   }
   return {
@@ -50,7 +50,7 @@ export default function AccountSettings() {
     try {
       const p = JSON.parse(localStorage.getItem("account_prefs_v1") || "{}");
       setPrefs((s) => ({ ...s, ...p }));
-    } catch (e) {}
+    } catch {}
     return () => {
       if (statusTimer.current) clearTimeout(statusTimer.current);
     };
@@ -81,7 +81,7 @@ export default function AccountSettings() {
       window.dispatchEvent(new Event("profile-updated"));
 
       setStatusMsg("Profile settings saved.");
-    } catch (err) {
+    } catch {
       setStatusMsg("Failed to save (storage error).");
     }
   };
@@ -90,7 +90,7 @@ export default function AccountSettings() {
     try {
       localStorage.setItem("account_prefs_v1", JSON.stringify(prefs));
       setStatusMsg("Preferences saved.");
-    } catch (e) {
+    } catch {
       setStatusMsg("Failed to save preferences.");
     }
   };
@@ -244,7 +244,7 @@ export default function AccountSettings() {
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center border">
                 {profile.avatarBase64 ? (
-                  // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                  
                   <img src={profile.avatarBase64} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-xl text-green-700 font-semibold">{(profile.displayName || "F")[0].toUpperCase()}</div>

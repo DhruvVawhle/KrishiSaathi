@@ -1,0 +1,351 @@
+﻿
+C:\Users\Admin\krishisaathi\src\App.jsx
+  99:18  error  'e' is defined but never used  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\AnimatedPrice.jsx
+  1:27  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\AvatarWrappers.jsx
+  20:10  error  'cn' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                       no-unused-vars
+  26:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\Admin\krishisaathi\src\frontend\components\CartSidebar.jsx
+    1:28  error  'useMemo' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+    2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  228:41  error  'index' is defined but never used                                               no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\CartToast.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\Checkout.jsx
+   6:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                     no-unused-vars
+  34:36  error  'saveOrderHistory' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\DashboardStats.jsx
+   13:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  231:23  error  'i' is defined but never used                                                  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\FadeIn.jsx
+  1:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\FarmerHeader.jsx
+   2:17  error  'useEffect' is defined but never used. Allowed unused vars must match /^[A-Z_]/u    no-unused-vars
+   2:28  error  'useRef' is defined but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+   2:46  error  'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  35:11  error  Empty block statement                                                               no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\components\FarmerLayout.jsx
+  14:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  17:52  error  'Icon' is defined but never used                                               no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\FeaturedProducts.jsx
+  2:59  error  'useMemo' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\FloatingCartButton.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\Footer.jsx
+    4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   80:13  error  Empty block statement                                                          no-empty
+  107:13  error  Empty block statement                                                          no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\components\HeroSlider.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\Layout.jsx
+    3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                    no-unused-vars
+   65:9   error  'lockBodyScroll' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+   81:15  error  Empty block statement                                                                            no-empty
+  105:9   error  'handleCloseCart' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\MagneticButton.jsx
+  1:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\MarketProductCard.jsx
+  101:27  error  'e' is defined but never used                 no-unused-vars
+  139:5   error  'isAdded' is assigned a value but never used  no-unused-vars
+  147:5   error  'index' is assigned a value but never used    no-unused-vars
+  167:25  error  Empty block statement                         no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\components\Navbar.jsx
+  12:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\NotificationCenter.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\QuickViewModal.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\Sidebar.jsx
+  14:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\UIKrishiSaathi.jsx
+   15:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  101:14  error  'e' is defined but never used                                                  no-unused-vars
+  103:35  error  'err' is defined but never used                                                no-unused-vars
+  103:40  error  Empty block statement                                                          no-empty
+  247:47  error  'Icon' is defined but never used                                               no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\UnifiedHeader.jsx
+    1:59  error    'useMemo' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                no-unused-vars
+   24:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                 no-unused-vars
+   26:10  error    'getAuth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                no-unused-vars
+   26:19  error    'signOut' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                no-unused-vars
+   99:7   error    'loadNotifications' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u             no-unused-vars
+  117:7   error    'saveNotifications' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u             no-unused-vars
+  123:11  error    Empty block statement                                                                                         no-empty
+  349:6   warning  React Hook useEffect has a missing dependency: 'notifUser'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  574:15  error    Empty block statement                                                                                         no-empty
+  586:9   error    'getUserName' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+  641:17  error    '_' is defined but never used                                                                                 no-unused-vars
+  853:13  error    Empty block statement                                                                                         no-empty
+  950:25  error    Empty block statement                                                                                         no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\BottomNav.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\Button.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\EmptyState.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\InfiniteTestimonials.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\MandiRates.jsx
+     1:38  error    'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                 no-unused-vars
+     1:51  error    'useMemo' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                     no-unused-vars
+    43:3   error    'getDay' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                      no-unused-vars
+    44:3   error    'getMonth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                    no-unused-vars
+    45:3   error    'getYear' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                     no-unused-vars
+    53:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                      no-unused-vars
+  1001:7   error    'safeRender' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                         no-unused-vars
+  1024:3   error    'farmerProducts' is assigned a value but never used                                                                no-unused-vars
+  1042:10  error    'allRates' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                           no-unused-vars
+  1042:20  error    'setAllRates' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                        no-unused-vars
+  1053:10  error    'currentPage' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                        no-unused-vars
+  1059:10  error    'isPending' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                          no-unused-vars
+  1155:6   warning  React Hook useEffect has a missing dependency: 'fetchAll'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+  1284:43  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1284:57  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1291:41  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1291:55  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1433:39  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1433:56  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1438:37  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1438:51  error    Unnecessary escape character: \/                                                                                   no-useless-escape
+  1539:6   warning  React Hook React.useMemo has an unnecessary dependency: 'state'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  1758:9   error    'getCommodityDisplayLabel' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u           no-unused-vars
+  1781:9   error    'getSearchPlaceholder' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u               no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\RecommendedProducts.jsx
+  3:20  error  'm' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\Toast.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\components\ui\testimonials-columns-1.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\contexts\CartContext.jsx
+  14:14  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  19:9   error    'unsubscribeCartRef' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                              no-unused-vars
+  53:14  error    'e' is defined but never used                                                                                                   no-unused-vars
+  53:17  error    Empty block statement                                                                                                           no-empty
+  68:6   warning  React Hook useEffect has a missing dependency: 'items.length'. Either include it or remove the dependency array                 react-hooks/exhaustive-deps
+
+C:\Users\Admin\krishisaathi\src\frontend\contexts\CartProvider.jsx
+   10:10  error    'toast' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                        no-unused-vars
+   76:14  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                      react-refresh/only-export-components
+   84:10  error    'uid' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                 no-unused-vars
+  103:14  error    'err' is defined but never used                                                                                                                     no-unused-vars
+  135:6   warning  React Hook useEffect has missing dependencies: 'loadServerCart' and 'migrateLocalCartToServer'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Admin\krishisaathi\src\frontend\contexts\NotificationContext.jsx
+  88:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\Admin\krishisaathi\src\frontend\contexts\ProductContext.jsx
+    6:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  105:14  error  'e' is defined but never used                                                                                                   no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\contexts\ToastContext.jsx
+   5:27  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                   no-unused-vars
+  78:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\Admin\krishisaathi\src\frontend\contexts\UserContext.jsx
+    2:10  error  'getAuth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                  no-unused-vars
+    5:13  error  'hybridService' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                            no-unused-vars
+  175:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\Admin\krishisaathi\src\frontend\layouts\AccountSettings.jsx
+   22:12  error  'e' is defined but never used                                   no-unused-vars
+   53:14  error  'e' is defined but never used                                   no-unused-vars
+   53:17  error  Empty block statement                                           no-empty
+   84:14  error  'err' is defined but never used                                 no-unused-vars
+   93:14  error  'e' is defined but never used                                   no-unused-vars
+  247:19  error  Definition for rule 'jsx-a11y/img-redundant-alt' was not found  jsx-a11y/img-redundant-alt
+
+C:\Users\Admin\krishisaathi\src\frontend\layouts\FarmerDashboardLayout.jsx
+  14:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  95:14  error  'e' is defined but never used                                                  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\layouts\FarmerProfile.jsx
+   31:12  error  'e' is defined but never used                                   no-unused-vars
+   91:14  error  'err' is defined but never used                                 no-unused-vars
+  182:19  error  Definition for rule 'jsx-a11y/img-redundant-alt' was not found  jsx-a11y/img-redundant-alt
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\About.jsx
+   3:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                            no-unused-vars
+  33:6   warning  React Hook useEffect has a missing dependency: 'opts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\AddProduct.jsx
+    4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+   49:9   error  'submitBtnRef' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u    no-unused-vars
+   88:9   error  'saveToBackend' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  200:9   error  'handleKeyPress' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\AvatarDemo.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\BuyerDashboard.jsx
+   7:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                    no-unused-vars
+  28:22  error  'removeFromCart' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  28:49  error  'updateQuantity' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  36:10  error  'recommendations' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  41:10  error  'recLabel' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\BuyerOrders.jsx
+   18:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                            no-unused-vars
+   96:10  error    'err' is defined but never used                                                                          no-unused-vars
+  129:6   warning  React Hook useEffect has a missing dependency: 'page'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\BuyerProfile.jsx
+    3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                  no-unused-vars
+   11:31  error  'updateDoc' is defined but never used. Allowed unused vars must match /^[A-Z_]/u               no-unused-vars
+   12:8   error  'axios' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+   45:10  error  'loadingOrders' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   78:70  error  'e' is defined but never used                                                                  no-unused-vars
+   78:73  error  Empty block statement                                                                          no-empty
+  125:14  error  'err' is defined but never used                                                                no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\Contact.jsx
+   3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u              no-unused-vars
+  18:7   error  'useInView' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  77:9   error  'navigate' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  78:9   error  'toast' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\EInvoiceForm.jsx
+   1:38  error  'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+  53:11  error  'active' is defined but never used                                                  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\FarmerDashboard.jsx
+    30:10   error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                 no-unused-vars
+    31:10   error    'auth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                   no-unused-vars
+    32:23   error    'getDoc' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                 no-unused-vars
+    66:10   error    'safeDate' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                               no-unused-vars
+    66:20   error    'formatDate' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                             no-unused-vars
+   229:7    error    'safeRender' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                    no-unused-vars
+   325:21   error    'contextProducts' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                               no-unused-vars
+   325:43   error    'addProduct' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                    no-unused-vars
+   325:70   error    'removeProduct' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                 no-unused-vars
+   327:9    error    'location' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                      no-unused-vars
+   342:10   error    'inventory' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                     no-unused-vars
+   344:10   error    'productsError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                 no-unused-vars
+   362:10   error    'mobileMenuOpen' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                no-unused-vars
+   396:10   error    'formLoading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                   no-unused-vars
+   398:10   error    'showAddProduct' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                no-unused-vars
+   408:10   error    'profileSuccess' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                no-unused-vars
+   516:10   error    'totalSales' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                    no-unused-vars
+   516:22   error    'setTotalSales' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                 no-unused-vars
+   518:10   error    'totalOrderCount' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                               no-unused-vars
+   520:10   error    'mandiOverlay' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                  no-unused-vars
+   520:24   error    'setMandiOverlay' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                               no-unused-vars
+   521:10   error    'analyticsError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                no-unused-vars
+   522:10   error    'earnings' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                      no-unused-vars
+   525:10   error    'farmerStats' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                   no-unused-vars
+   525:23   error    'setFarmerStats' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                no-unused-vars
+   535:10   error    'recommendations' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                               no-unused-vars
+   535:27   error    'setRecommendations' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                            no-unused-vars
+   536:10   error    'overviewLoading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                               no-unused-vars
+   536:27   error    'setOverviewLoading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                            no-unused-vars
+   541:10   error    'activeNav' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                     no-unused-vars
+   541:21   error    'setActiveNav' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                  no-unused-vars
+   542:10   error    'alerts' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                        no-unused-vars
+   542:18   error    'setAlerts' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                     no-unused-vars
+   545:9    error    'getModelName' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                  no-unused-vars
+   554:9    error    'getModelType' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                  no-unused-vars
+   560:9    error    'isARIMA' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                       no-unused-vars
+   770:6    warning  React Hook useEffect has missing dependencies: 'resetProfile', 'user?.displayName', 'user?.name', 'user?.phone', and 'user?.phoneNumber'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+   774:5    error    'setProfileError' is not defined                                                                                                                                                              no-undef
+  1032:14   error    'err' is defined but never used                                                                                                                                                               no-unused-vars
+  1049:9    error    'debouncedUpdate' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                               no-unused-vars
+  1407:25   error    Empty block statement                                                                                                                                                                         no-empty
+  1487:25   error    Empty block statement                                                                                                                                                                         no-empty
+  2637:90   error    'startEditRow' is not defined                                                                                                                                                                 no-undef
+  2644:102  error    'PackageOpen' is not defined                                                                                                                                                                  no-undef
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\ForgotPassword.jsx
+    6:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  131:60  error  Empty block statement                                                          no-empty
+  145:66  error  Empty block statement                                                          no-empty
+  172:60  error  Empty block statement                                                          no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\Home.jsx
+   3:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                            no-unused-vars
+  69:6   warning  React Hook useEffect has a missing dependency: 'opts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\Login.jsx
+   14:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  199:47  error  Empty block statement                                                          no-empty
+  209:46  error  Empty block statement                                                          no-empty
+  219:94  error  Empty block statement                                                          no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\Marketplace.jsx
+    9:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+   24:7   error  'formatCurrency' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   32:59  error  'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+   70:10  error  'dbProducts' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  354:9   error  'cartItemCount' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\NotFound.jsx
+  34:13  error  Empty block statement  no-empty
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\OrderHistory.jsx
+    3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   77:23  error  'useCallback' is not defined                                                   no-undef
+  148:14  error  'e' is defined but never used                                                  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\PaymentFailure.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\Register.jsx
+   13:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                      no-unused-vars
+  241:49  error    'e' is defined but never used                                                                                      no-unused-vars
+  241:52  error    Empty block statement                                                                                              no-empty
+  253:16  error    'e' is defined but never used                                                                                      no-unused-vars
+  262:58  error    'e' is defined but never used                                                                                      no-unused-vars
+  262:61  error    Empty block statement                                                                                              no-empty
+  312:61  error    'e' is defined but never used                                                                                      no-unused-vars
+  324:61  error    'e' is defined but never used                                                                                      no-unused-vars
+  324:64  error    Empty block statement                                                                                              no-empty
+  366:6   warning  React Hook useCallback has an unnecessary dependency: 'loading'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\Support.jsx
+    3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  247:14  error  'err' is defined but never used                                                no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\pages\ThankYou.jsx
+   3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  18:25  error  'idx' is defined but never used                                                no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\services\firestoreService.js
+  5:3  error  'orderBy' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\Admin\krishisaathi\src\frontend\utils\fetchUtils.js
+  47:16  error  'e' is defined but never used  no-unused-vars
+
+Γ£û 226 problems (216 errors, 10 warnings)
+

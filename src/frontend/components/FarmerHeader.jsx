@@ -1,5 +1,5 @@
 // ✅ src/components/FarmerHeader.jsx (Enhanced v2)
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "@/frontend/contexts/UserContext";
 

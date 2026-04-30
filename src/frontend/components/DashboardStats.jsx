@@ -4,13 +4,13 @@ import { useProducts } from "@/frontend/contexts/ProductContext";
 import {
   ShoppingCart,
   Clock,
-  CheckCircle2,
+  CheckCircle,
   TrendingUp,
   Printer,
   Copy,
   Info,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -216,7 +216,7 @@ const DashboardStats = () => {
             {
               label: "Completed Sales",
               value: ordersStats.completed,
-              icon: <CheckCircle2 className="text-blue-600" />,
+              icon: <CheckCircle className="text-blue-600" />,
               color: "bg-blue-50",
               note: "Orders fulfilled",
             },
@@ -228,7 +228,7 @@ const DashboardStats = () => {
               note: "From confirmed orders",
               prefix: "₹",
             },
-          ].map((kpi, i) => (
+          ].map((kpi) => (
             <motion.div
               key={kpi.label}
               {...tinyAnimate}

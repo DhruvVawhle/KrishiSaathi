@@ -15,6 +15,7 @@ import {
 import Input from "@/frontend/components/ui/Input";
 import Button from "@/frontend/components/ui/Button";
 import Card from "@/frontend/components/ui/Card";
+import logger from "@/frontend/utils/logger";
 import "./Checkout.css";
 
 import { useUser } from "@/frontend/contexts/UserContext";
@@ -31,7 +32,7 @@ const PROMO_CODES = {
 };
 
 export default function Checkout() {
-  const { cart = [], clearAllCart, saveOrderHistory } = useCart();
+  const { cart = [], clearAllCart } = useCart();
   const { user } = useUser();
   const navigate = useNavigate();
 
@@ -201,13 +202,13 @@ export default function Checkout() {
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (window.Razorpay) {
-        console.log('✅ Razorpay already loaded');
+        logger.log('✅ Razorpay already loaded');
         return resolve(true);
       }
       const script = document.createElement("script");
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.onload = () => {
-        console.log('✅ Razorpay script loaded successfully');
+        logger.log('✅ Razorpay script loaded successfully');
         resolve(true);
       };
       script.onerror = () => {
@@ -338,7 +339,7 @@ export default function Checkout() {
       });
 
       if (res.ok) {
-        console.log('✅ Synchronized to MongoDB');
+        logger.log('✅ Synchronized to MongoDB');
         mongoSynced = true;
       }
     } catch (mongoErr) {
@@ -357,7 +358,7 @@ export default function Checkout() {
       console.warn('⚠️ Firestore error:', fsErr.message);
     }
 
-    if (mongoSynced && firestoreSaved) {
+    if (mongoSynced || firestoreSaved) {
       await clearAllCart({ silent: true });
       notifications.update({
         id: notificationId,
@@ -393,7 +394,7 @@ export default function Checkout() {
     if (!orderRes.ok) throw new Error('Payment server error');
     const orderData = await orderRes.json();
 
-    const rzpKey = import.meta.env.VITE_RAZORPAY_KEY;
+    const rzpKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
     if (!rzpKey) throw new Error('Razorpay API Key not found in environment');
 
     const options = {

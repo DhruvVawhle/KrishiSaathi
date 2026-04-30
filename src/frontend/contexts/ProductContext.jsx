@@ -74,8 +74,7 @@ export const ProductProvider = ({ children }) => {
     try {
       const raw = localStorage.getItem(SALES_KEY);
       return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      console.error("Error reading sales logs from localStorage", e);
+    } catch {
       return [];
     }
   });
@@ -102,7 +101,7 @@ export const ProductProvider = ({ children }) => {
         return p;
       });
       if (changed) setProducts(normalized);
-    } catch (e) {
+    } catch {
       // non-fatal
     }
     // run once on mount

@@ -1,7 +1,8 @@
-﻿import express from "express";
+import express from "express";
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
+import Product from "../models/Product.js";
 
 
 const router = express.Router();
@@ -10,30 +11,56 @@ const router = express.Router();
     try {
       const { items, buyerId } = req.body
 
-      if (!items || !Array.isArray(items)
-          || items.length === 0) {
+      if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({
           message: 'items array required',
           received: typeof items
         })
       }
 
+      // 1. INVENTORY VALIDATION & ATOMIC REDUCTION
+      for (const item of items) {
+        const productId = item.productId || item.id || item._id;
+        if (!productId) continue;
+
+        const qty = Number(item.qty || item.quantity) || 1;
+        
+        // Find and update atomically
+        const product = await Product.findOneAndUpdate(
+          { 
+            _id: mongoose.isValidObjectId(productId) ? productId : null,
+            quantity: { $gte: qty } 
+          },
+          { $inc: { quantity: -qty } },
+          { new: true }
+        );
+
+        if (!product && mongoose.isValidObjectId(productId)) {
+          // Check if it exists at all to give better error
+          const exists = await Product.findById(productId);
+          if (exists) {
+            return res.status(400).json({ 
+              message: `Insufficient stock for ${exists.name}. Available: ${exists.quantity}`,
+              productId: productId
+            });
+          }
+        }
+      }
+
       const validItems = items.map(i => ({
-        productId: i.productId
-          || i.id || i._id || '',
+        productId: i.productId || i.id || i._id || '',
         name: i.name || 'Product',
         price: Number(i.price) || 0,
-        qty: Number(i.qty
-          || i.quantity) || 1,
+        qty: Number(i.qty || i.quantity) || 1,
         image: i.image || '',
         farmerId: i.farmerId || 'demo',
         category: i.category || '',
         unit: i.unit || 'kg'
       }))
 
+      const orderId = req.body.orderId || 'ORD' + Date.now();
       const order = new Order({
-        orderId: req.body.orderId
-          || 'ORD' + Date.now(),
+        orderId,
         buyerId: buyerId || 'demo',
         buyerName: req.body.buyerName || '',
         buyerEmail: req.body.buyerEmail || '',
@@ -45,28 +72,22 @@ const router = express.Router();
         },
         items: validItems,
         total: Number(req.body.total) || 0,
-        subtotal: Number(
-          req.body.subtotal
-        ) || 0,
-        deliveryFee: Number(
-          req.body.deliveryFee
-        ) || 40,
-        discount: Number(
-          req.body.discount
-        ) || 0,
-        deliveryAddress:
-          req.body.deliveryAddress || {},
-        paymentMethod:
-          req.body.paymentMethod || 'cod',
-        status: 'confirmed',
+        subtotal: Number(req.body.subtotal) || 0,
+        deliveryFee: Number(req.body.deliveryFee) || 40,
+        discount: Number(req.body.discount) || 0,
+        deliveryAddress: req.body.deliveryAddress || {},
+        paymentMethod: req.body.paymentMethod || 'cod',
+        status: 'placed',
+        statusHistory: [{
+          status: 'placed',
+          timestamp: new Date(),
+          message: 'Order placed successfully. Awaiting seller confirmation.'
+        }],
         createdAt: new Date()
       })
 
       const saved = await order.save()
-      console.log(
-        'âœ… Order saved to MongoDB:',
-        saved.orderId
-      )
+      console.log('✅ Order saved & inventory reduced:', saved.orderId)
 
       res.status(201).json({
         success: true,
@@ -76,23 +97,85 @@ const router = express.Router();
       })
 
     } catch (err) {
-      console.error(
-        'âŒ Order save error:',
-        err.message
-      )
+      console.error('❌ Order placement error:', err.message)
       res.status(500).json({
         message: 'Failed to place order',
-        error: err.message,
-        validationErrors: err.errors
-          ? Object.keys(err.errors)
-            .map(k => ({
-              field: k,
-              message: err.errors[k].message
-            }))
-          : []
+        error: err.message
       })
     }
   })
+
+  // PATCH /api/orders/:orderId/status
+  // Farmer fulfillment status updates
+  router.patch('/:orderId/status', async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { status, message } = req.body;
+
+      const validTransitions = {
+        placed: ["processing", "cancelled"],
+        processing: ["packed", "cancelled"],
+        packed: ["shipped"],
+        shipped: ["out_for_delivery"],
+        out_for_delivery: ["delivered", "failed_delivery"],
+        delivered: ["returned"],
+        cancelled: [],
+        returned: [],
+        failed_delivery: []
+      };
+
+      const order = await Order.findOne({ orderId });
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      const currentStatus = order.status || 'placed';
+      
+      // Validate transition
+      if (!validTransitions[currentStatus].includes(status)) {
+        return res.status(400).json({ 
+          message: `Invalid transition from ${currentStatus} to ${status}`,
+          currentStatus,
+          allowed: validTransitions[currentStatus]
+        });
+      }
+
+      const statusMessages = {
+        processing: "Seller is preparing your order.",
+        packed: "Order has been packed and is ready for pickup.",
+        shipped: "Order has been dispatched and is in transit.",
+        out_for_delivery: "Your package is out for delivery with our agent.",
+        delivered: "Delivered successfully! Enjoy your fresh produce.",
+        cancelled: "Order has been cancelled.",
+        returned: "Item has been returned to the seller.",
+        failed_delivery: "Delivery attempt failed. Please contact support."
+      };
+
+      // Update status and history
+      order.status = status;
+      order.statusHistory.push({
+        status,
+        timestamp: new Date(),
+        message: message || statusMessages[status] || `Order ${status}`
+      });
+
+      // Special Logic: Restock if cancelled/failed
+      if (status === 'cancelled' || status === 'failed_delivery') {
+        for (const item of order.items) {
+          if (item.productId) {
+            await Product.findByIdAndUpdate(item.productId, {
+              $inc: { quantity: item.qty || item.quantity || 1 }
+            });
+          }
+        }
+      }
+
+      await order.save();
+      res.json({ success: true, status: order.status, history: order.statusHistory });
+
+    } catch (err) {
+      console.error('Status update error:', err);
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
 
 
 router.get("/", async (req, res) => {

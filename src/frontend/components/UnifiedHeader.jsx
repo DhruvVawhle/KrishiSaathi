@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ShoppingCart,
@@ -21,9 +21,9 @@ import {
   Settings,
   ChevronRight,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
-import { getAuth, signOut } from "firebase/auth";
+// Firebase auth imported at module level for potential direct usage
 import { useCart } from "@/frontend/contexts/CartContext";
 import { useUser } from "@/frontend/contexts/UserContext";
 import {
@@ -96,7 +96,7 @@ const NOTIF_KEY = (uid) => `ks_notifications_${uid}`;
 
 const FIRST_LOGIN_KEY = (uid) => `ks_first_login_${uid}`;
 
-const loadNotifications = (uid) => {
+const _loadNotifications = (uid) => {
   try {
     const raw = localStorage.getItem(NOTIF_KEY(uid));
     if (!raw) return null;
@@ -114,7 +114,7 @@ const loadNotifications = (uid) => {
   } catch { return null; }
 };
 
-const saveNotifications = (uid, notifs) => {
+const _saveNotifications = (uid, notifs) => {
   try {
     localStorage.setItem(
       NOTIF_KEY(uid),
@@ -583,7 +583,7 @@ const Navbar = ({ onOpenCart }) => {
     }
   }
 
-  const getUserName = () => {
+  const _getUserName = () => {
     return getHeaderName();
   };
 

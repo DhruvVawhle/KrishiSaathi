@@ -238,7 +238,7 @@ export default function Register() {
       await loadRecaptchaScript();
       const verifier = new RecaptchaVerifier("recaptcha-container-register", { size: "invisible" }, auth);
       if (typeof verifier.render === "function") {
-        try { await verifier.render(); } catch (e) { }
+        try { await verifier.render(); } catch { }
       }
       window.__krishiRecaptcha = verifier;
       recaptchaRef.current = verifier;
@@ -250,7 +250,7 @@ export default function Register() {
         window.__krishiRecaptcha = fallback;
         recaptchaRef.current = fallback;
         return fallback;
-      } catch (e) {
+      } catch {
         return null;
       }
     }
@@ -259,7 +259,7 @@ export default function Register() {
   useEffect(() => {
     return () => {
       if (window.__krishiRecaptcha) {
-        try { window.__krishiRecaptcha.clear(); } catch (e) { }
+        try { window.__krishiRecaptcha.clear(); } catch { }
         window.__krishiRecaptcha = null;
       }
       if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
@@ -309,7 +309,7 @@ export default function Register() {
       if (!user) throw new Error("No user");
       
       let idToken = null;
-      try { idToken = await user.getIdToken(true); } catch (e) {
+      try { idToken = await user.getIdToken(true); } catch {
         if (auth.currentUser) idToken = await auth.currentUser.getIdToken(true);
       }
       
@@ -321,7 +321,7 @@ export default function Register() {
       });
       const text = await res.text();
       let data = null;
-      try { data = text ? JSON.parse(text) : null; } catch (e) { }
+      try { data = text ? JSON.parse(text) : null; } catch { }
 
       if (!res.ok) {
         throw new Error((data && data.message) || (data && data.detail) || `HTTP ${res.status}`);

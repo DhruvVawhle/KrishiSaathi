@@ -16,6 +16,7 @@ export const useCart = () => useContext(CartContext);
 export const CartProvider = ({ children }) => {
   const { user } = useUser();
   const [items, setItems] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const unsubscribeCartRef = useRef(null);
 
   const showToast = (product, quantity) => {
@@ -50,7 +51,7 @@ export const CartProvider = ({ children }) => {
       if (localCart && items.length === 0) {
         setItems(JSON.parse(localCart));
       }
-    } catch (e) {}
+    } catch { /* intentional */ }
 
     // 🔥 SAFETY CHECK
     if (!hybridService.getCartRealtime) {

@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/frontend/components/ui/dropdown-menu"
 import { useUser } from "@/frontend/contexts/UserContext"
-import { cn } from "@/frontend/lib/utils"
+// cn utility available if needed
 
 /**
  * Helper to generate initials from names (English support)

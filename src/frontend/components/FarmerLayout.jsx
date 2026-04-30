@@ -11,9 +11,10 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { toast } from "react-toastify";
 
+// eslint-disable-next-line no-unused-vars
 const SidebarItem = React.forwardRef(({ to, label, Icon, onClick, active }, ref) => (
   <Link
     to={to}

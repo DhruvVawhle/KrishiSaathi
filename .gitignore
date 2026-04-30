@@ -26,6 +26,9 @@ dist-ssr
 # Security - NEVER upload these
 .env
 serviceAccountKey.json
+*serviceAccountKey*
+*service-account*
+*service_account_key*
 *.pem
 *.key
 

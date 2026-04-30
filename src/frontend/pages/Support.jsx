@@ -6,7 +6,7 @@ import { updateSEO } from '@/frontend/utils/seo';
 import Breadcrumb from '@/frontend/components/ui/Breadcrumb';
 import {
   Search,
-  HelpCircle,
+  CircleHelp,
   MessageCircle,
   Mail,
   Phone,
@@ -244,7 +244,7 @@ export default function Support() {
       } else {
         throw new Error("Failed to send");
       }
-    } catch (err) {
+    } catch {
       // Fallback simulating a success anyway for UX if formsubmit gets blocked locally
       setTimeout(() => {
         setFeedbackLoading(false);
@@ -372,7 +372,7 @@ export default function Support() {
           >
             <div className="support-card-accent" />
             <div className="support-card-icon-container">
-              <HelpCircle size={24} />
+              <CircleHelp size={24} />
             </div>
             <h3 className="support-card-title">Browse FAQs</h3>
             <span className="support-card-sub">Self Service</span>

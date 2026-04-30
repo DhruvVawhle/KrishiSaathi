@@ -3,7 +3,7 @@ import React, {
   useState, useCallback
 } from 'react'
 import { AnimatePresence, motion }
-  from 'framer-motion'
+  from 'motion/react'
 import Toast from '../components/ui/Toast'
 
 const ToastContext = createContext(null)

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, BellOff, X, ShoppingBag, Package, XCircle, CreditCard, Tag, AlertTriangle, Star, Leaf } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useUser } from '../contexts/UserContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';

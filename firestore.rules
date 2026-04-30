@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 🛍️ Products: Publicly readable, restricted writing
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if request.auth != null; 
+    }
+    
+    // 👤 Users & Buyers: Only owner or admin can access
+    match /users/{userId} {
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.admin == true);
+    }
+    match /buyers/{userId} {
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.admin == true);
+    }
+    
+    // 🔔 Notifications: Only owner can access
+    match /notifications/{uid} {
+       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // 🛒 Cart: Only owner can access
+    match /carts/{uid} {
+       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // 📦 Orders: Authenticated access
+    match /orders/{orderId} {
+       allow read, write: if request.auth != null;
+    }
+
+    // 🛡️ Global Fallback: Authenticated users can read/write for development
+    match /{document=**} {
+      allow read, write: if request.auth != null && request.time < timestamp.date(2027, 4, 30);
+    }
+  }
+}

@@ -15,7 +15,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Download, FileText, ChevronLeft, ChevronRight, Search as SearchIcon } from "lucide-react";
 
 /**
@@ -93,7 +93,7 @@ const BuyerOrders = () => {
           setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
           setLoading(false);
         },
-        (err) => {
+        (_err) => {
           const now = Date.now();
           if (now - lastToastRef.current > 3000) {
             toast.error("⚠️ Failed to fetch orders. Check your connection.");

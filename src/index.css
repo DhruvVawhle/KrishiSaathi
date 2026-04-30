@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@theme {
+  --color-agri-green: #2E7D32;
+  --color-agri-green-light: #4CAF50;
+  --color-agri-green-dark: #1B5E20;
+  
+  --color-harvest: #F9A825;
+  --color-harvest-light: #FDD835;
+  
+  --color-parchment: #FAFAF5;
+
+  --font-dm-sans: "DM Sans", sans-serif;
+  --font-hind: "Hind", sans-serif;
+}
+
 :root {
   /* Brand Colors */
   --color-primary: #2D4F1E;

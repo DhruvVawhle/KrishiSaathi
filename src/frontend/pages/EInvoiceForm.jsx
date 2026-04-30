@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText, Building2, Users, Package, Eye,
   Send, ChevronLeft, ChevronRight, Plus, Trash2,
-  Check, AlertCircle, Search, Download
+  Check, CircleAlert, Search, Download
 } from 'lucide-react';
 import EInvoiceTemplate from '../components/EInvoiceTemplate';
 
@@ -50,7 +50,7 @@ const S = {
     fontFamily: 'DM Sans', transition: 'all 0.2s', boxShadow: primary ? '0 4px 12px rgba(45,79,30,0.2)' : 'none',
   }),
   error: { fontSize: 12, color: '#FF5252', marginTop: 4 },
-  badge: (active) => ({
+  badge: (_active) => ({
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flex: 1,
     outline: 'none',
   }),
@@ -259,7 +259,7 @@ const EInvoiceForm = () => {
             aria-live="assertive"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <AlertCircle size={18} color="#FF5252" />
+              <CircleAlert size={18} color="#FF5252" />
               <span style={{ fontWeight: 700, color: '#FF5252', fontSize: 14 }}>Validation Errors</span>
             </div>
             {validationErrors.map((e, i) => (

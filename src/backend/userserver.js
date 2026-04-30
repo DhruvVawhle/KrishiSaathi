@@ -30,13 +30,36 @@ const SHOW_ERROR_DETAILS = NODE_ENV !== "production";
 /* ---------- Firebase Admin init (optional) ---------- */
 let firebaseInitialized = false;
 try {
+  // Option 1: Full JSON string
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     admin.initializeApp({ credential: admin.credential.cert(sa) });
     firebaseInitialized = true;
-    console.log("✅ Firebase Admin initialized from env service account");
-  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-    const keyPath = path.resolve(process.cwd(), process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+    console.log("✅ Firebase Admin initialized from env service account (JSON)");
+  } 
+  // Option 2: Individual variables
+  else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+    const sa = {
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      // Optional defaults or other fields if needed
+      type: 'service_account',
+      auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+      token_uri: 'https://oauth2.googleapis.com/token',
+      auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+    };
+    admin.initializeApp({ credential: admin.credential.cert(sa) });
+    firebaseInitialized = true;
+    console.log("✅ Firebase Admin initialized from individual env variables");
+  }
+  // Option 3: File path (fallback)
+  else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+    let keyPath = path.resolve(process.cwd(), process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+    if (!fs.existsSync(keyPath)) {
+      const fb = path.resolve(__dirname, process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      if (fs.existsSync(fb)) keyPath = fb;
+    }
     if (fs.existsSync(keyPath)) {
       const raw = fs.readFileSync(keyPath, "utf8");
       const sa = JSON.parse(raw);
@@ -215,8 +238,10 @@ const authMiddleware = async (req, res, next) => {
     const paramUid = req.params.uid;
     const emailPrefix = (req.body && req.body.email) ? req.body.email.split('@')[0] : 'dev';
     
+    const phoneStr = req.body?.phone || '';
+    const digits = phoneStr.replace(/\D/g, '');
     req.user = { 
-      uid: bodyUid || paramUid || `dev-${emailPrefix}-${phoneDigitsOnly(req.body?.phone || '') || 'user'}`
+      uid: bodyUid || paramUid || `dev-${emailPrefix}-${digits || 'user'}`
     };
     return next();
   }
@@ -597,6 +622,28 @@ app.get("/api/orders/user/:userId", async (req, res) => {
   } catch (error) {
     console.error('Orders fetch error:', error);
     return respondError(res, 500, 'Failed to fetch orders', 'ORDERS_FETCH_ERROR', error.message);
+  }
+});
+
+// GET single order by ID — for tracking
+app.get("/api/orders/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findOne({ 
+      $or: [
+        { orderId: orderId },
+        { _id: mongoose.isValidObjectId(orderId) ? orderId : new mongoose.Types.ObjectId() }
+      ]
+    }).lean();
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    res.json({ order });
+  } catch (error) {
+    console.error('Order fetch error:', error);
+    return respondError(res, 500, 'Failed to fetch order', 'ORDER_FETCH_ERROR', error.message);
   }
 });
 

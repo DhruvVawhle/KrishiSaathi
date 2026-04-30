@@ -21,15 +21,12 @@ import { getProductsRealtime } from '@/frontend/services/hybridService';
 import "./Marketplace.css";
 
 /* ── helpers ── */
-const formatCurrency = (v) =>
-  Number(v || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
-
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
 const ITEMS_PER_PAGE = 12;
 
 const Marketplace = () => {
-  const { combinedProducts: products = [], updateProduct, loading } = useProducts();
+  const { combinedProducts: products = [], updateProduct } = useProducts();
   const { addToCart, cart } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -67,7 +64,6 @@ const Marketplace = () => {
   const [quickView, setQuickView] = useState(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
-  const [dbProducts, setDbProducts] = useState([]);
   const [combinedProducts, setCombinedProducts] = useState(allProducts || []);
 
   // Sync auth on mount
@@ -97,7 +93,7 @@ const Marketplace = () => {
     try {
       unsubscribe = getProductsRealtime(
         (fsProducts) => {
-          setDbProducts(fsProducts || [])
+          // useProducts already handles sync
 
           // Combine Firestore + static
           // Firestore products first
@@ -349,9 +345,6 @@ const Marketplace = () => {
       console.warn("Could not broadcast products", e);
     }
   }, [mergedProducts]);
-
-  /* Cart item count badge */
-  const cartItemCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
   /* ═══ RENDER ═══ */
   return (

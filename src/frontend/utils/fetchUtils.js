@@ -44,7 +44,7 @@ export async function fetchWithCache(url, options = {}, ttlMs = TTL.DEFAULT) {
       try {
         const json = await clone.json();
         setCache(url, json, ttlMs);
-      } catch (e) { /* ignore non-json */ }
+      } catch { /* ignore non-json */ }
     }
 
     return res;
@@ -117,7 +117,7 @@ export function handleFetchError(error) {
     return { aborted: true, success: false, error: 'Request timed out or cancelled' };
   }
   
-  console.error('[fetchUtils] Fetch failed:', error.message);
+  console.warn('[fetchUtils] Fetch failed:', error.message);
   return { 
     success: false, 
     error: error.message || 'Network error',

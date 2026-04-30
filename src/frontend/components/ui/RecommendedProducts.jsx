@@ -1,6 +1,6 @@
 import React from 'react'
 import { useState } from 'react'
-import { motion as m, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShoppingCart, Check,
@@ -82,7 +82,6 @@ const RecommendedProducts = () => {
   )
 
   if (error) {
-    console.error('❌ RecommendedProducts Error:', error);
     return (
       <section style={{ padding: '40px', background: '#FFF5F5', textAlign: 'center' }}>
         <div style={{ color: '#C53030', fontWeight: 600 }}>
@@ -173,7 +172,7 @@ const RecommendedProducts = () => {
             {recommendations.map((product, i) => {
               const isAdded = addedIds.includes(product.id)
               return (
-                <m.div
+                <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -298,7 +297,7 @@ const RecommendedProducts = () => {
                       )}
                     </button>
                   </div>
-                </m.div>
+                </motion.div>
               )
             })}
           </AnimatePresence>

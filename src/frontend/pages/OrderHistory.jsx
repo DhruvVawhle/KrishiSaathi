@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   Package, ShoppingBag, Clock,
   CheckCircle, XCircle, ChevronRight,
-  ArrowLeft, RefreshCw, AlertCircle, Truck, FileText
+  ArrowLeft, RefreshCw, CircleAlert, Truck, FileText
 } from 'lucide-react'
 import { generateInvoice } from '../utils/invoiceGenerator'
 import EmptyState from '@/frontend/components/ui/EmptyState'
@@ -12,6 +12,7 @@ import StatusBadge from '@/frontend/components/ui/StatusBadge'
 import Skeleton from '@/frontend/components/ui/Skeleton'
 import Button from '@/frontend/components/ui/Button'
 import Card from '@/frontend/components/ui/Card'
+import OrderStepper from '../../components/OrderStepper'
 
 // Backend URL — proxied via Vite to userserver on port 5002
 import { useUser } from '@/frontend/contexts/UserContext';
@@ -20,39 +21,7 @@ import { useUser } from '@/frontend/contexts/UserContext';
 // Backend URL — proxied via Vite to userserver on port 5001
 const API_BASE = "";
 
-const OrderTimeline = ({ status = 'confirmed' }) => {
-  const s = status?.toLowerCase();
-  const steps = [
-    { id: 'placed', label: 'Placed', icon: Clock, active: true },
-    { id: 'confirmed', label: 'Confirmed', icon: CheckCircle, active: ['confirmed', 'shipped', 'delivered'].includes(s) },
-    { id: 'shipped', label: 'Shipped', icon: Truck, active: ['shipped', 'delivered'].includes(s) },
-    { id: 'delivered', label: 'Delivered', icon: Package, active: s === 'delivered' }
-  ]
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 16, borderTop: '0.5px dashed #EDD9B0', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: '28px', left: '12%', right: '12%', height: '1.5px', background: '#EDD9B0', zIndex: 0 }} />
-      {steps.map((step) => (
-        <div key={step.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 1, width: '25%' }}>
-          <div style={{
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            background: step.active ? '#2D4F1E' : '#FDFAF4',
-            border: `1.5px solid ${step.active ? '#2D4F1E' : '#EDD9B0'}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.3s ease'
-          }}>
-            <step.icon size={12} color={step.active ? 'white' : '#B0A898'} />
-          </div>
-          <span style={{ fontSize: 9, fontWeight: step.active ? 700 : 500, color: step.active ? '#2D4F1E' : '#B0A898' }}>{step.label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+// Using the high-fidelity OrderStepper globally
 
 const OrderHistory = () => {
   const navigate = useNavigate()
@@ -61,22 +30,11 @@ const OrderHistory = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('All')
-
-  useEffect(() => {
-    // If we're explicitly not logged in, redirect
-    if (!loading && !user && !isLoggedIn) {
-      const timer = setTimeout(() => navigate('/login'), 1500);
-      return () => clearTimeout(timer);
-    }
-    
-    if (user) {
-      fetchOrders();
-    }
-  }, [user, isLoggedIn, loading, navigate, fetchOrders])
+  const hasFetched = React.useRef(false);
 
   const fetchOrders = useCallback(async () => {
     if (!user) return;
-    setLoading(true)
+    if (!hasFetched.current) setLoading(true)
     setError(null)
     try {
       const uid = user.uid || user.id;
@@ -108,14 +66,33 @@ const OrderHistory = () => {
       setOrders(MOCK_ORDERS)
     } finally {
       setLoading(false)
+      hasFetched.current = true;
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && !hasFetched.current) {
+      fetchOrders();
+    }
+  }, [user, fetchOrders]);
+
+  useEffect(() => {
+    // If we're explicitly not logged in after some time, redirect
+    if (!loading && !user && !isLoggedIn && hasFetched.current) {
+      const timer = setTimeout(() => navigate('/login'), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [user, isLoggedIn, loading, navigate]);
 
   // STATUS CONFIG
   const STATUS = {
     confirmed: { label: 'Confirmed', color: '#2D4F1E', bg: 'rgba(45,79,30,0.10)', icon: CheckCircle },
+    placed: { label: 'Order Placed', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.10)', icon: ShoppingBag },
     processing: { label: 'Processing', color: '#E27D60', bg: 'rgba(226,125,96,0.10)', icon: Clock },
-    delivered: { label: 'Delivered', color: '#4CAF50', bg: 'rgba(76,175,80,0.10)', icon: Package },
+    packed: { label: 'Packed', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.10)', icon: Package },
+    shipped: { label: 'Shipped', color: '#F0A080', bg: 'rgba(240,160,128,0.10)', icon: Truck },
+    out_for_delivery: { label: 'Out for Delivery', color: '#14B8A6', bg: 'rgba(20, 184, 166, 0.10)', icon: Truck },
+    delivered: { label: 'Delivered', color: '#4CAF50', bg: 'rgba(76,175,80,0.10)', icon: CheckCircle },
     cancelled: { label: 'Cancelled', color: '#FF5252', bg: 'rgba(255,82,82,0.10)', icon: XCircle },
     received: { label: 'Received', color: '#2D4F1E', bg: 'rgba(45,79,30,0.10)', icon: CheckCircle },
     default: { label: 'Status Unknown', color: '#7A7A7A', bg: 'rgba(122,122,122,0.10)', icon: Clock }
@@ -145,7 +122,7 @@ const OrderHistory = () => {
         month: 'short',
         year: 'numeric'
       });
-    } catch (e) {
+    } catch {
       return 'Date unknown';
     }
   };
@@ -235,7 +212,7 @@ const OrderHistory = () => {
         {/* ERROR STATE */}
         {error && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'rgba(255,82,82,0.08)', border: '1px solid rgba(255,82,82,0.2)', borderRadius: 12, fontSize: 13, color: '#FF5252', marginBottom: 20 }}>
-            <AlertCircle size={16} />
+            <CircleAlert size={16} />
             <span>{error} Showing cached/local data.</span>
           </div>
         )}
@@ -255,7 +232,7 @@ const OrderHistory = () => {
             {filtered.map((order, i) => {
               return (
                 <motion.div
-                  key={order._id || order.orderId || `order-${i}`}
+                  key={order._id || order.orderId || `order-${order.createdAt}-${i}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -279,6 +256,7 @@ const OrderHistory = () => {
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(45,79,30,0.05)';
                     e.currentTarget.style.borderColor = '#EDD9B0';
                   }}
+                  onClick={() => navigate(`/track/${order.orderId || order._id}`)}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
                     <div>
@@ -299,7 +277,9 @@ const OrderHistory = () => {
                     {(order.items || []).slice(0, 3).map((item, j) => (
                       <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 6px', background: '#F5E6CC', borderRadius: 999, border: '1px solid #EDD9B0' }}>
                         {item.image ? (
-                          <img src={item.image} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+                          <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 border border-gray-100 flex-shrink-0">
+                            <img src={item.image} className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} alt="" />
+                          </div>
                         ) : (
                           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#EDD9B0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                              <Package size={14} color="#2D4F1E" />
@@ -354,7 +334,15 @@ const OrderHistory = () => {
                     </div>
                   </div>
 
-                  <OrderTimeline status={order.status} />
+                  <div className="mt-6 pt-6 border-t border-dashed border-[#EDD9B0]">
+                    <OrderStepper 
+                      status={order.status?.toLowerCase()} 
+                      timeline={(order.statusHistory || []).map(h => ({
+                        status: h.status,
+                        timestamp: h.timestamp
+                      }))}
+                    />
+                  </div>
                 </motion.div>
               );
             })}

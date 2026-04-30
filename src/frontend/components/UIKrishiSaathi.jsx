@@ -12,7 +12,7 @@ import {
   BarChart2,
   X,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useCart } from "@/frontend/contexts/CartContext";
 import { useUser } from "@/frontend/contexts/UserContext";
 import { getAuth, signOut } from "firebase/auth";
@@ -98,9 +98,9 @@ export default function ModernLayout({ children }) {
     try {
       const auth = getAuth();
       await signOut(auth);
-    } catch (e) {
+    } catch {
       // fallback: clear local user state if firebase signOut fails
-      try { clearUser(); } catch (err) {}
+      try { clearUser(); } catch { /* intentional */ }
     }
     toast.success("You've been logged out. See you soon! 👋", {
       toastId: 'logout',
@@ -244,6 +244,7 @@ export default function ModernLayout({ children }) {
           }`}
         >
           <nav className="space-y-1">
+            {/* eslint-disable-next-line no-unused-vars */}
             {navItems.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}

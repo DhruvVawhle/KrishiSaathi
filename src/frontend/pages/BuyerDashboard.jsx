@@ -4,12 +4,12 @@ import { useUser } from "@/frontend/contexts/UserContext";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart } from "@/frontend/contexts/CartContext";
 import { toast } from "react-toastify";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { auth } from "@/frontend/config/firebaseConfig";
 import {
   Bell, ShoppingCart, LogOut, ChevronDown, Search,
   ShoppingBag, IndianRupee, Star, ChevronRight,
-  Package, Clock, Copy, UserCheck, CheckCircle2,
+  Package, Clock, Copy, UserCheck, CheckCircle,
   Settings, UserCircle, ClipboardList, ShoppingBasket,
   XCircle, Plus
 } from "lucide-react";
@@ -25,7 +25,7 @@ import StatusBadge from '@/frontend/components/ui/StatusBadge';
 const BuyerDashboard = () => {
   const navigate = useNavigate();
   const { user: ctxUser } = useUser();
-  const { cart = [], removeFromCart, clearCart, updateQuantity } = useCart();
+  const { cart = [], removeFromCart: _removeFromCart, clearCart, updateQuantity: _updateQuantity } = useCart();
   const reduceMotion = useReducedMotion();
 
   // 1. All State Hooks
@@ -33,12 +33,12 @@ const BuyerDashboard = () => {
   const [query, setQuery] = useState("");
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [recommendations, setRecommendations] = useState([
+  const [_recommendations, setRecommendations] = useState([
     { name: "Tomato", cat: "Vegetables", price: "₹60/kg", img: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=100&auto=format&fit=crop" },
     { name: "Apple", cat: "Fruits", price: "₹180/kg", img: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=100&auto=format&fit=crop" },
     { name: "Spinach", cat: "Vegetables", price: "₹20/250g", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=100&auto=format&fit=crop" }
   ]);
-  const [recLabel, setRecLabel] = useState("Fresh Picks");
+  const [_recLabel, setRecLabel] = useState("Fresh Picks");
   const [counts, setCounts] = useState({ orders: 0, spent: 0, points: 0 });
   const [copied, setCopied] = useState(false);
 
@@ -92,7 +92,7 @@ const BuyerDashboard = () => {
     if (orders.length === 0) {
       return [
         { type: "Welcome", title: `Welcome, ${displayName}!`, time: "Just now", sub: "Glad to have you here.", icon: UserCheck, color: "#4CAF50" },
-        { type: "Profile", title: "Profile setup", time: "Today", sub: "Account created successfully", icon: CheckCircle2, color: "#2D4F1E" }
+        { type: "Profile", title: "Profile setup", time: "Today", sub: "Account created successfully", icon: CheckCircle, color: "#2D4F1E" }
       ];
     }
     return orders.slice(0, 5).map(o => {
@@ -637,7 +637,7 @@ const BuyerDashboard = () => {
             <div className="bd-promo-bx">
               <span className="bd-promo-code">{copied ? "COPIED" : "FRESH15"}</span>
               <button className={`bd-btn-copy ${copied ? 'success' : ''}`} onClick={handleCopyPromo}>
-                {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+                {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
               </button>
             </div>
 

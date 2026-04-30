@@ -286,7 +286,8 @@ const fetchLiveMandiData = async (
     )
 
     return validRecords
-
+  } catch (err) {
+    console.error('[fetchLiveMandiData] ❌ Error:', err.message);
     throw err;
   }
 }

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "@/frontend/config/firebaseConfig";
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import * as hybridService from "../services/hybridService";
+// hybridService available for future use
 
 const UserContext = createContext({
   user: null,

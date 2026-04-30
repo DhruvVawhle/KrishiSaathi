@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useTransition } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import {
   ComposedChart, Area, Line,
   XAxis, YAxis, CartesianGrid,
@@ -9,10 +9,7 @@ import {
 import {
   Table,
   Tag,
-  ConfigProvider,
-  Input as AntInput,
-  Typography,
-  Space
+  ConfigProvider
 } from 'antd'
 import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
@@ -40,9 +37,6 @@ import {
 import {
   safeDate,
   formatDate,
-  getDay,
-  getMonth,
-  getYear
 } from '@/frontend/utils/dateUtils'
 
 import {
@@ -998,7 +992,7 @@ const STATE_LANGUAGE_MAP = {
  */
 
 // Safe render — never crashes on objects
-const safeRender = (value, fallback = '') => {
+const _safeRender = (value, fallback = '') => {
   if (value === null || value === undefined) {
     return fallback
   }
@@ -1021,7 +1015,7 @@ const safeRender = (value, fallback = '') => {
 }
 
 const MandiRates = ({
-  farmerProducts = []
+  _farmerProducts = []
 }) => {
   const [commodity, setCommodity]
     = useState('')
@@ -1039,7 +1033,7 @@ const MandiRates = ({
   const [comparison, setComparison]
     = useState(null)
   const [history, setHistory] = useState([])
-  const [allRates, setAllRates] = useState([])
+  const [_allRates, _setAllRates] = useState([])
   const [loading, setLoading] = useState(false)
   const [predLoading, setPredLoading]
     = useState(false)
@@ -1050,13 +1044,13 @@ const MandiRates = ({
 
   const [searchQuery, setSearchQuery]
     = useState('')
-  const [currentPage, setCurrentPage]
+  const [_currentPage, setCurrentPage]
     = useState(1)
 
   const [commoditySearch, setCommoditySearch]
     = useState('')
 
-  const [isPending, startTransition] = useTransition()
+  const [_isPending, startTransition] = useTransition()
 
   // -- TABLE DATA PROCESSING --
   const filteredRecords = React.useMemo(() => {
@@ -1281,14 +1275,14 @@ const MandiRates = ({
           if (!raw) return ''
           const s = String(raw).trim()
           // Try DD/MM/YYYY or DD-MM-YYYY
-          const dmy = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/)
+          const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
           if (dmy) {
             const day = dmy[1].padStart(2, '0')
             const mon = MONTHS[parseInt(dmy[2], 10) - 1] || dmy[2]
             return `${day} ${mon}`
           }
           // Try YYYY-MM-DD or YYYY/MM/DD
-          const ymd = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/)
+          const ymd = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/)
           if (ymd) {
             const day = ymd[3].padStart(2, '0')
             const mon = MONTHS[parseInt(ymd[2], 10) - 1] || ymd[2]
@@ -1430,12 +1424,12 @@ const MandiRates = ({
       // Already in 'DD Mon' format (e.g., '06 Apr')?
       if (/^\d{1,2}\s[A-Z][a-z]{2}$/.test(s)) return s
       // DD/MM or DD/MM/YYYY
-      const dmy = s.match(/^(\d{1,2})[\/-](\d{1,2})(?:[\/-]\d{2,4})?$/)
+      const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-]\d{2,4})?$/)
       if (dmy) {
         return `${dmy[1].padStart(2, '0')} ${MONTHS_SHORT[parseInt(dmy[2], 10) - 1] || dmy[2]}`
       }
       // YYYY-MM-DD
-      const ymd = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/)
+      const ymd = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/)
       if (ymd) {
         return `${ymd[3].padStart(2, '0')} ${MONTHS_SHORT[parseInt(ymd[2], 10) - 1] || ymd[2]}`
       }
@@ -1755,7 +1749,7 @@ const MandiRates = ({
   }
 
   // Get label to show in dropdown
-  const getCommodityDisplayLabel = (c) => {
+  const _getCommodityDisplayLabel = (c) => {
     if (!c.value) return c.label
 
     const localName = getLocalName(c)
@@ -1778,7 +1772,7 @@ const MandiRates = ({
   }
 
   // Get search placeholder based on state
-  const getSearchPlaceholder = () => {
+  const _getSearchPlaceholder = () => {
     const examples = {
       'Maharashtra':
         'टोमॅटो, कांदा, बटाटा...',

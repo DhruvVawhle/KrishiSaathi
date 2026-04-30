@@ -6,29 +6,13 @@ import {
   ChevronDown, Instagram, Twitter, Facebook, MessageCircle,
   Clock, Check, Leaf
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useToast } from "@/frontend/contexts/ToastContext";
 import { updateSEO } from '@/frontend/utils/seo';
 import Breadcrumb from '@/frontend/components/ui/Breadcrumb';
 import "./Contact.css";
 import Input from "@/frontend/components/ui/Input";
 import Button from "@/frontend/components/ui/Button";
 
-// Custom Intersection Observer Hook (bypasses Framer Motion whileInView bugs)
-const useInView = (opts = {}) => {
-  const ref = useRef(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setInView(true); obs.disconnect(); }
-    }, { threshold: 0.1, ...opts });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [opts]);
-  return [ref, inView];
-};
+
 
 const FadeIn = ({ children, delay = 0, y = 30, duration = 0.5, className = "", style = {}, ...props }) => {
   return (
@@ -74,9 +58,6 @@ const FAQS = [
 ];
 
 const Contact = () => {
-  const navigate = useNavigate();
-  const toast = useToast();
-
   useEffect(() => {
     updateSEO('/contact');
   }, []);

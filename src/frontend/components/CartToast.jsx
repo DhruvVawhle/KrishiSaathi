@@ -1,6 +1,6 @@
 // src/frontend/components/CartToast.jsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { CheckCircle, X } from "lucide-react";
 import "./CartSidebar.css";
 

@@ -98,7 +98,7 @@ const ProductImage = ({ src, name, category }) => {
                     position: 'absolute', inset: 0
                 }}
                 onLoad={() => setStatus('loaded')}
-                onError={(e) => {
+                onError={(_e) => {
                     setStatus('error');
                     console.warn(`❌ Image failed: ${name} → ${src}`);
                 }}
@@ -136,7 +136,7 @@ const MarketProductCard = memo(({
     onQuantityChange,
     onAddToCart,
     onQuickView,
-    isAdded = false,
+    isAdded: _isAdded = false,
     isOwner = false,
     editState = {},
     onStartEdit,
@@ -144,7 +144,7 @@ const MarketProductCard = memo(({
     onEditField,
     onSaveEdit,
     onIncrementStock,
-    index = 0,
+    index: _index = 0,
 }) => {
     const cardRef = useRef(null);
 

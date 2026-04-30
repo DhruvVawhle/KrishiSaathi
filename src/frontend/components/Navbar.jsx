@@ -9,7 +9,7 @@ import {
   User,
   Search as SearchIcon,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useCart } from "@/frontend/contexts/CartContext";
 import Button from "./ui/Button";
 

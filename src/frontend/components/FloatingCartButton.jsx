@@ -1,6 +1,6 @@
 // src/frontend/components/FloatingCartButton.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart } from "lucide-react";
 import { useCart } from "@/frontend/contexts/CartContext";
 import "./FloatingCartButton.css";
