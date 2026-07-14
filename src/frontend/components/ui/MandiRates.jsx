@@ -1270,7 +1270,7 @@ const MandiRates = ({
       const data = await fetchJSON(url, { signal })
       if (data.aborted) return
       if (data.success && Array.isArray(data.history)) {
-        const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         const formatHistDate = (raw) => {
           if (!raw) return ''
           const s = String(raw).trim()
@@ -1417,7 +1417,7 @@ const MandiRates = ({
     const points = []
 
     // Helper: normalize date labels to 'DD Mon' format
-    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const normalizeDate = (raw) => {
       if (!raw) return ''
       const s = String(raw).trim()
@@ -1436,20 +1436,20 @@ const MandiRates = ({
       return s
     }
 
-    // Helper: safe kg conversion handling both qtl and kg values
-    const safeKg = (val) => {
+    // Helper: safely parse a price value (backend already returns ₹/kg)
+    const safePrice = (val) => {
       if (val === null || val === undefined) return null
       const n = parseFloat(String(val))
-      if (isNaN(n) || !isFinite(n)) return null
-      // Auto-detect quintal vs kg: values > 100 are likely quintal
-      return n > 100 ? Math.round((n / 100) * 100) / 100 : Math.round(n * 100) / 100
+      if (isNaN(n) || !isFinite(n) || n <= 0) return null
+      return Math.round(n * 100) / 100
     }
 
     // ── HISTORICAL DATA ──────────────────
     // Priority 1: history state from /api/mandi/history
+    // Backend read_historical() already returns modal_price in ₹/kg via to_kg()
     if (Array.isArray(history) && history.length > 0) {
       history.slice(-15).forEach(h => {
-        const kg = toKg(h.modal)
+        const kg = safePrice(h.modal)
         if (!kg) return
         points.push({
           date: normalizeDate(h.date),
@@ -1464,7 +1464,8 @@ const MandiRates = ({
     if (points.filter(p => p.type === 'historical').length === 0 && forecastData?.historical_chart) {
       const histChart = forecastData.historical_chart.filter(d => d.type === 'actual')
       histChart.forEach(h => {
-        const kg = safeKg(h.price)
+        // predict endpoint returns prices already in ₹/kg
+        const kg = safePrice(h.price)
         if (!kg) return
         points.push({
           date: normalizeDate(h.date) || '',
@@ -1477,7 +1478,8 @@ const MandiRates = ({
     }
 
     // ── TODAY BRIDGE POINT ──────────────
-    const todayKg = safeKg(
+    // price_kg and current_price are already in ₹/kg
+    const todayKg = safePrice(
       forecastData?.today_mandi?.price_kg
       || forecastData?.current_price
     )
@@ -1501,17 +1503,18 @@ const MandiRates = ({
     if (Array.isArray(rawPredictions) && rawPredictions.length > 0) {
       rawPredictions.slice(0, 7).forEach((item, i) => {
         // Handle both object {date, price} and plain number formats
+        // Python predict returns prices already in ₹/kg
         const rawPrice = typeof item === 'number' ? item : (item?.price || 0)
-        const kg = safeKg(rawPrice)
+        const kg = safePrice(rawPrice)
         if (!kg) return
 
         const dateLabel = (typeof item === 'object' && item?.date)
           ? item.date
           : (() => {
-              const d = new Date()
-              d.setDate(d.getDate() + i + 1)
-              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-            })()
+            const d = new Date()
+            d.setDate(d.getDate() + i + 1)
+            return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+          })()
 
         points.push({
           date: dateLabel,
@@ -1531,6 +1534,34 @@ const MandiRates = ({
 
     return points
   }, [history, forecastData, state, toKg])
+
+  // Compute Y-axis domain from actual data (exclude nulls/zeros for tight fit)
+  const yDomain = React.useMemo(() => {
+    const prices = chartData
+      .flatMap(p => [p.actual, p.predicted])
+      .filter(v => v !== null && v !== undefined && !isNaN(v) && v > 0)
+
+    if (prices.length === 0) return [0, 100]
+
+    const dataMin = Math.min(...prices)
+    const dataMax = Math.max(...prices)
+    const range = dataMax - dataMin
+
+    // If all values are the same or very close, create a visible range
+    if (range < 1) {
+      return [
+        Math.max(0, Math.floor(dataMin - 5)),
+        Math.ceil(dataMax + 5)
+      ]
+    }
+
+    // Pad 20% above and below for visible fluctuations
+    const pad = range * 0.25
+    return [
+      Math.max(0, Math.floor(dataMin - pad)),
+      Math.ceil(dataMax + pad)
+    ]
+  }, [chartData])
 
   // Memoize summary statistics
   const summary = React.useMemo(() => {
@@ -1612,7 +1643,7 @@ const MandiRates = ({
   // Memoized search results for high performance
   const filteredCommodities = React.useMemo(() => {
     const query = (commoditySearch || '').toLowerCase().trim()
-    
+
     // If query is empty, return top commodities or full list
     if (!query) {
       return COMMODITIES.slice(0, 100) // Show first 100 as default
@@ -1995,53 +2026,53 @@ const MandiRates = ({
             }}
           >
             <div style={{ position: 'relative' }}>
-                <ComboboxButton
-                  as="div"
+              <ComboboxButton
+                as="div"
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  cursor: 'text',
+                  overflow: 'hidden',
+                  borderRadius: 12,
+                  background: '#FDFAF4',
+                  border: '1.5px solid #EDD9B0',
+                }}
+              >
+                <ComboboxInput
                   style={{
-                    position: 'relative',
                     width: '100%',
-                    cursor: 'text',
-                    overflow: 'hidden',
-                    borderRadius: 12,
-                    background: '#FDFAF4',
-                    border: '1.5px solid #EDD9B0',
+                    border: 'none',
+                    padding: '12px 14px 12px 40px',
+                    fontSize: 14,
+                    lineHeight: '20px',
+                    color: '#2D4F1E',
+                    background: 'transparent',
+                    fontFamily: 'DM Sans',
+                    outline: 'none'
                   }}
-                >
-                  <ComboboxInput
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      padding: '12px 14px 12px 40px',
-                      fontSize: 14,
-                      lineHeight: '20px',
-                      color: '#2D4F1E',
-                      background: 'transparent',
-                      fontFamily: 'DM Sans',
-                      outline: 'none'
-                    }}
-                    displayValue={(c) => c?.label || ''}
-                    onChange={(event) => setCommoditySearch(event.target.value)}
-                    onFocus={(e) => {
-                      // Auto-select text on focus to allow easy over-typing
-                      e.target.select();
-                      // Clear search query to show full list
-                      setCommoditySearch('');
-                    }}
-                    placeholder={`🔍 Search ${getLanguageLabel()}`}
-                  />
-                  <div style={{
-                    position: 'absolute',
-                    left: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#B0A898',
-                    display: 'flex',
-                    alignItems: 'center',
-                    pointerEvents: 'none'
-                  }}>
-                    <Search size={16} />
-                  </div>
-                </ComboboxButton>
+                  displayValue={(c) => c?.label || ''}
+                  onChange={(event) => setCommoditySearch(event.target.value)}
+                  onFocus={(e) => {
+                    // Auto-select text on focus to allow easy over-typing
+                    e.target.select();
+                    // Clear search query to show full list
+                    setCommoditySearch('');
+                  }}
+                  placeholder={`🔍 Search ${getLanguageLabel()}`}
+                />
+                <div style={{
+                  position: 'absolute',
+                  left: 14,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#B0A898',
+                  display: 'flex',
+                  alignItems: 'center',
+                  pointerEvents: 'none'
+                }}>
+                  <Search size={16} />
+                </div>
+              </ComboboxButton>
 
               <ComboboxOptions
                 transition
@@ -2079,7 +2110,7 @@ const MandiRates = ({
                       }}
                     >
                       {({ selected, focus }) => (
-                        <div style={{ 
+                        <div style={{
                           background: focus ? 'rgba(45,79,30,0.08)' : 'transparent',
                           padding: '4px 8px',
                           borderRadius: 6
@@ -2709,7 +2740,7 @@ const MandiRates = ({
                     style: { marginTop: 32, fontFamily: 'DM Sans', fontWeight: 500 }
                   }}
                   rowClassName={(record, index) => index % 2 === 0 ? 'table-row-light' : 'table-row-dark'}
-                  style={{ 
+                  style={{
                     fontFamily: 'DM Sans',
                     border: '1px solid #EDD9B0',
                     borderRadius: 12,
@@ -2736,8 +2767,8 @@ const MandiRates = ({
                   ? 'rgba(45,79,30,0.10)'
                   : 'rgba(226,125,96,0.10)',
                 border: `1px solid ${(typeof prediction.model === 'object' && prediction.model?.is_arima)
-                    ? 'rgba(45,79,30,0.20)'
-                    : 'rgba(226,125,96,0.20)'
+                  ? 'rgba(45,79,30,0.20)'
+                  : 'rgba(226,125,96,0.20)'
                   }`,
                 marginBottom: 12,
                 flexShrink: 0
@@ -2960,15 +2991,9 @@ const MandiRates = ({
                       />
 
                       <YAxis
-                        domain={([min, max]) => {
-                          const pad = (max - min) * 0.20
-                          return [
-                            Math.max(0,
-                              Math.floor(min - pad)
-                            ),
-                            Math.ceil(max + pad)
-                          ]
-                        }}
+                        domain={yDomain}
+                        allowDataOverflow={false}
+                        tickCount={6}
                         tickFormatter={v =>
                           `₹${v}`
                         }

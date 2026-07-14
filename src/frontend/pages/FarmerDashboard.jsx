@@ -1658,64 +1658,29 @@ const FarmerDashboard = () => {
                 </div>
               </motion.div>
 
-              {/* KPI Cards */}
-              <div className="fd-stats-grid">
-                <Card className="fd-stat-card" style={{ padding: '24px', position: 'relative' }}>
-                  <div className="fd-sc-bg-shape"></div>
-                  <div className="fd-sc-top">
-                    <div className="fd-sc-icon-box" style={{ background: "rgba(45, 79, 30, 0.1)", color: "#2D4F1E" }}>
-                      <span style={{ fontSize: "20px" }}>📦</span>
+              {/* KPI Stats — Single Unified Card */}
+              <Card className="fd-stats-unified" style={{ padding: 0, position: 'relative', overflow: 'hidden' }}>
+                <div className="fd-stats-unified-inner">
+                  {[
+                    { icon: '📦', value: stats?.totalProducts || 0, label: 'Total Listings', sub: 'Active in marketplace', color: '#2D4F1E' },
+                    { icon: '📊', value: stats?.totalStock || 0, label: 'Total Units', sub: 'Available across listings', color: '#4CAF50' },
+                    { icon: '⚠️', value: stats?.lowStock || 0, label: 'Low Stock', sub: '< 5 units remaining', color: '#E27D60' },
+                    { icon: '🔒', value: stats?.unpublished || 0, label: 'Unpublished', sub: 'Hidden from buyers', color: '#7A7A7A' }
+                  ].map((item, idx, arr) => (
+                    <div key={item.label} className="fd-stats-unified-col">
+                      <div className="fd-stats-unified-icon" style={{ background: `${item.color}12`, color: item.color }}>
+                        <span>{item.icon}</span>
+                      </div>
+                      <div className="fd-stats-unified-value" style={{ color: item.color }}>
+                        <Counter value={item.value} />
+                      </div>
+                      <div className="fd-stats-unified-label">{item.label}</div>
+                      <div className="fd-stats-unified-sub">{item.sub}</div>
+                      {idx < arr.length - 1 && <div className="fd-stats-unified-divider" />}
                     </div>
-                    <StatusBadge status="Delivered" text="Live" />
-                  </div>
-                  <div className="fd-sc-value"><Counter value={stats?.totalProducts || 0} /></div>
-                  <div className="fd-sc-label">Total Listings</div>
-                  <div className="fd-sc-sub">Active in marketplace</div>
-                </Card>
-
-                <Card className="fd-stat-card" style={{ padding: '24px', position: 'relative' }}>
-                  <div className="fd-sc-bg-shape" style={{ backgroundColor: "#4CAF50" }}></div>
-                  <div className="fd-sc-top">
-                    <div className="fd-sc-icon-box" style={{ background: "rgba(76, 175, 80, 0.1)", color: "#4CAF50" }}>
-                      <span style={{ fontSize: "20px" }}>📊</span>
-                    </div>
-                    <StatusBadge status="Delivered" text="Stocked" />
-                  </div>
-                  <div className="fd-sc-value"><Counter value={stats?.totalStock || 0} /></div>
-                  <div className="fd-sc-label">Total Units</div>
-                  <div className="fd-sc-sub">Available across listings</div>
-                </Card>
-
-                <Card className="fd-stat-card" style={{ padding: '24px', position: 'relative' }}>
-                  <div className="fd-sc-bg-shape" style={{ backgroundColor: "#E27D60" }}></div>
-                  <div className="fd-sc-top">
-                    <div className="fd-sc-icon-box" style={{ background: "rgba(226, 125, 96, 0.1)", color: "#E27D60" }}>
-                      <span style={{ fontSize: "20px" }}>⚠️</span>
-                    </div>
-                    <StatusBadge status="processing" text="Action Req" />
-                  </div>
-                  <div className="fd-sc-value" style={{ color: "#E27D60" }}>
-                    <Counter value={stats?.lowStock || 0} />
-                  </div>
-                  <div className="fd-sc-label">Low Stock</div>
-                  <div className="fd-sc-sub">&lt; 5 units remaining</div>
-                </Card>
-
-                <Card className="fd-stat-card" style={{ padding: '24px', position: 'relative' }}>
-                  <div className="fd-sc-bg-shape" style={{ backgroundColor: "#7A7A7A" }}></div>
-                  <div className="fd-sc-top">
-                    <div className="fd-sc-icon-box" style={{ background: "rgba(122, 122, 122, 0.1)", color: "#7A7A7A" }}>
-                      <span style={{ fontSize: "20px" }}>🔒</span>
-                    </div>
-                    <StatusBadge status="Cancelled" text="Drafts" />
-                  </div>
-                  <div className="fd-sc-value" style={{ color: "#7A7A7A" }}>
-                    <Counter value={stats?.unpublished || 0} />
-                  </div>
-                  <div className="fd-sc-label">Unpublished</div>
-                  <div className="fd-sc-sub">Hidden from buyers</div>
-                </Card>
-              </div>
+                  ))}
+                </div>
+              </Card>
 
               <div className="fd-bottom-row">
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="fd-rev-card">

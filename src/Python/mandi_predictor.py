@@ -262,28 +262,52 @@ def read_trend(commodity):
       continue
   return []
 
+def to_kg(price):
+  """Smart ₹/qtl → ₹/kg conversion.
+  mandi_rates.csv has prices in ₹/kg (17, 38)
+  Dataset.csv/commodity_price.csv use ₹/qtl (1700, 2850)
+  Heuristic: if price >= 500, it's ₹/qtl → divide by 100
+  """
+  if price is None or price <= 0:
+    return 0
+  if price >= 500:
+    return round(price / 100, 2)
+  return round(price, 2)
+
 def read_historical(
   commodity, state='Maharashtra', market=''
 ):
-  """Read Dataset.csv for state prices using pandas for speed"""
+  """Read CSV files for state prices using pandas for speed"""
   global _HISTORICAL_CACHE
   key_cache = f"{commodity}_{state}_{market}".lower()
   if key_cache in _HISTORICAL_CACHE:
     return _HISTORICAL_CACHE[key_cache]
   
   results = []
+  # Order: smallest files first, giant 55MB file last (skip if we have data)
   target_files = [
+    'mandi_rates.csv',
+    'commodity_price.csv',
     'Dataset.csv',
     'Dataset (1).csv',
-    'commodity_price.csv',
-    'Agriculture_price_dataset.csv',
-    'mandi_rates.csv'
+    'Agriculture_price_dataset.csv',  # 55MB — only read if desperate
   ]
+
+  # Build commodity aliases once for fast matching
+  aliases = get_aliases(commodity)
+  alias_lower = [a.lower() for a in aliases]
 
   for fname in target_files:
     fp = BASE / fname
     if not fp.exists():
       continue
+
+    # Skip the 55MB file if we already have enough results
+    file_size = fp.stat().st_size
+    if file_size > 10_000_000 and len(results) >= 5:
+      print(f"Skipping large file {fname} ({file_size} bytes) — already have {len(results)} results", file=sys.stderr)
+      continue
+
     try:
       # Use pandas for much faster reading of large CSVs
       if PANDAS_AVAILABLE:
@@ -303,14 +327,17 @@ def read_historical(
         # Read a small sample to find which columns exist
         sample = pd.read_csv(fp, nrows=1)
         actual_cols = []
-        for key, aliases in col_maps.items():
-            for alias in aliases:
+        for key_name, col_aliases in col_maps.items():
+            for alias in col_aliases:
                 if alias in sample.columns:
                     actual_cols.append(alias)
                     break
         
-        # Read the full file with only necessary columns
-        df = pd.read_csv(fp, usecols=actual_cols)
+        # For very large files, limit rows read
+        nrows_limit = 50000 if file_size > 10_000_000 else None
+        
+        # Read the file with only necessary columns
+        df = pd.read_csv(fp, usecols=actual_cols, nrows=nrows_limit)
         
         # Find the actual used columns in this specific file
         f_state = next((c for c in col_maps['State'] if c in df.columns), None)
@@ -324,13 +351,20 @@ def read_historical(
         f_vars = next((c for c in col_maps['Variety'] if c in df.columns), None)
 
         if f_state and f_comm:
-          # Faster filtering with pandas
-          mask = (df[f_state].astype(str).str.lower().str.contains(state.lower())) & \
-                 (df[f_comm].astype(str).apply(lambda x: matches(x, commodity)))
+          # Vectorized filtering — much faster than .apply(lambda)
+          state_mask = df[f_state].astype(str).str.lower().str.contains(state.lower(), na=False)
           
+          # Build commodity mask using vectorized OR of all aliases
+          comm_col = df[f_comm].astype(str).str.lower()
+          comm_mask = pd.Series(False, index=df.index)
+          for al in alias_lower:
+            comm_mask = comm_mask | comm_col.str.contains(al, na=False)
+          
+          mask = state_mask & comm_mask
           filtered_df = df[mask]
           
-          for _, row in filtered_df.iterrows():
+          # Limit results from any single file
+          for _, row in filtered_df.head(200).iterrows():
             mod_p = clean_price(row[f_modal]) if f_modal else 0
             if mod_p and mod_p > 0:
               min_p = clean_price(row[f_min]) if f_min else 0
@@ -343,15 +377,20 @@ def read_historical(
                 'commodity': str(row[f_comm]).strip(),
                 'variety':   str(row[f_vars]).strip() if f_vars else '',
                 'date':      str(row[f_date]).strip() if f_date else '',
-                'min_price': round(min_p/100, 2) if min_p else 0,
-                'max_price': round(max_p/100, 2) if max_p else 0,
-                'modal_price': round(mod_p/100, 2)
+                'min_price': to_kg(min_p),
+                'max_price': to_kg(max_p),
+                'modal_price': to_kg(mod_p)
               })
       else:
         # Fallback to csv.DictReader if pandas is not available
         with open(fp, 'r', encoding='utf-8-sig') as f:
           reader = csv.DictReader(f)
+          row_count = 0
           for row in reader:
+            row_count += 1
+            # For huge files without pandas, limit scan
+            if file_size > 10_000_000 and row_count > 50000:
+              break
             r_state = str(row.get('State') or row.get('STATE') or '').strip()
             r_comm  = str(row.get('Commodity') or '').strip()
             if state.lower() not in r_state.lower(): continue
@@ -367,9 +406,9 @@ def read_historical(
                 'commodity': r_comm,
                 'variety':   str(row.get('Variety') or '').strip(),
                 'date':      (row.get('Arrival_Date') or row.get('Price Date') or row.get('Date') or '').strip(),
-                'min_price': round(min_p/100, 2) if min_p else 0,
-                'max_price': round(max_p/100, 2) if max_p else 0,
-                'modal_price': round(mod_p/100, 2)
+                'min_price': to_kg(min_p),
+                'max_price': to_kg(max_p),
+                'modal_price': to_kg(mod_p)
               })
     except Exception as e:
       print(f"Historical error reading {fname}: {e}", file=sys.stderr)
@@ -603,8 +642,8 @@ def smart_predict(prices, steps=7):
       # Reject if predictions are
       # unrealistically extreme
       last_price = prices[-1]
-      max_allowed = last_price * 10
-      min_allowed = last_price * 0.1
+      max_allowed = last_price * 3
+      min_allowed = last_price * 0.3
 
       valid = all(
         min_allowed <= p <= max_allowed
@@ -670,6 +709,10 @@ def predict(commodity, current_price_kg, state='Maharashtra', market='Delhi'):
   except ValueError:
     # If price is missing or invalid, try to find it from today's data or fallback to 0
     price = 0
+
+  # Defensive: if price looks like ₹/qtl (>= 500), convert to ₹/kg
+  if price >= 500:
+    price = round(price / 100, 2)
 
   # Get data sources
   trend_data  = read_trend(commodity)
@@ -752,6 +795,9 @@ def predict(commodity, current_price_kg, state='Maharashtra', market='Delhi'):
   diff  = last - price
   pct   = round((diff / price) * 100, 1) \
           if price > 0 else 0
+
+  # Cap extreme percentages — anything beyond ±100% is unrealistic for 7-day forecast
+  pct = max(-100, min(100, pct))
 
   if pct > 4:
     trend_label = 'rising'
@@ -900,15 +946,17 @@ def get_rates(
       })
 
   for h in historical[:15]:
+    # historical modal_price is already in ₹/kg (via to_kg)
+    h_kg = h['modal_price']
     rates.append({
       'market':      h['market'],
       'district':    h['district'],
       'commodity':   h['commodity'],
       'variety':     h['variety'],
-      'min_price':   h['min_price'] * 100 if h['min_price'] else 0,
-      'max_price':   h['max_price'] * 100 if h['max_price'] else 0,
-      'modal_price': h['modal_price'] * 100 if h['modal_price'] else 0,
-      'modal_price_kg': h['modal_price'],
+      'min_price':   round(h['min_price'] * 100, 2) if h['min_price'] and h['min_price'] < 500 else h['min_price'] or 0,
+      'max_price':   round(h['max_price'] * 100, 2) if h['max_price'] and h['max_price'] < 500 else h['max_price'] or 0,
+      'modal_price': round(h_kg * 100, 2) if h_kg and h_kg < 500 else h_kg or 0,
+      'modal_price_kg': h_kg,
       'arrival_date':h['date'],
       'source':      'AGMARKNET Dataset'
     })

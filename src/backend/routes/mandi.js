@@ -15,8 +15,10 @@ const __dirname = path.dirname(
 // Advanced LRU Cache
 const CACHE = new LRUCache({
   max: 500, // Maximum items in cache
-  ttl: 60 * 60 * 1000, // 1 hour TTL
+  ttl: 10 * 60 * 1000, // 10 minute TTL
 });
+// Clear stale cache on module load (ensures fresh data after code changes)
+CACHE.clear();
 
 const getCache = (key) => CACHE.get(key);
 const setCache = (key, data) => CACHE.set(key, data);
@@ -194,7 +196,7 @@ const fetchLiveMandiData = async (
 
     // Fetch via axios to avoid Node 18 undici TLS issues
     const response = await axios.get(url, {
-      timeout: 10000,
+      timeout: 20000,
       headers: {
         'Accept': 'application/json'
       }
@@ -552,7 +554,7 @@ router.get('/history', async (req, res) => {
 
     const history = await runPython([
       'history', commodity, state
-    ])
+    ], 60000) // 60s timeout for large CSV parsing
 
     const result = {
       success: true,
@@ -567,10 +569,14 @@ router.get('/history', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[/api/mandi/history] Error:', err.message)
-    res.status(500).json({
-      success: false,
-      error: err.message,
-      route: '/api/mandi/history'
+    // Graceful degradation: return empty history instead of 500
+    // so the UI can still render
+    res.json({
+      success: true,
+      commodity: req.query.commodity || 'Tomato',
+      history: [],
+      count: 0,
+      warning: 'Historical data temporarily unavailable'
     })
   }
 })
